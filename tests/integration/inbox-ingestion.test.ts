@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client } from "pg";
 import {
   ORG_A,
+  ITEM_CARTON,
+  LOCATION_MAIN,
   seedInboxData,
   cleanupMessages,
   resetPoSchedules,
@@ -220,6 +222,39 @@ describe("AT-04 multi-line partial delay", () => {
       "delay",
       "split",
     ]);
+
+    // Every new schedule carries the dataset_id/external_id of the schedule
+    // it supersedes so projections and re-imports keep linking it.
+    const derived = await client.query(
+      `select n.dataset_id, n.external_id, o.dataset_id as old_dataset_id,
+              o.external_id as old_external_id
+       from public.receipt_schedules n
+       join public.receipt_schedules o on o.id = n.supersedes_id
+       where n.org_id = $1 and n.po_line_id = any($2::uuid[])`,
+      [ORG_A, [fixture.po1042LineId, fixture.po1043LineId]],
+    );
+    expect(derived.rows.length).toBe(3);
+    for (const row of derived.rows) {
+      expect(row.dataset_id).toBe(row.old_dataset_id);
+      expect(row.external_id).toBe(row.old_external_id);
+      expect(row.dataset_id).toBe(fixture.datasetId);
+    }
+
+    // The projection engine sees the delayed carton schedule in the active
+    // dataset (superseded rows are filtered out).
+    const facts = await client.query(
+      `select public.load_projection_facts($1, $2, $3) as facts`,
+      [ORG_A, ITEM_CARTON, LOCATION_MAIN],
+    );
+    const receipts = (facts.rows[0].facts as {
+      receipts: { quantity_remaining: number; earliest_at: string }[];
+    }).receipts;
+    const delayedReceipt = receipts.find((r) => r.quantity_remaining === 200);
+    expect(delayedReceipt).toBeTruthy();
+    expect(new Date(delayedReceipt!.earliest_at).toISOString()).toBe(
+      "2026-10-16T15:00:00.000Z",
+    );
+    expect(receipts.every((r) => r.quantity_remaining !== 4000)).toBe(true);
 
     // Outbox envelope ids match the event_outbox columns.
     const outbox = await client.query(

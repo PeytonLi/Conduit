@@ -46,7 +46,7 @@ export function loadReplayMessages(
     .sort()
     .map((f) => ({
       filename: f,
-      raw: readFileSync(/* turbopackIgnore: true */ join(dir, f)),
+      raw: readFileSync(join(/* turbopackIgnore: true */ dir, f)),
     }));
 }
 
