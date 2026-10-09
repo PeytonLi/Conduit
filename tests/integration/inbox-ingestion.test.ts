@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client } from "pg";
 import {
-  ORG_A,
-  ITEM_CARTON,
-  LOCATION_MAIN,
+  fixture.orgId,
+  fixture.itemCartonId,
+  fixture.locationId,
   seedInboxData,
   cleanupMessages,
   resetPoSchedules,
@@ -23,6 +23,7 @@ import {
   resolveMessageMatch,
 } from "@/lib/db/cases-open";
 import { ingestReplayMessages } from "@/lib/integrations/gmail/replay";
+import { toPublishedEvent } from "@/lib/workflows/outbox";
 
 const MESSAGES_DIR = "tests/fixtures/harbor-pack/messages";
 
@@ -32,11 +33,11 @@ const rpc = () => pgRpcClient(client);
 const deps = { mode: "replay" as const };
 
 async function ingestFile(filename: string, historical = false) {
-  const connectionId = await ensureInboxConnection(rpc(), ORG_A, "replay_inbox");
+  const connectionId = await ensureInboxConnection(rpc(), fixture.orgId, "replay_inbox");
   const raw = readFileSync(join(MESSAGES_DIR, filename));
   return ingestMessage({
     rpc: rpc(),
-    orgId: ORG_A,
+    orgId: fixture.orgId,
     connectionId,
     providerMessageId: `replay:${filename}`,
     raw,
@@ -48,12 +49,12 @@ async function ingestFile(filename: string, historical = false) {
 beforeAll(async () => {
   client = pgClient();
   await client.connect();
-  await cleanupMessages(client, ORG_A);
+  // Dedicated org per file: nothing pre-existing to clean.
   fixture = await seedInboxData(client);
 });
 
 afterAll(async () => {
-  await cleanupMessages(client, ORG_A);
+  await cleanupMessages(client, fixture.orgId);
   await fixture.cleanup();
   await client.end();
 });
@@ -68,20 +69,20 @@ describe("AT-03 dedupe and idempotent processing", () => {
     const msgs = await client.query(
       `select count(*) from public.source_messages
        where org_id = $1 and provider_message_id = 'replay:delay-po-1042.eml'`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(Number(msgs.rows[0].count)).toBe(1);
     const outbox = await client.query(
       `select count(*) from public.event_outbox
        where org_id = $1 and event_type = 'supplier.message.received'
          and aggregate_id = $2`,
-      [ORG_A, first.source_message_id],
+      [fixture.orgId, first.source_message_id],
     );
     expect(Number(outbox.rows[0].count)).toBe(1);
 
     const r1 = await processSourceMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       sourceMessageId: first.source_message_id,
       mode: "auto",
       deps,
@@ -92,7 +93,7 @@ describe("AT-03 dedupe and idempotent processing", () => {
 
     const r2 = await processSourceMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       sourceMessageId: first.source_message_id,
       mode: "auto",
       deps,
@@ -103,35 +104,49 @@ describe("AT-03 dedupe and idempotent processing", () => {
 
     const commits = await client.query(
       `select count(*) from public.commitment_events where org_id = $1`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(Number(commits.rows[0].count)).toBe(1);
     const cases = await client.query(
       `select count(*) from public.cases c
        join public.case_order_lines col on col.case_id = c.id and col.org_id = c.org_id
        where c.org_id = $1 and col.triggering_message_id = $2`,
-      [ORG_A, first.source_message_id],
+      [fixture.orgId, first.source_message_id],
     );
     expect(Number(cases.rows[0].count)).toBe(1);
     const assessments = await client.query(
-      `select event_id, correlation_id, payload from public.event_outbox
+      `select event_id, org_id, aggregate_id, correlation_id, causation_id,
+              event_type, schema_version, payload, created_at, attempts
+       from public.event_outbox
        where org_id = $1 and event_type = 'case.assessment.requested'`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(assessments.rows).toHaveLength(1);
-    // The outbox columns and the payload envelope share the same ids.
-    expect(assessments.rows[0].payload.event_id).toBe(
-      assessments.rows[0].event_id,
+    // Bare payload: toPublishedEvent adds the envelope fields at publish time.
+    expect(assessments.rows[0].payload).toEqual({
+      case_id: r1.case_ids[0],
+      source_version: expect.any(Number),
+    });
+
+    // The published event shape toPublishedEvent produces.
+    const received = await client.query(
+      `select event_id, org_id, aggregate_id, correlation_id, causation_id,
+              event_type, schema_version, payload, created_at, attempts
+       from public.event_outbox
+       where org_id = $1 and event_type = 'supplier.message.received'`,
+      [fixture.orgId],
     );
-    expect(assessments.rows[0].payload.correlation_id).toBe(
-      assessments.rows[0].correlation_id,
-    );
+    expect(received.rows).toHaveLength(1);
+    const published = toPublishedEvent(received.rows[0]);
+    expect(published.data.message_id).toBe(first.source_message_id);
+    expect(published.data.org_id).toBe(fixture.orgId);
+    expect(published.id).toBe(received.rows[0].event_id);
 
     // Exactly one extraction was recorded across both processing attempts.
     const extractions = await client.query(
       `select count(*) from public.message_extractions
        where org_id = $1 and source_message_id = $2`,
-      [ORG_A, first.source_message_id],
+      [fixture.orgId, first.source_message_id],
     );
     expect(Number(extractions.rows[0].count)).toBe(1);
   });
@@ -145,7 +160,7 @@ describe("AT-04 multi-line partial delay", () => {
     );
     const r = await processSourceMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       sourceMessageId: mid,
       mode: "auto",
       deps,
@@ -159,7 +174,7 @@ describe("AT-04 multi-line partial delay", () => {
       `select promise_state, quantity_remaining, earliest_at, latest_at
        from public.receipt_schedules
        where org_id = $1 and po_line_id = $2 order by created_at`,
-      [ORG_A, fixture.po1042LineId],
+      [fixture.orgId, fixture.po1042LineId],
     );
     const active1042 = s1042.rows.filter(
       (row) => row.promise_state !== "superseded",
@@ -181,7 +196,7 @@ describe("AT-04 multi-line partial delay", () => {
       `select promise_state, quantity_remaining, earliest_at, latest_at
        from public.receipt_schedules
        where org_id = $1 and po_line_id = $2 and promise_state <> 'superseded'`,
-      [ORG_A, fixture.po1043LineId],
+      [fixture.orgId, fixture.po1043LineId],
     );
     expect(s1043.rows).toHaveLength(1);
     expect(s1043.rows[0].quantity_remaining).toBe(1000);
@@ -196,7 +211,7 @@ describe("AT-04 multi-line partial delay", () => {
     const links = await client.query(
       `select case_id, po_line_id from public.case_order_lines
        where org_id = $1 and triggering_message_id = $2 order by po_line_id`,
-      [ORG_A, mid],
+      [fixture.orgId, mid],
     );
     expect(links.rows).toHaveLength(2);
     expect(new Set(links.rows.map((l) => l.case_id)).size).toBe(2);
@@ -205,7 +220,7 @@ describe("AT-04 multi-line partial delay", () => {
     const s1044 = await client.query(
       `select promise_state, quantity_remaining from public.receipt_schedules
        where org_id = $1 and po_line_id = $2`,
-      [ORG_A, fixture.po1044LineId],
+      [fixture.orgId, fixture.po1044LineId],
     );
     expect(s1044.rows).toHaveLength(1);
     expect(s1044.rows[0].promise_state).toBe("confirmed");
@@ -215,7 +230,7 @@ describe("AT-04 multi-line partial delay", () => {
     const events = await client.query(
       `select kind from public.commitment_events
        where org_id = $1 and po_line_id = any($2::uuid[]) order by kind`,
-      [ORG_A, [fixture.po1042LineId, fixture.po1043LineId]],
+      [fixture.orgId, [fixture.po1042LineId, fixture.po1043LineId]],
     );
     expect(events.rows.map((r) => r.kind).sort()).toEqual([
       "delay",
@@ -231,7 +246,7 @@ describe("AT-04 multi-line partial delay", () => {
        from public.receipt_schedules n
        join public.receipt_schedules o on o.id = n.supersedes_id
        where n.org_id = $1 and n.po_line_id = any($2::uuid[])`,
-      [ORG_A, [fixture.po1042LineId, fixture.po1043LineId]],
+      [fixture.orgId, [fixture.po1042LineId, fixture.po1043LineId]],
     );
     expect(derived.rows.length).toBe(3);
     for (const row of derived.rows) {
@@ -244,7 +259,7 @@ describe("AT-04 multi-line partial delay", () => {
     // dataset (superseded rows are filtered out).
     const facts = await client.query(
       `select public.load_projection_facts($1, $2, $3) as facts`,
-      [ORG_A, ITEM_CARTON, LOCATION_MAIN],
+      [fixture.orgId, fixture.itemCartonId, fixture.locationId],
     );
     const receipts = (facts.rows[0].facts as {
       receipts: { quantity_remaining: number; earliest_at: string }[];
@@ -256,15 +271,18 @@ describe("AT-04 multi-line partial delay", () => {
     );
     expect(receipts.every((r) => r.quantity_remaining !== 4000)).toBe(true);
 
-    // Outbox envelope ids match the event_outbox columns.
+    // Bare payloads only: {case_id, source_version} with no envelope keys.
     const outbox = await client.query(
-      `select event_id, correlation_id, payload from public.event_outbox
+      `select event_id, aggregate_id, payload from public.event_outbox
        where org_id = $1 and event_type = 'case.assessment.requested'`,
-      [ORG_A],
+      [fixture.orgId],
     );
     for (const row of outbox.rows) {
-      expect(row.payload.event_id).toBe(row.event_id);
-      expect(row.payload.correlation_id).toBe(row.correlation_id);
+      expect(Object.keys(row.payload).sort()).toEqual([
+        "case_id",
+        "source_version",
+      ]);
+      expect(row.payload.case_id).toBe(row.aggregate_id);
     }
   });
 });
@@ -279,7 +297,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
     );
     const r = await processSourceMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       sourceMessageId: mid,
       mode: "auto",
       deps,
@@ -312,7 +330,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
       `select count(*) from public.receipt_schedules
        where org_id = $1 and promise_state = 'superseded'
          and po_line_id = any($2::uuid[])`,
-      [ORG_A, [fixture.po1042LineId, fixture.po1043LineId, fixture.po1044LineId]],
+      [fixture.orgId, [fixture.po1042LineId, fixture.po1043LineId, fixture.po1044LineId]],
     );
     expect(Number(s.rows[0].count)).toBe(0);
     const caseRow = await client.query(
@@ -326,7 +344,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
     await expect(
       resolveMessageMatch({
         rpc: rpc(),
-        orgId: ORG_A,
+        orgId: fixture.orgId,
         caseId: r.case_ids[0],
         actorUserId: null as unknown as string,
         input: {
@@ -345,7 +363,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
     await expect(
       resolveMessageMatch({
         rpc: rpc(),
-        orgId: ORG_A,
+        orgId: fixture.orgId,
         caseId: r.case_ids[0],
         actorUserId: null as unknown as string,
         input: {
@@ -374,7 +392,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
     // valid resolution: pin PO-1042 + sourced new_promise correction
     const resolved = await resolveMessageMatch({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       caseId: r.case_ids[0],
       actorUserId: null as unknown as string,
       input: {
@@ -403,7 +421,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
     const extractions = await client.query(
       `select version, extractor from public.message_extractions
        where org_id = $1 and source_message_id = $2 order by version`,
-      [ORG_A, mid],
+      [fixture.orgId, mid],
     );
     expect(extractions.rows).toHaveLength(2);
     expect(extractions.rows[0].extractor).toBe("replay_fixture");
@@ -412,7 +430,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
     const s1042 = await client.query(
       `select quantity_remaining, earliest_at from public.receipt_schedules
        where org_id = $1 and po_line_id = $2 and promise_state <> 'superseded'`,
-      [ORG_A, fixture.po1042LineId],
+      [fixture.orgId, fixture.po1042LineId],
     );
     expect(s1042.rows).toHaveLength(1);
     expect(new Date(s1042.rows[0].earliest_at).toISOString()).toBe(
@@ -423,7 +441,7 @@ describe("AT-05 ambiguous match review and resolution", () => {
       `select count(*) from public.event_outbox
        where org_id = $1 and event_type = 'case.assessment.requested'
          and aggregate_id = $2 and created_at >= $3`,
-      [ORG_A, resolved.case_ids[0], testStart],
+      [fixture.orgId, resolved.case_ids[0], testStart],
     );
     expect(Number(outbox.rows[0].count)).toBe(1);
 
@@ -437,12 +455,12 @@ describe("AT-05 ambiguous match review and resolution", () => {
 
 describe("AT-20 integration: dedupe and cursor CAS", () => {
   it("AT-20 inbox_store_message dedupes and gmail_advance_cursor is CAS", async () => {
-    const connId = await ensureInboxConnection(rpc(), ORG_A, "replay_inbox");
+    const connId = await ensureInboxConnection(rpc(), fixture.orgId, "replay_inbox");
     // a gmail connection for the cursor test
     const cred = await rpc().rpc<{ connection_id: string }>(
       "gmail_store_connection",
       {
-        org_id: ORG_A,
+        org_id: fixture.orgId,
         actor_user_id: null,
         external_account_id: "acct-1",
         scopes: [],
@@ -456,7 +474,7 @@ describe("AT-20 integration: dedupe and cursor CAS", () => {
     const noAdvance = await rpc().rpc<{ advanced: boolean }>(
       "gmail_advance_cursor",
       {
-        org_id: ORG_A,
+        org_id: fixture.orgId,
         connection_id: cred.connection_id,
         expected_cursor: "wrong",
         new_cursor: "H5",
@@ -466,7 +484,7 @@ describe("AT-20 integration: dedupe and cursor CAS", () => {
     const okAdvance = await rpc().rpc<{ advanced: boolean }>(
       "gmail_advance_cursor",
       {
-        org_id: ORG_A,
+        org_id: fixture.orgId,
         connection_id: cred.connection_id,
         expected_cursor: null,
         new_cursor: "H5",
@@ -477,7 +495,7 @@ describe("AT-20 integration: dedupe and cursor CAS", () => {
     const raw = readFileSync(join(MESSAGES_DIR, "delay-po-1042.eml"));
     const first = await ingestMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       connectionId: connId,
       providerMessageId: "dedupe-test-1",
       raw,
@@ -486,7 +504,7 @@ describe("AT-20 integration: dedupe and cursor CAS", () => {
     });
     const second = await ingestMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       connectionId: connId,
       providerMessageId: "dedupe-test-1",
       raw,
@@ -503,7 +521,7 @@ describe("AT-22 integration: connection status lifecycle", () => {
     const cred = await rpc().rpc<{ connection_id: string }>(
       "gmail_store_connection",
       {
-        org_id: ORG_A,
+        org_id: fixture.orgId,
         actor_user_id: null,
         external_account_id: "acct-22",
         scopes: ["a"],
@@ -513,22 +531,22 @@ describe("AT-22 integration: connection status lifecycle", () => {
       },
     );
     await rpc().rpc("gmail_set_status", {
-      org_id: ORG_A,
+      org_id: fixture.orgId,
       connection_id: cred.connection_id,
       status: "revoked",
       error_code: "invalid_grant",
     });
     const loaded = await rpc().rpc<{ status: string; sync_cursor: string | null }>(
       "gmail_load_credential",
-      { org_id: ORG_A, connection_id: cred.connection_id },
+      { org_id: fixture.orgId, connection_id: cred.connection_id },
     );
     expect(loaded.status).toBe("revoked");
     // existing stored messages are retained
-    const connId = await ensureInboxConnection(rpc(), ORG_A, "replay_inbox");
+    const connId = await ensureInboxConnection(rpc(), fixture.orgId, "replay_inbox");
     const raw = readFileSync(join(MESSAGES_DIR, "delay-po-1042.eml"));
     const stored = await ingestMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       connectionId: connId,
       providerMessageId: "retain-1",
       raw,
@@ -550,19 +568,19 @@ describe("AT-31 prompt injection containment", () => {
       await client.query(
         `select count(*) from public.receipt_schedules
          where org_id = $1 and promise_state = 'superseded'`,
-        [ORG_A],
+        [fixture.orgId],
       )
     ).rows[0].count;
     const casesBefore = await client.query(
       `select id, row_version from public.cases where org_id = $1 order by id`,
-      [ORG_A],
+      [fixture.orgId],
     );
     const { source_message_id: mid } = await ingestFile(
       "inbox-prompt-injection.eml",
     );
     const r = await processSourceMessage({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       sourceMessageId: mid,
       mode: "auto",
       deps,
@@ -583,25 +601,25 @@ describe("AT-31 prompt injection containment", () => {
     // No case created or touched.
     const casesAfter = await client.query(
       `select id, row_version from public.cases where org_id = $1 order by id`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(casesAfter.rows).toEqual(casesBefore.rows);
     // no schedule changes, no outbound action rows, no contact change
     const supersededBefore = await client.query(
       `select count(*) from public.receipt_schedules
        where org_id = $1 and promise_state = 'superseded'`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(supersededBefore.rows[0].count).toBe(countBefore);
     const actions = await client.query(
       `select count(*) from public.actions where org_id = $1`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(Number(actions.rows[0].count)).toBe(0);
     const contacts = await client.query(
       `select count(*) from public.supplier_contacts
        where org_id = $1 and normalized_address like '%evil.example'`,
-      [ORG_A],
+      [fixture.orgId],
     );
     expect(Number(contacts.rows[0].count)).toBe(0);
     void mid;
@@ -610,10 +628,10 @@ describe("AT-31 prompt injection containment", () => {
 
 describe("replay inbox ingestion", () => {
   it("ingests all .eml fixtures through the shared ingestMessage path", async () => {
-    const connId = await ensureInboxConnection(rpc(), ORG_A, "replay_inbox");
+    const connId = await ensureInboxConnection(rpc(), fixture.orgId, "replay_inbox");
     const results = await ingestReplayMessages({
       rpc: rpc(),
-      orgId: ORG_A,
+      orgId: fixture.orgId,
       connectionId: connId,
       files: ["inbox-html-only.eml"],
     });

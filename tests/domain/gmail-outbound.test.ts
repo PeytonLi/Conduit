@@ -232,3 +232,23 @@ describe("AT-13 supplier email adapter", () => {
     expect(r2.providerRef).toBe("replay:act-1");
   });
 });
+
+describe("adapter routing with F5", () => {
+  it("replay actions resolve to F5's replay adapter; sandbox to ours", async () => {
+    const { registerF5Adapters } = await import("@/lib/actions/adapters/index");
+    const { resolveAdapterForMode } = await import("@/lib/actions/dispatcher");
+    const { isReplayAdapter } = await import("@/lib/actions/replay");
+    // Registration is import-lazy: no env/DB is touched here.
+    await import("@/lib/integrations/gmail/register");
+    registerF5Adapters({
+      rpc: async () => null,
+      clock: { now: () => new Date("2026-10-12T15:00:00Z") },
+    });
+    const replay = resolveAdapterForMode("supplier_email", "replay");
+    const sandbox = resolveAdapterForMode("supplier_email", "sandbox");
+    expect(isReplayAdapter(replay)).toBe(true);
+    expect(isReplayAdapter(sandbox)).toBe(false);
+    expect(sandbox).not.toBe(replay);
+    expect(sandbox.kind).toBe("supplier_email");
+  });
+});

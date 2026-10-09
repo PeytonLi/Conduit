@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { ORG_A, ORG_B, pgClient, pgRpcClient } from "./inbox-helpers";
+import { createInboxOrg, pgClient, pgRpcClient } from "./inbox-helpers";
 import { ensureInboxConnection, ingestMessage } from "@/lib/db/messages";
 
 const userA = randomUUID();
@@ -8,6 +8,9 @@ const userB = randomUUID();
 
 const client = pgClient();
 const rpc = () => pgRpcClient(client);
+
+let ORG_A: string;
+let ORG_B: string;
 
 async function setRole(role: "authenticated" | "anon", userId?: string) {
   await client.query("begin");
@@ -47,6 +50,10 @@ describe("inbox RLS", () => {
         [id, email],
       );
     }
+    const orgA = await createInboxOrg(client);
+    const orgB = await createInboxOrg(client);
+    ORG_A = orgA.orgId;
+    ORG_B = orgB.orgId;
     await client.query(
       `insert into public.memberships (org_id, auth_user_id, role)
        values ($1, $3, 'owner'), ($2, $4, 'owner')
@@ -111,9 +118,10 @@ describe("inbox RLS", () => {
       `delete from public.connections where org_id = $1 and provider = 'replay_inbox'`,
       [ORG_A],
     );
+    // Deleting the fresh orgs cascades memberships and all inbox rows.
     await client.query(
-      `delete from public.memberships where auth_user_id = any($1::uuid[])`,
-      [[userA, userB]],
+      `delete from public.organizations where id = any($1::uuid[])`,
+      [[ORG_A, ORG_B]],
     );
     await client.query(`delete from auth.users where id = any($1::uuid[])`, [
       [userA, userB],
