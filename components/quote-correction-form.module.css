@@ -1,0 +1,66 @@
+.correction {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border, #d9dde3);
+}
+
+.correction > button,
+.correction form > button {
+  width: max-content;
+  padding: 8px 11px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.correction form {
+  display: grid;
+  gap: 12px;
+}
+
+.correction label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+
+.correction input,
+.correction select,
+.correction textarea {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  font: inherit;
+}
+
+.correction textarea {
+  min-height: 70px;
+}
+
+.correction blockquote {
+  margin: 0;
+  padding: 10px;
+  border-left: 3px solid var(--border, #d9dde3);
+  background: #f6f7f9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.correction input:focus-visible,
+.correction select:focus-visible,
+.correction textarea:focus-visible,
+.correction button:focus-visible {
+  outline: 2px solid var(--focus, #1d4ed8);
+  outline-offset: 2px;
+}

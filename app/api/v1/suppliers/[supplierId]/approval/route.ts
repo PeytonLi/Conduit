@@ -1,4 +1,4 @@
-import { withMembership, mutationGuard, executeMutation } from "../../../_lib";
+import { withMembership, mutationGuard, executeMutation } from "@/lib/db/queries/route-helpers";
 import { parseBody } from "@/lib/api/http";
 import { supplierApprovalRequestSchema } from "@/lib/db/queries/contracts";
 import { supplierApproval } from "@/lib/db/queries/commands";

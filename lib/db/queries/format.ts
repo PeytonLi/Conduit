@@ -32,6 +32,21 @@ export function formatQuantity(quantity: number | string | null, unit: string): 
   const value = typeof quantity === "number" ? quantity : Number(quantity);
   if (!Number.isFinite(value)) return null;
   const formatted = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(value);
-  const normalizedUnit = value === 1 && unit.endsWith("s") ? unit.slice(0, -1) : unit;
+  const uninflectedUnits = new Set(["g", "kg", "mg", "lb", "oz", "mm", "cm", "m", "km", "l", "ml"]);
+  const singularUnit = unit.endsWith("ies")
+    ? `${unit.slice(0, -3)}y`
+    : /(ches|shes|xes|zes|sses)$/.test(unit)
+      ? unit.slice(0, -2)
+      : unit.endsWith("s") && !unit.endsWith("ss")
+        ? unit.slice(0, -1)
+        : unit;
+  const pluralUnit = uninflectedUnits.has(unit) || unit.endsWith("s")
+    ? unit
+    : /[^aeiou]y$/.test(unit)
+      ? `${unit.slice(0, -1)}ies`
+      : /(s|x|z|ch|sh)$/.test(unit)
+        ? `${unit}es`
+        : `${unit}s`;
+  const normalizedUnit = value === 1 ? singularUnit : pluralUnit;
   return `${formatted} ${normalizedUnit}`;
 }

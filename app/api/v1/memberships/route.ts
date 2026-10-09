@@ -1,4 +1,4 @@
-import { withMembership } from "../_lib";
+import { withMembership } from "@/lib/db/queries/route-helpers";
 import { listMemberships } from "@/lib/db/queries/memberships";
 
 export async function GET(): Promise<Response> {

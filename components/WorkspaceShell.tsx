@@ -1,45 +1,52 @@
 import Link from "next/link";
-import styles from "./workspace-shell.module.css";
+import { Suspense } from "react";
+import { signOut } from "@/app/(auth)/logout/actions";
 import type { MembershipContext } from "@/lib/auth";
-
-const navigation = [
-  { href: "/cases", label: "Cases" },
-  { href: "/business-data", label: "Business data" },
-  { href: "/suppliers", label: "Suppliers" },
-  { href: "/activity", label: "Activity" },
-  { href: "/settings/integrations", label: "Settings" },
-];
+import type { OrganizationSummary } from "@/lib/db/queries/organization";
+import { WorkspaceNavigation } from "./WorkspaceNavigation";
+import styles from "./workspace-shell.module.css";
 
 export function WorkspaceShell({
   children,
   membership,
+  organization,
+  email,
   environment,
 }: {
   children: React.ReactNode;
   membership: MembershipContext;
+  organization: OrganizationSummary;
+  email: string | null;
   environment: string;
 }) {
   return (
     <div className={styles.shell}>
+      <a className={styles.skipLink} href="#main-content">Skip to main content</a>
       <aside className={styles.sidebar}>
-        <Link className={styles.brand} href="/cases">
-          Conduit
-        </Link>
-        <nav aria-label="Main navigation">
-          {navigation.map((item) => (
-            <Link key={item.href} href={item.href}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className={styles.environment}>{environment}</div>
+        <Link className={styles.brand} href="/cases">Conduit</Link>
+        <Suspense fallback={<nav aria-label="Main navigation" />}>
+          <WorkspaceNavigation showDemo={organization.environment_mode !== "live"} />
+        </Suspense>
       </aside>
       <div className={styles.main}>
         <header className={styles.header}>
-          <span>{membership.role}</span>
-          <span>{membership.orgId}</span>
+          <div className={styles.identity}>
+            <strong>{organization.name}</strong>
+            <span className={styles.environment}>{environment}</span>
+            {organization.environment_mode !== "live" && (
+              <span className={styles.demoBadge}>Demo</span>
+            )}
+          </div>
+          <div className={styles.account}>
+            <span>{email ?? "Signed in"} · {membership.role}</span>
+            <form action={signOut}>
+              <button className={styles.signOut} type="submit">Sign out</button>
+            </form>
+          </div>
         </header>
-        <main className={styles.content}>{children}</main>
+        <main className={styles.content} id="main-content" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );

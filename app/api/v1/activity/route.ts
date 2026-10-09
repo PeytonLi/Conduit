@@ -1,4 +1,4 @@
-import { withMembership, parseQuery } from "../_lib";
+import { withMembership, parseQuery } from "@/lib/db/queries/route-helpers";
 import { activityQuerySchema } from "@/lib/db/queries/contracts";
 import { listActivity } from "@/lib/db/queries/activity";
 

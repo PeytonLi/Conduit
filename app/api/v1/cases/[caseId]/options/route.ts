@@ -1,4 +1,4 @@
-import { withMembership } from "../../../_lib";
+import { withMembership } from "@/lib/db/queries/route-helpers";
 import { getCaseOptions } from "@/lib/db/queries/cases";
 
 export async function GET(

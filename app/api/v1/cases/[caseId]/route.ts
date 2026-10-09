@@ -1,4 +1,4 @@
-import { withMembership } from "../../_lib";
+import { withMembership } from "@/lib/db/queries/route-helpers";
 import { getCaseDetail } from "@/lib/db/queries/cases";
 import { systemClock } from "@/lib/db/queries/clock";
 

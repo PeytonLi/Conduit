@@ -1,0 +1,106 @@
+.trigger {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent, #1d4ed8);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.trigger:focus-visible,
+.close:focus-visible,
+.openFile:focus-visible {
+  outline: 2px solid var(--focus, #1d4ed8);
+  outline-offset: 2px;
+}
+
+.dialog {
+  width: min(620px, calc(100vw - 28px));
+  max-height: min(82vh, 800px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  box-shadow: 0 20px 70px #11182740;
+}
+
+.dialog::backdrop {
+  background: #121a29a8;
+}
+
+.dialogContent {
+  padding: 22px;
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 50%;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.metadata {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0;
+}
+
+.metadata > div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.metadata dt {
+  color: var(--muted, #5b636e);
+}
+
+.metadata dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dialogContent h3 {
+  margin-bottom: 8px;
+}
+
+.dialogContent blockquote {
+  margin: 0;
+  padding: 14px;
+  border-left: 3px solid var(--border, #d9dde3);
+  background: #f6f7f9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.openFile {
+  margin-top: 18px;
+  padding: 9px 12px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  cursor: pointer;
+}

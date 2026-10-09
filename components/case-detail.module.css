@@ -1,0 +1,468 @@
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.95fr);
+  grid-template-areas:
+    "header decision"
+    "impact decision"
+    "summary decision"
+    "options options"
+    "timeline timeline"
+    "calls calls"
+    "evidence evidence";
+  align-items: start;
+  gap: 20px;
+  color: var(--text, #16191d);
+}
+
+.detail h1 {
+  margin: 4px 0 14px;
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.detail h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.detail p {
+  line-height: 1.5;
+}
+
+.caseHeader,
+.impact,
+.impactSummary,
+.options,
+.timeline,
+.calls,
+.evidenceList {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.caseHeader {
+  grid-area: header;
+}
+
+.caseHeader > p {
+  margin: 8px 0;
+}
+
+.eyebrow {
+  color: var(--muted, #5b636e);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.headerBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.sourceTimes {
+  color: var(--muted, #5b636e);
+  font-size: 0.83rem;
+}
+
+.impact {
+  grid-area: impact;
+  border-left: 4px solid var(--accent, #1d4ed8);
+}
+
+.impact h2 {
+  margin-bottom: 8px;
+  font-size: 1.35rem;
+  line-height: 1.35;
+}
+
+.impact p {
+  margin: 0 0 12px;
+  color: var(--muted, #5b636e);
+}
+
+.decision {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  grid-area: decision;
+  gap: 14px;
+  min-width: 0;
+}
+
+.nextAction {
+  padding: 17px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.nextAction h2 {
+  margin-bottom: 8px;
+}
+
+.nextAction p:last-child {
+  margin-bottom: 0;
+  color: var(--muted, #5b636e);
+}
+
+.impactSummary {
+  grid-area: summary;
+}
+
+.factList,
+.optionFacts,
+.costs {
+  display: grid;
+  gap: 9px;
+  margin: 15px 0;
+}
+
+.factList > div,
+.optionFacts > div,
+.costs > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.factList dt,
+.optionFacts dt,
+.costs dt,
+.timeline dt {
+  color: var(--muted, #5b636e);
+}
+
+.factList dd,
+.optionFacts dd,
+.costs dd,
+.timeline dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.factList dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.impactSummary h3 {
+  margin: 18px 0 8px;
+  font-size: 1rem;
+}
+
+.receipts {
+  display: grid;
+  gap: 11px;
+  padding-left: 22px;
+}
+
+.receipts li {
+  display: grid;
+  gap: 5px;
+}
+
+.missingFacts {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f7f9;
+}
+
+.missingFacts ul {
+  margin-bottom: 0;
+}
+
+.projection {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.projection figure {
+  margin: 0;
+}
+
+.projection figcaption {
+  font-weight: 700;
+}
+
+.chartSummary {
+  margin: 5px 0;
+  color: var(--muted, #5b636e);
+  font-size: 0.84rem;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+}
+
+.zeroLine {
+  stroke: #9aa3af;
+  stroke-dasharray: 5 5;
+  stroke-width: 1;
+}
+
+.projectionLine {
+  fill: none;
+  stroke: #1d4ed8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.shortageMark {
+  fill: #b42318;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tableWrap caption {
+  padding: 8px 0;
+  text-align: left;
+  font-weight: 700;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--border, #d9dde3);
+  vertical-align: top;
+}
+
+.tableWrap th {
+  color: var(--muted, #5b636e);
+  font-size: 0.75rem;
+}
+
+.options {
+  grid-area: options;
+}
+
+.optionGroup {
+  margin-top: 18px;
+}
+
+.optionGroup > h3 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #d9dde3);
+}
+
+.optionCard {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 17px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.optionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.optionHeader h4 {
+  display: inline;
+  margin: 0 10px 0 0;
+  font-size: 1.05rem;
+}
+
+.optionHeader p {
+  margin: 4px 0 0;
+  color: var(--muted, #5b636e);
+}
+
+.optionFacts,
+.costs {
+  margin: 0;
+}
+
+.costs {
+  padding: 13px;
+  border-radius: 8px;
+  background: #f6f7f9;
+}
+
+.costs > div:last-child {
+  padding-top: 8px;
+  border-top: 1px solid var(--border, #d9dde3);
+  font-weight: 700;
+}
+
+.reasons {
+  padding: 11px 13px;
+  border-left: 3px solid #e7d18d;
+  background: #fff9e8;
+}
+
+.reasons ul {
+  margin-bottom: 0;
+}
+
+.missingOption,
+.verified {
+  margin: 0;
+  color: var(--muted, #5b636e);
+  font-size: 0.84rem;
+}
+
+.timeline {
+  grid-area: timeline;
+}
+
+.timeline > ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.timeline > ol > li {
+  padding: 13px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 8px;
+}
+
+.timelineHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timelineHeading h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.timeline li p {
+  margin: 8px 0;
+}
+
+.timeline dl {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0;
+}
+
+.timeline dl > div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.calls {
+  grid-area: calls;
+}
+
+.calls button:disabled {
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  background: #f6f7f9;
+  color: var(--muted, #5b636e);
+}
+
+.evidenceList {
+  grid-area: evidence;
+}
+
+.evidenceList ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidenceList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 7px;
+}
+
+@media (min-width: 1100px) {
+  .detail {
+    grid-template-areas:
+      "header decision"
+      "impact decision"
+      "summary decision"
+      "options options"
+      "timeline timeline"
+      "evidence evidence";
+  }
+}
+
+@media (max-width: 1099px) {
+  .detail {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "header"
+      "impact"
+      "decision"
+      "summary"
+      "options"
+      "timeline"
+      "calls"
+      "evidence";
+  }
+
+  .decision {
+    position: static;
+  }
+}
+
+@media (max-width: 620px) {
+  .caseHeader,
+  .impact,
+  .impactSummary,
+  .options,
+  .timeline,
+  .calls,
+  .evidenceList {
+    padding: 15px;
+  }
+
+  .factList > div,
+  .optionFacts > div,
+  .costs > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .evidenceList li {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+}

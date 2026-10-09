@@ -13,6 +13,8 @@ describe("F6 formatters", () => {
   });
 
   it("formats quantities with their unit", () => {
+    expect(formatQuantity(600, "carton")).toBe("600 cartons");
+    expect(formatQuantity(1, "carton")).toBe("1 carton");
     expect(formatQuantity(600, "cartons")).toBe("600 cartons");
     expect(formatQuantity(1, "cartons")).toBe("1 carton");
   });

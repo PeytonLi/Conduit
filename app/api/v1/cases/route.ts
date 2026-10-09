@@ -1,4 +1,4 @@
-import { withMembership, parseQuery } from "../_lib";
+import { withMembership, parseQuery } from "@/lib/db/queries/route-helpers";
 import { caseListQuerySchema } from "@/lib/db/queries/contracts";
 import { listCases } from "@/lib/db/queries/cases";
 import { systemClock } from "@/lib/db/queries/clock";

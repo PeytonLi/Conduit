@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { AuthenticationError, requireMembership } from "@/lib/auth";
+import { getOrganization, getSignedInEmail } from "@/lib/db/queries/organization";
 import { parseServerEnv } from "@/lib/env";
 
 export default async function WorkspaceLayout({
@@ -16,9 +17,18 @@ export default async function WorkspaceLayout({
     throw error;
   }
   const { APP_ENV } = parseServerEnv(process.env);
+  const [organization, email] = await Promise.all([
+    getOrganization(membership),
+    getSignedInEmail(membership),
+  ]);
 
   return (
-    <WorkspaceShell membership={membership} environment={APP_ENV}>
+    <WorkspaceShell
+      membership={membership}
+      organization={organization}
+      email={email}
+      environment={APP_ENV}
+    >
       {children}
     </WorkspaceShell>
   );

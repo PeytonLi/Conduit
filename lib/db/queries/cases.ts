@@ -27,7 +27,13 @@ export interface CaseSummary {
   id: string;
   row_version: number;
   title: string;
-  item: { id: string; sku: string; description: string; unit: string };
+  item: {
+    id: string;
+    sku: string;
+    description: string;
+    unit: string;
+    specification: Record<string, unknown> | null;
+  };
   location: { id: string; name: string; timezone: string };
   suppliers: { id: string; name: string }[];
   purchase_orders: string[];
@@ -402,6 +408,7 @@ function summarize(row: Row, data: CaseData, role: MembershipRole, now: Date): C
       sku: item.sku ?? "",
       description: item.description ?? "",
       unit: item.base_unit ?? "unit",
+      specification: item.specification ?? null,
     },
     location: {
       id: row.location_id,

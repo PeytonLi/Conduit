@@ -1,16 +1,29 @@
 .loginPage {
+  --bg: #f6f7f9;
+  --surface: #fff;
+  --text: #16191d;
+  --muted: #5b636e;
+  --border: #d9dde3;
+  --accent: #1d4ed8;
+  --danger: #b42318;
+  --warning: #8a5a00;
+  --warning-surface: #fff4d6;
+  --success: #0f6b3a;
+  --focus: #1d4ed8;
   display: grid;
   min-height: 100vh;
   place-items: center;
   padding: 24px;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .loginCard {
   width: min(100%, 420px);
   padding: 36px;
-  border: 1px solid #e2e6df;
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: white;
+  background: var(--surface);
 }
 
 .loginCard form,
@@ -27,7 +40,7 @@
 .loginCard input {
   min-height: 42px;
   padding: 8px 10px;
-  border: 1px solid #aeb7aa;
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
 
@@ -35,14 +48,21 @@
   min-height: 44px;
   border: 0;
   border-radius: 6px;
-  background: #315f46;
+  background: var(--accent);
   color: white;
   cursor: pointer;
 }
 
 .eyebrow {
-  color: #536d5b;
+  color: var(--muted);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+.loginCard a:focus-visible,
+.loginCard button:focus-visible,
+.loginCard input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }

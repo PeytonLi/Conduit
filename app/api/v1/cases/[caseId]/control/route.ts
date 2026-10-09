@@ -1,4 +1,4 @@
-import { withMembership, mutationGuard, executeMutation } from "../../../_lib";
+import { withMembership, mutationGuard, executeMutation } from "@/lib/db/queries/route-helpers";
 import { parseBody } from "@/lib/api/http";
 import { caseControlRequestSchema } from "@/lib/db/queries/contracts";
 import { applyCaseControl } from "@/lib/db/queries/case-control";
