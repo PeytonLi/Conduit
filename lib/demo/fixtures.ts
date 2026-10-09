@@ -53,3 +53,42 @@ export const HARBOR_PACK_TIMES = {
     "2026-10-15T16:00:00.000Z",
   ],
 } as const;
+
+export function buildHarborPackAssessmentProjection(
+  fixtureId: HarborPackFixtureId,
+  inventory: number,
+) {
+  const canonical = fixtureId === "harbor-pack-canonical";
+  const points = canonical
+    ? [
+        { kind: "start", at: HARBOR_PACK_FIXTURE_CLOCK, delta: 600, balance: 600, sourceId: "inventory", label: "On hand" },
+        { kind: "demand", at: HARBOR_PACK_TIMES.demandAt[0], delta: -400, balance: 200, sourceId: "DEMAND-1013", label: "Confirmed demand" },
+        { kind: "demand", at: HARBOR_PACK_TIMES.demandAt[1], delta: -400, balance: -200, sourceId: "DEMAND-1014", label: "Confirmed demand" },
+        { kind: "demand", at: HARBOR_PACK_TIMES.demandAt[2], delta: -400, balance: -600, sourceId: "DEMAND-1015", label: "Confirmed demand" },
+        { kind: "receipt", at: HARBOR_PACK_TIMES.delayedArrivalAt, delta: 4000, balance: 3400, sourceId: "PO-1042-RECEIPT", label: "Confirmed delayed receipt" },
+      ]
+    : [
+        { kind: "start", at: HARBOR_PACK_FIXTURE_CLOCK, delta: inventory, balance: inventory, sourceId: "inventory", label: "On hand" },
+        ...HARBOR_PACK_TIMES.demandAt.map((at, index) => ({
+          kind: "demand" as const,
+          at,
+          delta: -400,
+          balance: inventory - 400 * (index + 1),
+          sourceId: `DEMAND-101${3 + index}`,
+          label: "Confirmed demand",
+        })),
+        { kind: "receipt", at: HARBOR_PACK_TIMES.delayedArrivalAt, delta: 4000, balance: inventory - 1200 + 4000, sourceId: "PO-1042-RECEIPT", label: "Confirmed delayed receipt" },
+      ];
+  const fixture = HARBOR_PACK_FIXTURES[fixtureId];
+  return {
+    points,
+    firstShortageAt: canonical ? fixture.firstShortageAt : null,
+    bridgeQuantity: canonical ? fixture.bridgeQuantity : null,
+    datedRequirements: canonical
+      ? HARBOR_PACK_EXPECTED.requirements.map((requirement) => ({
+          by: requirement.by,
+          cumulative_quantity: requirement.cumulative_quantity,
+        }))
+      : [],
+  };
+}

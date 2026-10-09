@@ -4,6 +4,7 @@ import path from "node:path";
 import type { createServiceClient } from "@/lib/db/service";
 import { QueryError } from "@/lib/db/queries/client";
 import {
+  buildHarborPackAssessmentProjection,
   HARBOR_PACK_FIXTURE_CLOCK,
   HARBOR_PACK_FIXTURES,
   HARBOR_PACK_TIMES,
@@ -660,27 +661,7 @@ async function ensureAssessment(
     inventory: number;
   },
 ): Promise<Row> {
-  const canonical = input.fixtureId === "harbor-pack-canonical";
-  const points = canonical
-    ? [
-        { kind: "start", at: HARBOR_PACK_FIXTURE_CLOCK, delta: 600, balance: 600, sourceId: "inventory", label: "On hand" },
-        { kind: "demand", at: HARBOR_PACK_TIMES.demandAt[0], delta: -400, balance: 200, sourceId: "DEMAND-1013", label: "Confirmed demand" },
-        { kind: "demand", at: HARBOR_PACK_TIMES.demandAt[1], delta: -400, balance: -200, sourceId: "DEMAND-1014", label: "Confirmed demand" },
-        { kind: "demand", at: HARBOR_PACK_TIMES.demandAt[2], delta: -400, balance: -600, sourceId: "DEMAND-1015", label: "Confirmed demand" },
-        { kind: "receipt", at: HARBOR_PACK_TIMES.delayedArrivalAt, delta: 4000, balance: 3400, sourceId: "PO-1042-RECEIPT", label: "Confirmed delayed receipt" },
-      ]
-    : [
-        { kind: "start", at: HARBOR_PACK_FIXTURE_CLOCK, delta: input.inventory, balance: input.inventory, sourceId: "inventory", label: "On hand" },
-        ...HARBOR_PACK_TIMES.demandAt.map((at, index) => ({
-          kind: "demand",
-          at,
-          delta: -400,
-          balance: input.inventory - 400 * (index + 1),
-          sourceId: `DEMAND-101${3 + index}`,
-          label: "Confirmed demand",
-        })),
-        { kind: "receipt", at: HARBOR_PACK_TIMES.delayedArrivalAt, delta: 4000, balance: input.inventory - 1200 + 4000, sourceId: "PO-1042-RECEIPT", label: "Confirmed delayed receipt" },
-      ];
+  const projection = buildHarborPackAssessmentProjection(input.fixtureId, input.inventory);
   return upsert(
     client,
     "assessments",
@@ -700,18 +681,13 @@ async function ensureAssessment(
       horizon_start: HARBOR_PACK_FIXTURE_CLOCK,
       horizon_end: HARBOR_PACK_TIMES.delayedArrivalAt,
       quality: "sufficient",
-      first_shortage_at: canonical ? HARBOR_PACK_FIXTURES[input.fixtureId].firstShortageAt : null,
-      bridge_qty: canonical ? HARBOR_PACK_FIXTURES[input.fixtureId].bridgeQuantity : null,
+      first_shortage_at: projection.firstShortageAt,
+      bridge_qty: projection.bridgeQuantity,
       projection: {
-        points,
+        points: projection.points,
         missing_facts: [],
       },
-      dated_requirements: canonical
-        ? [
-            { by: "2026-10-14T16:00:00.000Z", cumulative_quantity: 200 },
-            { by: "2026-10-15T16:00:00.000Z", cumulative_quantity: 600 },
-          ]
-        : [],
+      dated_requirements: projection.datedRequirements,
       evidence_ids: [],
     },
     "org_id,case_id,version",

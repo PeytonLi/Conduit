@@ -215,6 +215,11 @@
   stroke-width: 1;
 }
 
+.chartLabel {
+  fill: var(--muted, #5b636e);
+  font-size: 11px;
+}
+
 .projectionLine {
   fill: none;
   stroke: #1d4ed8;
@@ -234,11 +239,12 @@
 }
 
 .sourceLinks {
+  list-style: none;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin: 10px 0 0;
-  padding-left: 20px;
+  padding: 0;
 }
 
 .tableWrap table {

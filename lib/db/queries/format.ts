@@ -14,6 +14,20 @@ export function formatDateTime(iso: string | Date | null, timeZone: string): str
   }).format(date);
 }
 
+export function formatDateTimeRange(
+  start: string | null,
+  end: string | null,
+  timeZone: string,
+): string | null {
+  const formattedStart = formatDateTime(start, timeZone);
+  if (!formattedStart || !end) return formattedStart;
+  const formattedEnd = formatDateTime(end, timeZone);
+  if (!formattedEnd) return formattedStart;
+  return new Date(start!).getTime() === new Date(end).getTime()
+    ? formattedStart
+    : `${formattedStart}–${formattedEnd}`;
+}
+
 export function formatMoney(
   minorUnits: string | bigint | null,
   currency: string,
@@ -50,4 +64,10 @@ export function formatQuantity(quantity: number | string | null, unit: string): 
         : `${unit}s`;
   const normalizedUnit = value === 1 ? singularUnit : pluralUnit;
   return `${formatted} ${normalizedUnit}`;
+}
+
+export function formatQuantityChange(quantity: number | null, unit: string): string | null {
+  if (quantity === null) return null;
+  const formatted = formatQuantity(Math.abs(quantity), unit);
+  return formatted && quantity < 0 ? `−${formatted}` : formatted;
 }

@@ -4,7 +4,7 @@ import type {
   OptionRow,
   TimelineEntry,
 } from "@/lib/db/queries/cases";
-import { formatDateTime, formatMoney, formatQuantity } from "@/lib/db/queries/format";
+import { formatDateTime, formatDateTimeRange, formatMoney, formatQuantity, formatQuantityChange } from "@/lib/db/queries/format";
 import { humanLabel, originalOrderTreatmentLabel } from "@/lib/db/queries/labels";
 import { CaseControls } from "./CaseControls";
 import { EvidenceDrawer } from "./EvidenceDrawer";
@@ -65,6 +65,7 @@ function StockProjection({
   const firstShort = chartPoints.find(({ point }) => point.balance < 0);
   const chartId = `projection-title-${detail.case.id}`;
   const unit = detail.case.item.unit;
+  const timeZone = detail.case.location.timezone;
 
   return (
     <section aria-labelledby={chartId} className={styles.projection}>
@@ -76,16 +77,27 @@ function StockProjection({
             : "Projection points are Unknown."}
         </p>
         <svg
-          aria-labelledby={chartId}
+          aria-hidden="true"
           className={styles.chart}
           height={height}
-          role="img"
           viewBox={`0 0 ${width} ${height}`}
         >
           <g aria-hidden="true">
             <line className={styles.zeroLine} x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
+            <text className={styles.chartLabel} x={padding + 4} y={zeroY - 5}>0</text>
             {linePoints && <polyline className={styles.projectionLine} points={linePoints} />}
             {firstShort && <circle className={styles.shortageMark} cx={firstShort.x} cy={firstShort.y} r="6" />}
+            {chartPoints.map(({ x, point }, index) => (
+              <text
+                className={styles.chartLabel}
+                key={`${point.at}-${index}`}
+                textAnchor={index === 0 ? "start" : index === chartPoints.length - 1 ? "end" : "middle"}
+                x={x}
+                y={height - 2}
+              >
+                {new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", timeZone }).format(new Date(point.at))}
+              </text>
+            ))}
           </g>
         </svg>
       </figure>
@@ -98,7 +110,7 @@ function StockProjection({
               <tr key={`${point.at}-${index}`}>
                 <td>{formatDateTime(point.at, detail.case.location.timezone) ?? "Unknown"}</td>
                 <td>{point.label || humanLabel("projectionKind", point.kind)}</td>
-                <td>{formatQuantity(point.delta, unit) ?? "Unknown"}</td>
+                <td>{formatQuantityChange(point.delta, unit) ?? "Unknown"}</td>
                 <td>{displayBalance(point.balance, unit)}</td>
               </tr>
             )) : <tr><td colSpan={4}>Unknown</td></tr>}
@@ -124,9 +136,7 @@ function ImpactSummary({
       <dl className={styles.factList}>
         <div><dt>Shortage quantity</dt><dd>{quantityLabel(assessment?.bridge_quantity ?? null, detail.case.item.unit)} {sourceLink(source, detail.case.location.timezone)}</dd></div>
         <div><dt>First shortage</dt><dd>{formatDateTime(assessment?.first_shortage_at ?? null, detail.case.location.timezone) ?? "Unknown"} {sourceLink(source, detail.case.location.timezone)}</dd></div>
-        <div><dt>Assessment horizon</dt><dd>{assessment?.horizon_start && assessment.horizon_end
-          ? `${formatDateTime(assessment.horizon_start, detail.case.location.timezone)} – ${formatDateTime(assessment.horizon_end, detail.case.location.timezone)}`
-          : "Unknown"}</dd></div>
+        <div><dt>Assessment horizon</dt><dd>{formatDateTimeRange(assessment?.horizon_start ?? null, assessment?.horizon_end ?? null, detail.case.location.timezone) ?? "Unknown"}</dd></div>
       </dl>
       <h3>Original and revised receipts</h3>
       {detail.order_lines.length ? (
@@ -137,8 +147,7 @@ function ImpactSummary({
               <span>Original due: {formatDateTime(line.original_due_at, detail.case.location.timezone) ?? "Unknown"}</span>
               {line.revised_receipts.length ? line.revised_receipts.map((receipt) => (
                 <span key={receipt.id}>
-                  Revised: {quantityLabel(receipt.quantity, detail.case.item.unit)} · {formatDateTime(receipt.earliest_at, detail.case.location.timezone) ?? "Unknown"}
-                  {receipt.latest_at ? `–${formatDateTime(receipt.latest_at, detail.case.location.timezone)}` : ""}
+                  Revised: {quantityLabel(receipt.quantity, detail.case.item.unit)} · {formatDateTimeRange(receipt.earliest_at, receipt.latest_at, detail.case.location.timezone) ?? "Unknown"}
                   {sourceLink(evidence.find((entry) => entry.purpose.includes(receipt.id)) ?? source, detail.case.location.timezone)}
                 </span>
               )) : <span>Revised receipt: Unknown</span>}
@@ -200,7 +209,7 @@ function SupplierOptionTable({
                   <div><dt>Purchasing status</dt><dd>{humanLabel("supplierStatus", option.supplier.purchasing_status)}</dd></div>
                   <div><dt>Specification status</dt><dd>{humanLabel("specificationStatus", option.specification_status)}</dd></div>
                   <div><dt>Quantity and schedule</dt><dd>{option.quantity === null ? "Unknown" : formatQuantity(option.quantity, detail.case.item.unit)}
-                    {option.schedule.map((entry, index) => <span key={`${option.id}-schedule-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTime(entry.arrival_start, detail.case.location.timezone) ?? "Unknown"}{entry.arrival_end ? `–${formatDateTime(entry.arrival_end, detail.case.location.timezone)}` : ""}</span>)}
+                    {option.schedule.map((entry, index) => <span key={`${option.id}-schedule-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "Unknown"}</span>)}
                   </dd></div>
                   <div><dt>Quote validity</dt><dd>{formatDateTime(option.valid_until, detail.case.location.timezone) ?? "Unknown"}</dd></div>
                   <div><dt>Latest order time</dt><dd>{formatDateTime(option.latest_order_at, detail.case.location.timezone) ?? "Unknown"}</dd></div>

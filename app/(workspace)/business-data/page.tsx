@@ -1,4 +1,5 @@
 import { requireMembership } from "@/lib/auth";
+import { ImportPreview } from "@/components/ImportPreview";
 import { getBusinessData } from "@/lib/db/queries/business-data";
 import { formatDateTime, formatQuantity } from "@/lib/db/queries/format";
 import { humanLabel } from "@/lib/db/queries/labels";
@@ -23,7 +24,7 @@ export default async function BusinessDataPage() {
           ))}</ul>
         ) : <p>No active datasets. Import a business data file to get started.</p>}
       </section>
-      <p role="status">Import preview and commit are not available in this build yet.</p>
+      <ImportPreview role={membership.role} />
       <section aria-labelledby="inventory-heading">
         <h2 id="inventory-heading">Inventory</h2>
         <div style={{ overflowX: "auto" }}><table>
