@@ -131,7 +131,7 @@ describe("import API routes", () => {
     vi.useRealTimers();
   });
 
-  it("AT-API authenticates requests and restricts imports to owners and operators", async () => {
+  it("imports API: authenticates requests and restricts imports to owners and operators", async () => {
     mocks.requireMembership.mockRejectedValueOnce(new AuthenticationError());
     const unauthenticated = await createImportRoute(makePostRequest("/api/v1/imports"));
     expect(unauthenticated.status).toBe(401);
@@ -143,7 +143,7 @@ describe("import API routes", () => {
     expect((await responseJson(viewer)).error?.code).toBe("forbidden");
   });
 
-  it("AT-API requires idempotency keys and rejects mismatched origins before parsing", async () => {
+  it("imports API: requires idempotency keys and rejects mismatched origins before parsing", async () => {
     const missingKey = await createImportRoute(makePostRequest(
       "/api/v1/imports",
       undefined,
@@ -161,7 +161,7 @@ describe("import API routes", () => {
     expect((await responseJson(mismatch)).error?.code).toBe("origin_mismatch");
   });
 
-  it("AT-API creates staged imports from multipart CSV uploads", async () => {
+  it("imports API: creates staged imports from multipart CSV uploads", async () => {
     const response = await createImportRoute(makePostRequest(
       "/api/v1/imports",
       makeForm(),
@@ -179,7 +179,7 @@ describe("import API routes", () => {
     expect(store.stageImport).toHaveBeenCalledWith(expect.objectContaining({ valid: true }));
   });
 
-  it("AT-API persists invalid multipart imports with validation errors", async () => {
+  it("imports API: persists invalid multipart imports with validation errors", async () => {
     const response = await createImportRoute(makePostRequest(
       "/api/v1/imports",
       makeForm(true),
@@ -200,7 +200,7 @@ describe("import API routes", () => {
     }));
   });
 
-  it("AT-API maps stage idempotency conflicts and replays to their documented responses", async () => {
+  it("imports API: maps stage idempotency conflicts and replays to their documented responses", async () => {
     vi.mocked(store.stageImport).mockResolvedValueOnce({ outcome: "idempotency_conflict" });
     const conflict = await createImportRoute(makePostRequest(
       "/api/v1/imports",
@@ -229,10 +229,35 @@ describe("import API routes", () => {
     expect((await responseJson(replay)).data).toMatchObject({
       import_id: importId,
       status: "staged",
+      row_version: 1,
+      dataset_id: datasetId,
+    });
+
+    vi.mocked(store.stageImport).mockResolvedValueOnce({
+      outcome: "replayed",
+      import_id: importId,
+      dataset_id: datasetId,
+      status: "active",
+      row_version: 2,
+      content_hash: "hash",
+      source_as_of: metadata.source_as_of,
+      validation_summary: { errors: [], warnings: [], counts: {} },
+    });
+    const activeReplay = await createImportRoute(makePostRequest(
+      "/api/v1/imports",
+      makeForm(),
+      { "Idempotency-Key": "replay-active" },
+    ));
+    expect(activeReplay.status).toBe(200);
+    expect((await responseJson(activeReplay)).data).toMatchObject({
+      import_id: importId,
+      status: "active",
+      row_version: 2,
+      dataset_id: datasetId,
     });
   });
 
-  it("AT-API maps stale activation versions to conflict responses", async () => {
+  it("imports API: maps stale activation versions to conflict responses", async () => {
     const response = await activateImportRoute(
       makePostRequest(
         `/api/v1/imports/${importId}/activate`,
@@ -263,7 +288,7 @@ describe("import API routes", () => {
     expect((await responseJson(conflict)).error?.code).toBe("conflict");
   });
 
-  it("AT-API returns 404 for malformed and cross-tenant import IDs", async () => {
+  it("imports API: returns 404 for malformed and cross-tenant import IDs", async () => {
     const malformed = await getImportRoute(new Request("http://localhost"), {
       params: Promise.resolve({ importId: "not-a-uuid" }),
     });

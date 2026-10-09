@@ -36,8 +36,8 @@ function stageResponse(result: Awaited<ReturnType<typeof createImport>>, replaye
         }, 200)
         : ok({
           import_id: result.import_id,
-          status: "staged",
-          row_version: 1,
+          status: result.status,
+          row_version: result.row_version,
           dataset_id: result.dataset_id,
           validation_summary: result.validation_summary,
           preview: { counts: result.validation_summary.counts },

@@ -300,7 +300,7 @@ describe("CSV import persistence and activation", () => {
     }
   });
 
-  it("AT-09 no-ops identical content and supersedes changed datasets atomically", async () => {
+  it("AT-02 no-ops identical content and supersedes changed datasets atomically", async () => {
     const sessionCountBefore = await countRows(
       "select count(*)::text as count from public.import_sessions where org_id = $1",
       [orgId],
