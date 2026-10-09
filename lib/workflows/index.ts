@@ -9,6 +9,9 @@ import { outboxDrain } from "./outbox.inngest";
 import { reconcileDue, reconcileRequested } from "./reconcile.inngest";
 import { voiceStaleCallSweep } from "./voice-call";
 
+import { caseAssessmentFunction } from "./case-assessment";
+import { caseRecoveryFunction } from "./case-recovery";
+
 export const functions: InngestFunction.Any[] = [
   inboxGmailPoll,
   inboxProcessMessage,
@@ -19,5 +22,7 @@ export const functions: InngestFunction.Any[] = [
   reconcileDue,
   reconcileRequested,
   monitorReceipts,
+  caseAssessmentFunction,
+  caseRecoveryFunction,
 ];
 export { inngest };
