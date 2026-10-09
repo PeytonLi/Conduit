@@ -10,6 +10,7 @@ import { createReplayModel } from "@/lib/integrations/deepseek/replay";
 import { createDeepSeekModel } from "@/lib/integrations/deepseek/client";
 import { selectResearch } from "@/lib/integrations/exa/replay";
 import { runPlannerCycle, type CycleOutcome, type StepTools } from "@/lib/agent/planner";
+import { createLedgerActionPreparer, type ActionPreparer } from "@/lib/agent/ports";
 import type { AgentToolContext } from "@/lib/agent/tools/types";
 import { parseServerEnv } from "@/lib/env";
 import { flushTelemetry } from "@/lib/telemetry";
@@ -28,6 +29,7 @@ export interface RecoveryDeps {
   model: PlannerModel;
   clock: Clock;
   step: RecoveryStepTools;
+  preparer: ActionPreparer;
   env?: { EXA_API_KEY?: string };
 }
 
@@ -46,22 +48,32 @@ function cycleUuid(caseId: string, assessmentVersion: number, index: number): st
 
 export async function runCaseRecovery(
   deps: RecoveryDeps,
-  data: { case_id: string; assessment_version: number },
+  data: { case_id: string; org_id?: string; assessment_version?: number },
 ): Promise<{ status: string }> {
   const { store, step, clock } = deps;
 
   const loaded = await step.run("load", async () => {
-    const c = store.getCaseByIdOnly ? await store.getCaseByIdOnly(data.case_id) : null;
+    // F5 event payloads carry org_id; scope the lookup when present.
+    const c = data.org_id
+      ? await store.getCase(data.org_id, data.case_id)
+      : store.getCaseByIdOnly
+        ? await store.getCaseByIdOnly(data.case_id)
+        : null;
     if (!c) return { exit: "not_found" as const };
     if (c.run_control !== "active") return { exit: "paused" as const };
     const current = await store.getCurrentAssessment(c.org_id, c.id);
-    if (!current || current.version !== data.assessment_version) {
+    if (!current) return { exit: "stale" as const };
+    // assessment_version 0 or absent means "use the current assessment"
+    // (F5 enqueues recovery requests without a real version).
+    const requested = data.assessment_version ?? 0;
+    if (requested !== 0 && current.version !== requested) {
       return { exit: "stale" as const };
     }
     return { caseRow: c, assessment: current };
   });
   if ("exit" in loaded) return { status: loaded.exit as string };
   const c = loaded.caseRow!;
+  const resolvedVersion = loaded.assessment.version;
   const orgId = c.org_id;
   const ctx: AgentToolContext = {
     orgId,
@@ -74,6 +86,7 @@ export async function runCaseRecovery(
   const tools = createToolRegistry({
     store,
     clock,
+    preparer: deps.preparer,
     research: selectResearch(deps.env ?? {}, ctx.mode, { clock }),
   });
 
@@ -141,7 +154,7 @@ export async function runCaseRecovery(
     // instead of stalling the case inside a single run's step budget.
     await step.sendEvent(`continue-${w}`, {
       name: "case.recovery.requested",
-      data: { case_id: c.id, assessment_version: data.assessment_version },
+      data: { case_id: c.id, org_id: orgId, assessment_version: resolvedVersion },
     });
     return "continued";
   };
@@ -178,8 +191,8 @@ export async function runCaseRecovery(
       {
         ...ctx,
         episode: fresh.episode,
-        assessmentVersion: data.assessment_version,
-        cycleId: cycleUuid(c.id, data.assessment_version, i),
+        assessmentVersion: resolvedVersion,
+        cycleId: cycleUuid(c.id, resolvedVersion, i),
         cycleIndex: i,
       },
     );
@@ -190,7 +203,7 @@ export async function runCaseRecovery(
       // One wait loop per run: a second wait is handled by the continuation.
       await step.sendEvent(`continue-${waitLoopIndex++}`, {
         name: "case.recovery.requested",
-        data: { case_id: c.id, assessment_version: data.assessment_version },
+        data: { case_id: c.id, org_id: orgId, assessment_version: resolvedVersion },
       });
       await step.run("flush-telemetry", () => flushTelemetry());
       return { status: "waiting_continued" };
@@ -220,7 +233,7 @@ export async function runCaseRecovery(
   return { status: outcome.status };
 }
 
-function defaultRecoveryDeps(step: RecoveryStepTools): RecoveryDeps {
+async function defaultRecoveryDeps(step: RecoveryStepTools): Promise<RecoveryDeps> {
   const env = parseServerEnv(process.env);
   const store = new SupabasePlannerStore();
   const mode = env.APP_ENV;
@@ -228,11 +241,15 @@ function defaultRecoveryDeps(step: RecoveryStepTools): RecoveryDeps {
     mode === "replay"
       ? createReplayModel(canonicalTranscript as unknown as import("@/lib/integrations/deepseek/replay").ReplayTranscript)
       : createDeepSeekModel(env);
+  // Lazy import keeps "server-only" out of unit-test import graphs.
+  const { createServiceRpc } = await import("@/lib/actions/rpc.supabase");
+  const { systemClock: ledgerClock } = await import("@/lib/actions/rpc");
   return {
     store,
     model,
     clock: systemClock,
     step,
+    preparer: createLedgerActionPreparer({ rpc: createServiceRpc(), clock: ledgerClock }),
     env: { EXA_API_KEY: env.EXA_API_KEY },
   };
 }
@@ -245,7 +262,7 @@ export const caseRecoveryFunction = inngest.createFunction(
   },
   async ({ event, step }) =>
     runCaseRecovery(
-      defaultRecoveryDeps(step as unknown as RecoveryStepTools),
-      event.data as { case_id: string; assessment_version: number },
+      await defaultRecoveryDeps(step as unknown as RecoveryStepTools),
+      event.data as { case_id: string; org_id?: string; assessment_version?: number },
     ),
 );

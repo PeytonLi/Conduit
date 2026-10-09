@@ -9,7 +9,7 @@ import type { ToolResult } from "./types";
 export interface ToolDeps {
   store: PlannerStore;
   clock: Clock;
-  preparer?: ActionPreparer;
+  preparer: ActionPreparer;
   research?: SupplierResearch;
   limits?: PlannerLimits;
 }

@@ -6,7 +6,6 @@ import type {
   PlanStepKind,
   RunControl,
 } from "@/lib/schemas/enums";
-import type { ProjectionInput } from "@/lib/domain/types";
 
 /** Rows mirror public.* columns; money minor units are decimal strings. */
 export interface CaseRecord {
@@ -156,6 +155,9 @@ export interface ActionRecord {
   idempotency_key: string;
   mode: string;
   created_at: string;
+  /** F5 ledger columns — present on ledger-written rows. */
+  contact_id?: string | null;
+  episode?: number | null;
 }
 
 export interface EvidenceRecord {
@@ -289,19 +291,11 @@ export interface CallSessionRecord {
   ended_at: string | null;
 }
 
-export interface PreparedActionResult {
-  action: ActionRecord;
-  created: boolean;
-}
+/** Result shape of F1's buildProjectionInput / loadProjectionInput. */
+export type ProjectionFactsResult = ReturnType<
+  typeof import("@/lib/domain/assessment-input").buildProjectionInput
+>;
 
-export interface PrepareActionInput {
-  orgId: string;
-  caseId: string;
-  kind: ActionKind;
-  idempotencyKey: string;
-  payload: Record<string, unknown>;
-  mode: "replay" | "sandbox" | "live";
-}
 
 export interface UsageEventInput {
   orgId: string;
@@ -388,7 +382,7 @@ export interface PlannerStore {
     caseId: string,
     actionId: string,
   ): Promise<ActionRecord | null>;
-  prepareAction(input: PrepareActionInput): Promise<PreparedActionResult>;
+  getOrgMode(orgId: string): Promise<"replay" | "sandbox" | "live" | null>;
   updateActionState?(
     orgId: string,
     caseId: string,
@@ -489,7 +483,7 @@ export interface PlannerStore {
     caseId: string,
     actionId: string,
   ): Promise<CallSessionRecord | null>;
-  loadProjectionInput(orgId: string, caseId: string): Promise<ProjectionInput>;
+  loadProjectionInput(orgId: string, caseId: string): Promise<ProjectionFactsResult>;
   insertAudit?(entry: {
     org_id: string;
     case_id?: string | null;

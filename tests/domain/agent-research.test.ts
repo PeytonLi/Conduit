@@ -5,6 +5,7 @@ import { createSearchSupplierWebTool, composeQuery } from "@/lib/agent/tools/sea
 import { createReadSupplierSourceTool } from "@/lib/agent/tools/read-supplier-source";
 import { createToolRegistry } from "@/lib/agent/tools/registry";
 import {
+  createFakePreparer,
   clock,
   ctx,
   harborStore,
@@ -14,7 +15,7 @@ import {
 } from "./planner-test-helpers";
 
 function researchDeps(store = harborStore()) {
-  return { store, clock, research: createReplayResearch(clock) };
+  return { store, clock, preparer: createFakePreparer(store), research: createReplayResearch(clock) };
 }
 
 describe("AT-12 supplier research", () => {
@@ -89,7 +90,7 @@ describe("AT-12 supplier research", () => {
       fetchImpl: fetchSpy,
     });
     const store = harborStore();
-    const tool = createSearchSupplierWebTool({ store, clock, research });
+    const tool = createSearchSupplierWebTool({ store, clock, preparer: createFakePreparer(store), research });
     const result = await tool.run(ctx, { keywords: "carton" });
     expect(result.ok).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -98,7 +99,7 @@ describe("AT-12 supplier research", () => {
   it("read_supplier_source returns sanitized text inside untrusted_supplier_text", async () => {
     const store = harborStore();
     const research = createReplayResearch(clock);
-    const tool = createReadSupplierSourceTool({ store, clock, research });
+    const tool = createReadSupplierSourceTool({ store, clock, preparer: createFakePreparer(store), research });
     const result = await tool.run(ctx, { evidence_id: RESEARCH_EVIDENCE });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -132,6 +133,7 @@ describe("AT-12 supplier research", () => {
     const tool = createReadSupplierSourceTool({
       store,
       clock,
+      preparer: createFakePreparer(store),
       research: createReplayResearch(clock),
     });
     const result = await tool.run(ctx, { evidence_id: RESEARCH_EVIDENCE });
@@ -166,6 +168,7 @@ describe("AT-12 supplier research", () => {
     const tool = createReadSupplierSourceTool({
       store,
       clock,
+      preparer: createFakePreparer(store),
       research: createReplayResearch(clock),
     });
     const result = await tool.run(ctx, { evidence_id: RESEARCH_EVIDENCE });
@@ -194,6 +197,7 @@ describe("AT-12 supplier research", () => {
     const tool = createReadSupplierSourceTool({
       store,
       clock,
+      preparer: createFakePreparer(store),
       research: createReplayResearch(clock),
     });
     const result = await tool.run(ctx, { evidence_id: foreign.id });

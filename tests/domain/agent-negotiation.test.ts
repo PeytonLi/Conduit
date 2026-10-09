@@ -5,6 +5,7 @@ import { createToolRegistry, TOOL_NAMES } from "@/lib/agent/tools/registry";
 import { evaluateQuote } from "@/lib/agent/quote-evaluation";
 import { runPlannerCycle } from "@/lib/agent/planner";
 import {
+  createFakePreparer,
   ASSESSMENT_A,
   ctx,
   FakeStep,
@@ -57,7 +58,7 @@ describe("AT-16 negotiation and plan authority", () => {
 
   it("record_provisional_offer rejects a status arg and always stores provisional", async () => {
     const store = harborStore();
-    const tool = createRecordProvisionalOfferTool({ store, clock });
+    const tool = createRecordProvisionalOfferTool({ store, clock, preparer: createFakePreparer(store) });
     const bad = await tool.run(ctx, {
       supplier_id: "50000000-0000-4000-8000-000000000002",
       source_evidence_id: "70000000-0000-4000-8000-000000000004",
@@ -87,7 +88,7 @@ describe("AT-16 negotiation and plan authority", () => {
   it("provisional quote -> draft plan with missing written confirmation", async () => {
     const store = harborStore();
     await store.insertQuote(verifiedQuote({ status: "provisional", evidence_ids: [] }));
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [{ step_id: "s1", kind: "purchase_bridge", quantity: 600, quote_id: "q-1" }],
@@ -110,7 +111,7 @@ describe("AT-16 negotiation and plan authority", () => {
       version: 1,
       settings: { procurement_ceiling_minor: "100000" },
     });
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [
@@ -135,7 +136,7 @@ describe("AT-16 negotiation and plan authority", () => {
           settings: { procurement_ceiling_minor: "100" },
         });
       }
-      const tool = createProposeRecoveryPlanTool({ store, clock });
+      const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
       const result = await tool.run(ctx, {
         assessment_id: ASSESSMENT_A,
         steps: [{ step_id: "s1", kind: "purchase_bridge", quantity: 600, quote_id: "q-1" }],
@@ -153,7 +154,7 @@ describe("AT-16 negotiation and plan authority", () => {
 
   it("amend_delivery_schedule without quote_id -> missing_quote", async () => {
     const store = harborStore();
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [{ step_id: "s1", kind: "amend_delivery_schedule", quantity: 600 }],
@@ -173,7 +174,7 @@ describe("AT-16 negotiation and plan authority", () => {
         arrival_end: "2026-10-14T16:00:00Z",
       }),
     );
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [
@@ -195,7 +196,7 @@ describe("AT-16 negotiation and plan authority", () => {
   it("North Packaging bridge: full landed 31200 for gross and incremental", async () => {
     const store = harborStore();
     await store.insertQuote(verifiedQuote());
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [{ step_id: "s1", kind: "purchase_bridge", quantity: 600, quote_id: "q-1" }],
@@ -218,7 +219,7 @@ describe("AT-16 negotiation and plan authority", () => {
   it("quote with null freight -> both totals null and plan stays draft", async () => {
     const store = harborStore();
     await store.insertQuote(verifiedQuote({ freight_minor: null }));
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [{ step_id: "s1", kind: "purchase_bridge", quantity: 600, quote_id: "q-1" }],
@@ -241,7 +242,7 @@ describe("AT-16 negotiation and plan authority", () => {
 
   it("transfer_stock-only plan -> draft with transfer_unverified", async () => {
     const store = harborStore();
-    const tool = createProposeRecoveryPlanTool({ store, clock });
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       assessment_id: ASSESSMENT_A,
       steps: [
@@ -263,7 +264,8 @@ describe("AT-16 negotiation and plan authority", () => {
   });
 
   it("registry contains exactly the 13 tools and no forbidden verbs", () => {
-    const registry = createToolRegistry({ store: harborStore(), clock });
+    const store = harborStore();
+    const registry = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     const names = [...registry.keys()];
     expect(names).toEqual([...TOOL_NAMES]);
     expect(names.length).toBe(13);
@@ -276,7 +278,7 @@ describe("AT-16 negotiation and plan authority", () => {
 
   it("a model tool call to accept_offer -> tool_not_allowed, no state change", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     const model = scriptedModel([
       toolCallTurn("accept_offer", { offer_id: "x" }),
       toolCallTurn("accept_offer", { offer_id: "y" }),

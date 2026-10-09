@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalJson, sha256Hex } from "./store-memory";
 import type {
   ActionRecord,
   AssessmentRecord,
@@ -14,12 +13,11 @@ import type {
   PlannerCycleRecord,
   PlannerStore,
   PlannerWaitRecord,
-  PrepareActionInput,
-  PreparedActionResult,
+  ProjectionFactsResult,
   UsageEventInput,
 } from "./store";
 import type { CasePhase, ActionState } from "@/lib/schemas/enums";
-import type { ProjectionInput } from "@/lib/domain/types";
+
 
 type Row = Record<string, unknown>;
 
@@ -352,34 +350,14 @@ export class SupabasePlannerStore implements PlannerStore {
     return must(data, error);
   }
 
-  async prepareAction(input: PrepareActionInput): Promise<PreparedActionResult> {
-    const payloadHash = sha256Hex(canonicalJson(input.payload));
-    const insert = {
-      org_id: input.orgId,
-      case_id: input.caseId,
-      kind: input.kind,
-      state: "prepared",
-      payload: input.payload,
-      payload_hash: payloadHash,
-      idempotency_key: input.idempotencyKey,
-      mode: input.mode,
-    };
+  async getOrgMode(orgId: string) {
     const { data, error } = await (await this.db())
-      .from("actions")
-      .insert(insert)
-      .select("*")
-      .single();
-    if (error) {
-      const { data: existing } = await (await this.db())
-        .from("actions")
-        .select("*")
-        .eq("org_id", input.orgId)
-        .eq("idempotency_key", input.idempotencyKey)
-        .maybeSingle();
-      if (existing) return { action: existing, created: false };
-      throw new Error(error.message);
-    }
-    return { action: data, created: true };
+      .from("organizations")
+      .select("environment_mode")
+      .eq("id", orgId)
+      .maybeSingle();
+    must(data, error);
+    return (data?.environment_mode as "replay" | "sandbox" | "live") ?? null;
   }
 
   async updateActionState(
@@ -759,41 +737,16 @@ export class SupabasePlannerStore implements PlannerStore {
     return data;
   }
 
-  async loadProjectionInput(orgId: string, caseId: string): Promise<ProjectionInput> {
+  async loadProjectionInput(orgId: string, caseId: string): Promise<ProjectionFactsResult> {
     const c = await this.getCase(orgId, caseId);
     if (!c) throw new Error("case not found");
-    const location = await this.getLocation(orgId, c.location_id);
-    const item = await this.getItem(orgId, c.item_id);
-    const lines = await this.listCasePoLines(orgId, caseId);
-    const now = new Date().toISOString();
-    const receipts = lines.flatMap((line) =>
-      line.schedules.map((s) => ({
-        id: s.id,
-        quantity: s.quantity_remaining,
-        earliestAt: s.earliest_at,
-        latestAt: s.latest_at,
-        dateOnly: false,
-        promiseState: (s.promise_state === "confirmed"
-          ? "confirmed"
-          : s.promise_state === "estimated"
-            ? "estimated"
-            : "unknown") as "confirmed" | "estimated" | "unknown",
-        evidenceIds: [] as string[],
-      })),
-    );
-    return {
-      t0: now,
-      timezone: location?.timezone ?? "UTC",
-      unit: item?.base_unit ?? "each",
-      horizonEnd: "",
-      physicalQty: 0,
-      unusableQty: 0,
-      outsideAllocationsQty: 0,
-      safetyBufferQty: 0,
-      receipts,
-      demand: [],
-      pendingClaims: [],
-    };
+    // Lazy import keeps "server-only" out of unit-test import graphs.
+    const imports = await import("@/lib/db/imports");
+    return imports.loadProjectionInput(imports.createSupabaseImportStore(), {
+      orgId,
+      itemId: c.item_id,
+      locationId: c.location_id,
+    });
   }
 
   async insertAudit(entry: Row) {

@@ -2,24 +2,34 @@ import { describe, expect, it } from "vitest";
 import { runCaseAssessment } from "@/lib/workflows/case-assessment";
 import { runCaseRecovery } from "@/lib/workflows/case-recovery";
 import { createReplayModel } from "@/lib/integrations/deepseek/replay";
-import type { ProjectionInput, ProjectionResult } from "@/lib/domain/types";
+import type { AssessmentProjection } from "@/lib/domain/assessment";
+import { buildProjectionInput } from "@/lib/domain/assessment-input";
+import { assessmentFingerprint } from "@/lib/workflows/case-assessment";
 import canonical from "@/lib/integrations/deepseek/replay-transcripts/canonical-recovery.json";
 import {
   ASSESSMENT_A,
   CASE_A,
   ctx,
+  createFakePreparer,
   FakeRecoveryStep,
   FakeStep,
+  harborFacts,
   harborStore,
   clock,
 } from "./planner-test-helpers";
 import type { ReplayTranscript } from "@/lib/integrations/deepseek/replay";
 
-function projectionResult(overrides: Partial<ProjectionResult> = {}): ProjectionResult {
+function projectionResult(overrides: Partial<AssessmentProjection> = {}): AssessmentProjection {
   return {
     quality: "sufficient",
     missingFacts: [],
     points: [],
+    usableStart: null,
+    coverageStart: null,
+    finalBalance: null,
+    excludedReceipts: [],
+    excludedDemand: [],
+    pastDueDemandIds: [],
     firstShortageAt: "2026-10-14T16:00:00Z",
     bridgeQuantity: 600,
     requirements: [
@@ -31,35 +41,34 @@ function projectionResult(overrides: Partial<ProjectionResult> = {}): Projection
   };
 }
 
-const projectionInput: ProjectionInput = {
-  t0: "2026-10-12T15:00:00Z",
-  timezone: "America/Los_Angeles",
-  unit: "carton",
-  horizonEnd: "2026-10-20T00:00:00Z",
-  physicalQty: 0,
-  unusableQty: 0,
-  outsideAllocationsQty: 0,
-  safetyBufferQty: 0,
-  receipts: [],
-  demand: [],
-  pendingClaims: [],
-};
-
 function assessmentDeps(store = harborStore(), result = projectionResult()) {
-  const seeded = store;
-  seeded.projectionInput = projectionInput;
+  store.projectionFacts = harborFacts;
   const step = new FakeRecoveryStep();
   return {
-    store: seeded,
+    store,
     step,
-    project: () => result,
+    assess: () => ({
+      projection: result,
+      liveCommitmentAllowed: true,
+      missingFacts: result.missingFacts,
+      staleSources: [],
+    }),
     clock,
   };
+}
+
+/** Make the seeded current assessment fingerprint match the real facts
+ * fingerprint so the reuse path triggers. */
+function matchFingerprint(store: ReturnType<typeof harborStore>) {
+  const built = buildProjectionInput(harborFacts);
+  const row = [...store.assessments.values()].find((a) => a.id === ASSESSMENT_A);
+  if (row) row.input_fingerprint = assessmentFingerprint(built);
 }
 
 describe("case-assessment workflow", () => {
   it("reuses assessment on unchanged fingerprint (no insert, no model call)", async () => {
     const deps = assessmentDeps();
+    matchFingerprint(deps.store);
     const before = deps.store.assessments.size;
     const out = await runCaseAssessment(deps, { case_id: CASE_A });
     expect(deps.store.assessments.size).toBe(before);
@@ -115,7 +124,7 @@ describe("case-recovery workflow", () => {
     let calls = 0;
     const model = { async complete() { calls += 1; throw new Error("x"); } };
     const out = await runCaseRecovery(
-      { store, model, clock, step },
+      { store, model, clock, step, preparer: createFakePreparer(store) },
       { case_id: CASE_A, assessment_version: 1 },
     );
     expect(out.status).toBe("paused");
@@ -127,10 +136,31 @@ describe("case-recovery workflow", () => {
     const step = new FakeRecoveryStep();
     const model = createReplayModel(canonical as ReplayTranscript);
     const out = await runCaseRecovery(
-      { store, model, clock, step },
+      { store, model, clock, step, preparer: createFakePreparer(store) },
       { case_id: CASE_A, assessment_version: 99 },
     );
     expect(out.status).toBe("stale");
+  });
+
+  it("assessment_version 0 resolves to the current assessment (F5 enqueue path)", async () => {
+    const store = harborStore();
+    const step = new FakeRecoveryStep();
+    const model = createReplayModel(canonical as ReplayTranscript);
+    const out = await runCaseRecovery(
+      { store, model, clock, step, preparer: createFakePreparer(store), env: {} },
+      // F5 outbox events carry org_id and assessment_version 0.
+      { case_id: CASE_A, org_id: ctx.orgId, assessment_version: 0 },
+    );
+    // Not stale: resolves to current version 1 and continuation uses it.
+    expect(out.status).toBe("waiting_continued");
+    expect(
+      step.sends.some(
+        (s) =>
+          s.name === "case.recovery.requested" &&
+          s.data.org_id === ctx.orgId &&
+          s.data.assessment_version === 1,
+      ),
+    ).toBe(true);
   });
 
   it("canonical replay transcript ends waiting_continued with one prepared email to Bay Carton", async () => {
@@ -138,7 +168,7 @@ describe("case-recovery workflow", () => {
     const step = new FakeRecoveryStep();
     const model = createReplayModel(canonical as ReplayTranscript);
     const out = await runCaseRecovery(
-      { store, model, clock, step, env: {} },
+      { store, model, clock, step, preparer: createFakePreparer(store), env: {} },
       { case_id: CASE_A, assessment_version: 1 },
     );
     // Fixed clock: the wait deadline is ~41h out, so the 120-tick cap is hit
@@ -203,7 +233,7 @@ describe("case-recovery workflow", () => {
     });
     const model = createReplayModel(canonical as ReplayTranscript);
     const out = await runCaseRecovery(
-      { store, model, clock, step, env: {} },
+      { store, model, clock, step, preparer: createFakePreparer(store), env: {} },
       { case_id: CASE_A, assessment_version: 1 },
     );
     // Persisted outcome found before any waitForEvent tick or model call.
@@ -249,7 +279,7 @@ describe("case-recovery workflow", () => {
       return row;
     };
     const out = await runCaseRecovery(
-      { store, model, clock, step, env: {} },
+      { store, model, clock, step, preparer: createFakePreparer(store), env: {} },
       { case_id: CASE_A, assessment_version: 1 },
     );
     expect(step.waits.length).toBe(0);

@@ -18,8 +18,7 @@ import type {
   PlannerStore,
   PlannerWaitRecord,
   PolicyRecord,
-  PrepareActionInput,
-  PreparedActionResult,
+  ProjectionFactsResult,
   QuoteRecord,
   RecoveryPlanRecord,
   ResearchQueryRecord,
@@ -29,7 +28,8 @@ import type {
   UsageEventInput,
 } from "./store";
 import type { CasePhase, ActionState } from "@/lib/schemas/enums";
-import type { ProjectionInput } from "@/lib/domain/types";
+import type { ProjectionFacts } from "@/lib/domain/assessment-input";
+import { buildProjectionInput } from "@/lib/domain/assessment-input";
 
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -66,7 +66,8 @@ export interface MemorySeed {
   pageReads?: { org_id: string; case_id: string; episode: number; evidence_id: string }[];
   callSessions?: CallSessionRecord[];
   plans?: RecoveryPlanRecord[];
-  projectionInput?: ProjectionInput;
+  orgs?: { id: string; environment_mode: "replay" | "sandbox" | "live" }[];
+  projectionFacts?: ProjectionFacts;
 }
 
 /** In-memory PlannerStore fake for unit tests. */
@@ -96,7 +97,8 @@ export class MemoryPlannerStore implements PlannerStore {
   planSteps: (PlanStepInsert & { plan_id: string })[] = [];
   usageEvents: UsageEventInput[] = [];
   audits: { event_name: string; entity_type: string }[] = [];
-  projectionInput: ProjectionInput | null = null;
+  orgs: { id: string; environment_mode: "replay" | "sandbox" | "live" }[] = [];
+  projectionFacts: ProjectionFacts | null = null;
 
   constructor(seed: MemorySeed = {}) {
     for (const c of seed.cases ?? []) this.cases.set(c.id, c);
@@ -115,13 +117,14 @@ export class MemoryPlannerStore implements PlannerStore {
     this.policies = [...(seed.policies ?? [])];
     for (const w of seed.waits ?? []) this.waits.set(w.id, w);
     for (const r of seed.reviews ?? []) this.reviews.set(r.id, r);
+    this.orgs = [...(seed.orgs ?? [])];
+    this.projectionFacts = seed.projectionFacts ?? null;
     for (const c of seed.cycles ?? []) this.cycles.set(c.id, c);
     for (const r of seed.requests ?? []) this.requests.set(r.id, r);
     for (const q of seed.researchQueries ?? []) this.researchQueries.set(q.id, q);
     this.pageReads = [...(seed.pageReads ?? [])];
     for (const s of seed.callSessions ?? []) this.callSessions.set(s.id, s);
     for (const p of seed.plans ?? []) this.plans.set(p.id, p);
-    this.projectionInput = seed.projectionInput ?? null;
   }
 
   private scoped<T extends { id: string; org_id: string }>(
@@ -285,25 +288,14 @@ export class MemoryPlannerStore implements PlannerStore {
     return a && a.org_id === orgId && a.case_id === caseId ? a : null;
   }
 
-  async prepareAction(input: PrepareActionInput): Promise<PreparedActionResult> {
-    const existing = [...this.actions.values()].find(
-      (a) => a.org_id === input.orgId && a.idempotency_key === input.idempotencyKey,
-    );
-    if (existing) return { action: existing, created: false };
-    const row: ActionRecord = {
-      id: randomUUID(),
-      org_id: input.orgId,
-      case_id: input.caseId,
-      kind: input.kind,
-      state: "prepared",
-      payload: input.payload,
-      payload_hash: sha256Hex(canonicalJson(input.payload)),
-      idempotency_key: input.idempotencyKey,
-      mode: input.mode,
-      created_at: new Date(0).toISOString(),
-    };
-    this.actions.set(row.id, row);
-    return { action: row, created: true };
+  async insertAction(record: ActionRecord) {
+    this.actions.set(record.id, record);
+    return record;
+  }
+
+  async getOrgMode(orgId: string) {
+    const org = this.orgs.find((o) => o.id === orgId);
+    return org?.environment_mode ?? "replay";
   }
 
   async updateActionState(
@@ -578,9 +570,18 @@ export class MemoryPlannerStore implements PlannerStore {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async loadProjectionInput(_orgId: string, _caseId: string): Promise<ProjectionInput> {
-    if (!this.projectionInput) throw new Error("no projection input seeded");
-    return this.projectionInput;
+  async loadProjectionInput(_orgId: string, _caseId: string): Promise<ProjectionFactsResult> {
+    const emptyFacts: ProjectionFacts = {
+      dataset: null,
+      item: null,
+      location: null,
+      inventory: null,
+      demand: [],
+      receipts: [],
+      lines: [],
+      claims: [],
+    };
+    return buildProjectionInput(this.projectionFacts ?? emptyFacts);
   }
 
   async insertAudit(entry: {

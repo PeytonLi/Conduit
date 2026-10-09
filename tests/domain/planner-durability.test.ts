@@ -14,6 +14,7 @@ import type { ReplayTranscript } from "@/lib/integrations/deepseek/replay";
 import {
   clock,
   contentDecision,
+  createFakePreparer,
   ctx,
   FakeStep,
   harborStore,
@@ -54,7 +55,7 @@ const cycleCtx = {
 describe("planner Inngest durability", () => {
   it("re-running the cycle under memoized steps leaves one cycle row and the same request count", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     const model = scriptedModel([contentDecision("no_action", {})]);
     const step = new MemoStep();
     const deps = { model, tools, store, clock, step };
@@ -74,7 +75,7 @@ describe("planner Inngest durability", () => {
 
   it("all side-effecting writes happen inside steps", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     const model = scriptedModel([contentDecision("no_action", {})]);
     const step = new FakeStep();
     await runPlannerCycle({ model, tools, store, clock, step }, cycleCtx);
@@ -84,7 +85,7 @@ describe("planner Inngest durability", () => {
 
   it("missing case row ends the cycle as no_action", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     const model = scriptedModel([]);
     const outcome = await runPlannerCycle(
       { model, tools, store, clock, step: new FakeStep() },
@@ -95,7 +96,7 @@ describe("planner Inngest durability", () => {
 
   it("repair provider error ends the cycle blocked/provider_unavailable with a review", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     let calls = 0;
     const model: PlannerModel = {
       async complete(): Promise<ModelTurn> {
@@ -126,7 +127,7 @@ describe("planner Inngest durability", () => {
 
   it("a successful repair turn records a usage_events row like main inference", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     const usage: UsageRecord = {
       ...EMPTY_USAGE,
       raw_units: { prompt_tokens: 10, completion_tokens: 5 },
@@ -159,7 +160,7 @@ describe("planner Inngest durability", () => {
 describe("model tool definitions", () => {
   it("tool defs sent to the model carry real strict JSON schemas", async () => {
     const store = harborStore();
-    const tools = createToolRegistry({ store, clock });
+    const tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) });
     let captured: ToolDef[] = [];
     const model: PlannerModel = {
       async complete(req): Promise<ModelTurn> {

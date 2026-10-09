@@ -10,12 +10,13 @@ import {
   harborStore,
   clock,
   BAY_CARTON,
+  createFakePreparer,
 } from "./planner-test-helpers";
 
 describe("NFR-011 outreach limits", () => {
   it("2 emails per supplier then the 3rd is rejected; duplicate -> same action id", async () => {
     const store = harborStore();
-    const tool = createRequestSupplierEmailTool({ store, clock });
+    const tool = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
     const r1 = await tool.run(ctx, {
       contact_id: BAY_EMAIL_CONTACT,
       purpose: "availability_request",
@@ -53,8 +54,8 @@ describe("NFR-011 outreach limits", () => {
     const store = harborStore();
     // 2026-10-12T18:00Z = 11:00 PT on a weekday: inside supplier hours.
     const inHours = fixedClock("2026-10-12T18:00:00Z");
-    const call = createRequestSupplierCallTool({ store, clock: inHours });
-    const email = createRequestSupplierEmailTool({ store, clock });
+    const call = createRequestSupplierCallTool({ store, clock: inHours, preparer: createFakePreparer(store) });
+    const email = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
 
     const okCall = await call.run(ctx, {
       contact_id: BAY_PHONE_CONTACT,
@@ -79,13 +80,18 @@ describe("NFR-011 outreach limits", () => {
     });
     expect(e2.ok).toBe(true);
     // Add a third distinct contacted supplier via seeded action.
-    await store.prepareAction({
-      orgId: ctx.orgId,
-      caseId: ctx.caseId,
+    await store.insertAction({
+      id: "seed-k3",
+      org_id: ctx.orgId,
+      case_id: ctx.caseId,
       kind: "supplier_email",
-      idempotencyKey: "k3",
-      payload: { supplier_id: "50000000-0000-4000-8000-000000000004" },
+      state: "prepared",
+      payload: { supplier_id: "50000000-0000-4000-8000-000000000004", episode: 1 },
+      payload_hash: "h",
+      idempotency_key: "k3",
       mode: "replay",
+      created_at: "2026-10-12T15:00:00Z",
+      episode: 1,
     });
     // 4th distinct supplier (Budget Box) -> distinct supplier limit.
     const fourth = await email.run(ctx, {
@@ -102,16 +108,21 @@ describe("NFR-011 outreach limits", () => {
     const store = harborStore();
     // Two emails to Bay Carton recorded under episode 0 (current episode is 1).
     for (const key of ["prev-1", "prev-2"]) {
-      await store.prepareAction({
-        orgId: ctx.orgId,
-        caseId: ctx.caseId,
+      await store.insertAction({
+        id: `seed-${key}`,
+        org_id: ctx.orgId,
+        case_id: ctx.caseId,
         kind: "supplier_email",
-        idempotencyKey: key,
+        state: "prepared",
         payload: { supplier_id: BAY_CARTON, episode: 0 },
+        payload_hash: "h",
+        idempotency_key: key,
         mode: "replay",
+        created_at: "2026-10-12T15:00:00Z",
+        episode: 0,
       });
     }
-    const tool = createRequestSupplierEmailTool({ store, clock });
+    const tool = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
     const r = await tool.run(ctx, {
       contact_id: BAY_EMAIL_CONTACT,
       purpose: "availability_request",
@@ -127,7 +138,7 @@ describe("NFR-011 outreach limits", () => {
   it("outside supplier hours is rejected (Saturday clock)", async () => {
     const store = harborStore();
     const saturday = fixedClock("2026-10-10T18:00:00Z"); // Sat 11:00 PT
-    const tool = createRequestSupplierCallTool({ store, clock: saturday });
+    const tool = createRequestSupplierCallTool({ store, clock: saturday, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       contact_id: BAY_PHONE_CONTACT,
       purpose: "confirm_terms",
@@ -140,7 +151,7 @@ describe("NFR-011 outreach limits", () => {
   it("outside supplier hours is rejected (06:00 PT)", async () => {
     const store = harborStore();
     const early = fixedClock("2026-10-12T13:00:00Z"); // Mon 06:00 PT
-    const tool = createRequestSupplierCallTool({ store, clock: early });
+    const tool = createRequestSupplierCallTool({ store, clock: early, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       contact_id: BAY_PHONE_CONTACT,
       purpose: "confirm_terms",
@@ -155,6 +166,7 @@ describe("NFR-011 outreach limits", () => {
     const tool = createRequestSupplierCallTool({
       store,
       clock: fixedClock("2026-10-12T18:00:00Z"),
+      preparer: createFakePreparer(store),
     });
     const result = await tool.run(ctx, {
       contact_id: BAY_PHONE_CONTACT,
@@ -167,7 +179,7 @@ describe("NFR-011 outreach limits", () => {
 
   it("actions are only ever created in state 'prepared'", async () => {
     const store = harborStore();
-    const tool = createRequestSupplierEmailTool({ store, clock });
+    const tool = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
     await tool.run(ctx, {
       contact_id: BAY_EMAIL_CONTACT,
       purpose: "availability_request",

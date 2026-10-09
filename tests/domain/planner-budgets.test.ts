@@ -3,6 +3,7 @@ import { runPlannerCycle } from "@/lib/agent/planner";
 import { createToolRegistry } from "@/lib/agent/tools/registry";
 import { ModelCallError } from "@/lib/agent/model";
 import {
+  createFakePreparer,
   ctx,
   FakeStep,
   harborStore,
@@ -12,7 +13,7 @@ import {
   clock,
 } from "./planner-test-helpers";
 
-function deps(store = harborStore(), tools = createToolRegistry({ store, clock })) {
+function deps(store = harborStore(), tools = createToolRegistry({ store, clock, preparer: createFakePreparer(store) })) {
   return { tools, store, clock };
 }
 

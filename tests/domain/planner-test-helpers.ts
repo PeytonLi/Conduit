@@ -244,6 +244,63 @@ export function harborStore(overrides?: {
   });
 }
 
+/** In-memory ActionPreparer fake: dedupes on idempotency key, records calls,
+ * and mirrors prepared actions into the memory store so limit counters see them. */
+export function createFakePreparer(store: MemoryPlannerStore) {
+  const calls: Parameters<import("@/lib/agent/ports").ActionPreparer["prepare"]>[0][] = [];
+  return {
+    calls,
+    async prepare(input: (typeof calls)[number]) {
+      calls.push(input);
+      const existing = [...store.actions.values()].find(
+        (a) => a.org_id === input.orgId && a.idempotency_key === input.idempotencyKey,
+      );
+      if (existing) {
+        return { ok: true as const, actionId: existing.id, state: existing.state, created: false };
+      }
+      const c = await store.getCase(input.orgId, input.caseId);
+      const id = `act-${calls.length}`;
+      await store.insertAction({
+        id,
+        org_id: input.orgId,
+        case_id: input.caseId,
+        kind: input.kind,
+        state: "prepared",
+        payload: input.payload,
+        payload_hash: `h-${id}`,
+        idempotency_key: input.idempotencyKey,
+        mode: "replay",
+        created_at: "2026-10-12T15:00:00Z",
+        contact_id: input.contactId ?? null,
+        episode: c?.episode ?? null,
+      });
+      return { ok: true as const, actionId: id, state: "prepared", created: true };
+    },
+  };
+}
+
+export const harborFacts: import("@/lib/domain/assessment-input").ProjectionFacts = {
+  dataset: {
+    id: "d0000000-0000-4000-8000-000000000001",
+    source_type: "fixture",
+    source_as_of: FIXTURE_NOW,
+    content_hash: "fixture",
+  },
+  item: { id: ITEM_A, base_unit: "carton", specification: {} },
+  location: { id: LOCATION_A, timezone: "America/Los_Angeles" },
+  inventory: {
+    id: "e0000000-0000-4000-8000-000000000001",
+    physical_qty: 0,
+    unusable_qty: 0,
+    outside_allocations_qty: 0,
+    source_as_of: FIXTURE_NOW,
+  },
+  demand: [],
+  receipts: [],
+  lines: [],
+  claims: [],
+};
+
 export class FakeStep implements StepTools {
   runs: string[] = [];
   sleeps: { id: string; ms: number | string }[] = [];

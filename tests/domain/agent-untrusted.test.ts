@@ -8,6 +8,7 @@ import { runPlannerCycle } from "@/lib/agent/planner";
 import { PLANNER_SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import injection from "@/lib/integrations/deepseek/replay-transcripts/injection.json";
 import {
+  createFakePreparer,
   BAY_EMAIL_CONTACT,
   ctx,
   FakeStep,
@@ -21,7 +22,7 @@ import {
 describe("AT-31 untrusted content and tenant isolation", () => {
   it("rejects extra to/recipient/org_id/case_id args on request_supplier_email", async () => {
     const store = harborStore();
-    const tool = createRequestSupplierEmailTool({ store, clock });
+    const tool = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
     for (const extra of [
       { to: "x@evil.example" },
       { recipient: "x@evil.example" },
@@ -40,7 +41,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
 
   it("contact from org B -> not_found; unapproved contact -> rejected", async () => {
     const store = harborStore();
-    const tool = createRequestSupplierEmailTool({ store, clock });
+    const tool = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
     const foreign = await tool.run(ctx, {
       contact_id: ORG_B_CONTACT,
       purpose: "availability_request",
@@ -60,7 +61,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
 
   it("prepared payload recipient is the DB address regardless of model text", async () => {
     const store = harborStore();
-    const tool = createRequestSupplierEmailTool({ store, clock });
+    const tool = createRequestSupplierEmailTool({ store, clock, preparer: createFakePreparer(store) });
     const result = await tool.run(ctx, {
       contact_id: BAY_EMAIL_CONTACT,
       purpose: "availability_request",
@@ -76,6 +77,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
     const tool = createReadSupplierSourceTool({
       store,
       clock,
+      preparer: createFakePreparer(store),
       research: createReplayResearch(clock),
     });
     const result = await tool.run(ctx, { evidence_id: RESEARCH_EVIDENCE });
@@ -96,6 +98,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
     const tools = createToolRegistry({
       store,
       clock,
+      preparer: createFakePreparer(store),
       research: createReplayResearch(clock),
     });
     const model = createReplayModel(injection);

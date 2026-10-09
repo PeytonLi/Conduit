@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { AgentTool } from "./types";
 import { fail, limitsOf, ok, uuid, type ToolDeps } from "./deps";
-import { createActionPreparer } from "../ports";
 
 const PURPOSES = ["availability_and_split", "confirm_terms"] as const;
 
@@ -67,7 +66,7 @@ export function createRequestSupplierCallTool(
 
       // Outreach budgets are per episode — only count this episode's actions.
       const actions = (await deps.store.listActions(ctx.orgId, ctx.caseId)).filter(
-        (a) => a.payload?.episode === c.episode,
+        (a) => (a.episode ?? a.payload?.episode) === c.episode,
       );
       const calls = actions.filter((a) => a.kind === "supplier_call");
       if (calls.length >= limits.callsPerEpisode) {
@@ -93,13 +92,12 @@ export function createRequestSupplierCallTool(
 
       const assessment = await deps.store.getCurrentAssessment(ctx.orgId, ctx.caseId);
       const item = await deps.store.getItem(ctx.orgId, c.item_id);
-      const preparer = deps.preparer ?? createActionPreparer(deps.store);
-      const prepared = await preparer.prepare({
+      const prepared = await deps.preparer.prepare({
         orgId: ctx.orgId,
         caseId: ctx.caseId,
         kind: "supplier_call",
         idempotencyKey: `${ctx.caseId}:${c.episode}:call:${contact.id}:${input.purpose}`,
-        mode: ctx.mode,
+        contactId: contact.id,
         payload: {
           recipient: contact.normalized_address,
           contact_id: contact.id,
@@ -119,6 +117,7 @@ export function createRequestSupplierCallTool(
           deadline: assessment?.first_shortage_at ?? null,
         },
       });
+      if (!prepared.ok) return fail(prepared.code, prepared.safeMessage);
       return ok({
         action_id: prepared.actionId,
         state: prepared.state,
