@@ -11,7 +11,7 @@ export class WorkspaceApiError extends Error {
 export async function postJson<T>(
   path: string,
   body: unknown,
-  idempotencyKey: string,
+  idempotencyKey?: string,
 ): Promise<T> {
   let response: Response;
   try {
@@ -19,7 +19,7 @@ export async function postJson<T>(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: JSON.stringify(body),
     });

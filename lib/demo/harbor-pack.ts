@@ -19,6 +19,7 @@ export interface LoadHarborPackInput {
   orgId: string;
   fixtureId: HarborPackFixtureId;
   reset: boolean;
+  planExpiresAt?: Date;
   client?: ReturnType<typeof createServiceClient>;
 }
 
@@ -204,15 +205,15 @@ async function ensureDataset(
     );
     if (existing) return existing;
   } else {
+    const { error: importError } = await client.from("import_sessions")
+      .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
+      .eq("org_id", orgId)
+      .eq("status", "active");
+    failDatabase(importError, "supersede active import sessions");
     const { error } = await client.from("datasets")
       .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
       .eq("org_id", orgId)
-      .eq("source_type", "fixture")
-      .in("validation_summary->>fixture_id", [
-        "harbor-pack-canonical",
-        "harbor-pack-harmless",
-      ])
-      .neq("status", "superseded");
+      .eq("status", "active");
     failDatabase(error, "supersede fixture datasets");
   }
   return insert(client, "datasets", {
@@ -349,6 +350,25 @@ async function upsertFixtureRows(
       "org_id,channel,normalized_address",
     );
     contacts.set(specification.key, contact);
+    if (specification.key === "BAY-CARTON") {
+      const phoneContact = await upsert(
+        client,
+        "supplier_contacts",
+        {
+          org_id: orgId,
+          supplier_id: supplier.id,
+          channel: "phone",
+          normalized_address: "+1 555 010 0142",
+          display_name: specification.contactName,
+          timezone: "America/Los_Angeles",
+          permitted_channels: ["phone"],
+          outreach_approved_at: null,
+          outreach_approved_by: null,
+        },
+        "org_id,channel,normalized_address",
+      );
+      contacts.set(`${specification.key}-PHONE`, phoneContact);
+    }
   }
   const bayCarton = suppliers.get("BAY-CARTON")!;
   const purchaseOrder = await upsert(
@@ -758,6 +778,7 @@ async function ensurePlan(
     summary: string;
     grossMinor: number;
     incrementalMinor: number;
+    planExpiresAt?: Date;
   },
 ): Promise<Row> {
   const plan = await upsert(
@@ -774,7 +795,7 @@ async function ensurePlan(
       status: input.status,
       gross_commitment_minor: input.grossMinor,
       incremental_cost_minor: input.incrementalMinor,
-      expires_at: input.quote.valid_until,
+      expires_at: input.planExpiresAt?.toISOString() ?? input.quote.valid_until,
       dependencies: [{ quote_id: input.quote.id, resolved: true }],
       evidence_ids: input.evidenceIds,
     },
@@ -801,6 +822,26 @@ async function ensurePlan(
     "org_id,plan_id,step_id",
   );
   return plan;
+}
+
+async function refreshPlanFingerprint(
+  client: ReturnType<typeof createServiceClient>,
+  orgId: string,
+  planId: string,
+): Promise<void> {
+  const { data, error } = await client.rpc("plan_material_fingerprint", {
+    p_org_id: orgId,
+    p_plan_id: planId,
+  });
+  failDatabase(error, "compute plan material fingerprint");
+  if (typeof data !== "string" || !data) {
+    throw new Error("Harbor Pack plan material fingerprint returned no value");
+  }
+  const { error: updateError } = await client.from("recovery_plans")
+    .update({ input_fingerprint: data })
+    .eq("org_id", orgId)
+    .eq("id", planId);
+  failDatabase(updateError, "save plan material fingerprint");
 }
 
 async function ensureAuditEvent(
@@ -877,6 +918,7 @@ async function loadCanonicalData(
     poLine: Row;
     now: Date;
     inventory: number;
+    planExpiresAt?: Date;
   },
 ): Promise<void> {
   const email = await readFile(
@@ -1130,8 +1172,9 @@ async function loadCanonicalData(
       summary: "Split PO-1042: receive 600 cartons on October 14 and 3,400 cartons on October 16",
       grossMinor: 7500,
       incrementalMinor: 7500,
+      planExpiresAt: input.planExpiresAt,
     });
-    await ensurePlan(client, {
+    const northPlan = await ensurePlan(client, {
       orgId: input.orgId,
       caseId: input.caseId,
       assessmentId: assessment.id,
@@ -1147,6 +1190,7 @@ async function loadCanonicalData(
       summary: "Purchase a 600-carton bridge from North Packaging; the original PO remains unchanged",
       grossMinor: 31200,
       incrementalMinor: 31200,
+      planExpiresAt: input.planExpiresAt,
     });
     const { error: updateCaseError } = await client.from("cases").update({
       current_assessment_id: assessment.id,
@@ -1155,6 +1199,8 @@ async function loadCanonicalData(
       updated_at: input.now.toISOString(),
     }).eq("org_id", input.orgId).eq("id", input.caseId);
     failDatabase(updateCaseError, "link canonical plan");
+    await refreshPlanFingerprint(client, input.orgId, bayPlan.id);
+    await refreshPlanFingerprint(client, input.orgId, northPlan.id);
     const { error: actionError } = await client.from("actions").upsert({
       org_id: input.orgId,
       case_id: input.caseId,
@@ -1319,6 +1365,7 @@ export async function loadHarborPack(
     poLine: fixtureRows.poLine,
     now: fixtureNow,
     inventory: definition.startingInventory,
+    planExpiresAt: input.planExpiresAt,
   });
   return {
     org_id: input.orgId,

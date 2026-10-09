@@ -34,6 +34,9 @@ export function ApprovalCard({
   const confirmDialog = useRef<HTMLDialogElement>(null);
   const confirmHeading = useRef<HTMLHeadingElement>(null);
   const approveButton = useRef<HTMLButtonElement>(null);
+  const rejectDialog = useRef<HTMLDialogElement>(null);
+  const rejectHeading = useRef<HTMLHeadingElement>(null);
+  const rejectButton = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   const intentKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +44,7 @@ export function ApprovalCard({
   const [expired] = useState(() => isExpiredAt(plan.expires_at, new Date(caseSummary.clock_now)));
   const [message, setMessage] = useState("");
   const [polling, setPolling] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const timeZone = caseSummary.location.timezone;
   const commitment = formatMoney(plan.approved_ceiling_minor ?? plan.incremental_cost_minor, plan.currency);
   const gross = formatMoney(plan.gross_commitment_minor, plan.currency);
@@ -85,8 +89,8 @@ export function ApprovalCard({
       try {
         const response = await fetch(`/api/v1/actions/${actionId}`, { cache: "no-store" });
         if (!response.ok) continue;
-        const envelope = await response.json() as { data?: { state?: string; status?: string } };
-        const state = envelope.data?.state ?? envelope.data?.status;
+        const envelope = await response.json() as { data?: { action?: { state?: string } } };
+        const state = envelope.data?.action?.state;
         if (state === "confirmed") {
           setMessage("Recovery action confirmed.");
           setPolling(false);
@@ -108,7 +112,7 @@ export function ApprovalCard({
         return;
       }
     }
-    setMessage("Approval recorded. The recovery action is still being checked.");
+    setMessage("Recovery outcome is unknown after 60 seconds. Check whether the update was applied.");
     setPolling(false);
   }
 
@@ -125,35 +129,71 @@ export function ApprovalCard({
     setSubmitting(true);
     setMessage("");
     try {
-      const result = await postJson<{ action_id?: string }>(
+      const result = await postJson<{ expires_at: string }>(
         `/api/v1/plans/${plan.plan_id}/approve`,
         {
           plan_version: plan.plan_version,
           input_fingerprint: plan.input_fingerprint,
           approved_ceiling_minor: plan.approved_ceiling_minor ?? plan.incremental_cost_minor ?? "0",
-          expected_version: caseSummary.row_version,
+          expected_version: plan.row_version,
         },
         intentKey.current,
       );
       intentKey.current = null;
       confirmDialog.current?.close();
-      if (result.action_id) {
-        await pollAction(result.action_id);
-      } else {
-        setMessage("Plan approved.");
-      }
+      setMessage(`Plan approved. Approval valid until ${formatDateTime(result.expires_at, timeZone) ?? "Unknown"}.`);
       router.refresh();
+      const response = await fetch(`/api/v1/cases/${caseSummary.id}`, { cache: "no-store" });
+      if (response.ok) {
+        const refreshed = await response.json() as {
+          data?: { plan?: { plan_actions?: { id: string; state: string }[] } | null };
+        };
+        const actionable = refreshed.data?.plan?.plan_actions?.filter((action) =>
+          ["prepared", "dispatching", "submitted"].includes(action.state),
+        ) ?? [];
+        for (const action of actionable) await pollAction(action.id);
+      }
     } catch (error) {
-      if (error instanceof WorkspaceApiError && error.status === 409) {
+      if (error instanceof WorkspaceApiError && ["stale_fingerprint", "stale_version", "invalid_state"].includes(error.code)) {
         setStale(true);
         setMessage("This plan changed; review the updated terms.");
-      } else if (error instanceof WorkspaceApiError && error.status === 403) {
+      } else if (error instanceof WorkspaceApiError && ["plan_expired", "approval_expired"].includes(error.code)) {
+        setMessage("This approval window has expired; request updated terms.");
+      } else if (error instanceof WorkspaceApiError && ["forbidden", "approval_authority_revoked"].includes(error.code)) {
         setMessage("Only an owner can approve this plan.");
-      } else if (error instanceof WorkspaceApiError && error.status === 404) {
-        setMessage("Plan approval isn’t available in this build yet.");
+      } else if (error instanceof WorkspaceApiError && ["dispatch_paused", "case_not_active"].includes(error.code)) {
+        setMessage("Case is paused or closed; resume it before approving.");
+      } else if (error instanceof WorkspaceApiError && ["policy_denied", "mode_not_allowed"].includes(error.code)) {
+        setMessage("Current policy does not allow this plan to be approved.");
       } else {
         setMessage(workspaceErrorMessage(error));
       }
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function submitRejection() {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setMessage("Enter a reason to reject this plan.");
+      return;
+    }
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    try {
+      await postJson(`/api/v1/plans/${plan.plan_id}/reject`, {
+        expected_version: plan.row_version,
+        reason,
+      });
+      rejectDialog.current?.close();
+      setRejectReason("");
+      setMessage("Plan rejected.");
+      router.refresh();
+    } catch (error) {
+      setMessage(workspaceErrorMessage(error));
     } finally {
       inFlight.current = false;
       setSubmitting(false);
@@ -212,9 +252,16 @@ export function ApprovalCard({
           >
             Approve this plan
           </button>
+          <button ref={rejectButton} onClick={() => {
+            setMessage("");
+            rejectDialog.current?.showModal();
+            window.requestAnimationFrame(() => rejectHeading.current?.focus());
+          }} type="button">
+            Reject plan
+          </button>
         </>
       )}
-      {message && <p className={styles.result} role="status">{message}{stale && <button onClick={() => router.refresh()} type="button">Reload case</button>}</p>}
+      {message && <p className={styles.result}>{message}{stale && <button onClick={() => router.refresh()} type="button">Reload case</button>}</p>}
       <LiveRegion message={message} />
       <dialog
         aria-labelledby="confirm-approval-title"
@@ -230,6 +277,26 @@ export function ApprovalCard({
           <button aria-busy={submitting || polling} disabled={submitting || polling} onClick={() => void submitApproval()} type="button">
             {submitting ? "Approving…" : polling ? "Checking action…" : "Confirm approval"}
           </button>
+        </div>
+      </dialog>
+      <dialog
+        aria-labelledby="reject-plan-title"
+        className={styles.confirmDialog}
+        onClose={() => rejectButton.current?.focus()}
+        ref={rejectDialog}
+      >
+        <h2 id="reject-plan-title" ref={rejectHeading} tabIndex={-1}>Reject recovery plan</h2>
+        <label htmlFor="reject-plan-reason">Reason</label>
+        <textarea
+          id="reject-plan-reason"
+          maxLength={500}
+          onChange={(event) => setRejectReason(event.target.value)}
+          required
+          value={rejectReason}
+        />
+        <div className={styles.confirmActions}>
+          <button disabled={submitting} onClick={() => rejectDialog.current?.close()} type="button">Cancel</button>
+          <button disabled={submitting || !rejectReason.trim()} onClick={() => void submitRejection()} type="button">Reject plan</button>
         </div>
       </dialog>
     </section>

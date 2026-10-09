@@ -65,6 +65,7 @@ export const supplierApprovalRequestSchema = z.object({
 export const demoRunRequestSchema = z.object({
   fixture_id: z.enum(["harbor-pack-canonical", "harbor-pack-harmless"]),
   reset: z.boolean(),
+  plan_expires_at: z.string().datetime().optional(),
 });
 
 export const activityQuerySchema = z.object({

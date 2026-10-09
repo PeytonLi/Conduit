@@ -88,9 +88,21 @@ export interface ApprovalView {
     summary: string;
     execution_mode: string;
   }[];
+  plan_actions: { id: string; kind: string; state: string }[];
   supplier: { id: string; name: string } | null;
   evidence_ids: string[];
   approver_required: "owner";
+}
+
+export interface SupplierContactView {
+  id: string;
+  supplier_id: string;
+  supplier_name: string;
+  channel: "email" | "phone";
+  display_name: string | null;
+  masked_address: string;
+  permitted_channels: string[];
+  outreach_approved: boolean;
 }
 
 export interface CaseDetail {
@@ -135,6 +147,7 @@ export interface CaseDetail {
     }[];
   }[];
   plan: ApprovalView | null;
+  supplier_contacts: SupplierContactView[];
   permissions: {
     can_control: boolean;
     can_approve: boolean;
@@ -457,6 +470,15 @@ function summarize(row: Row, data: CaseData, role: MembershipRole, now: Date): C
   };
 }
 
+function maskContactAddress(address: string, channel: "email" | "phone"): string {
+  if (channel === "email") {
+    const separator = address.lastIndexOf("@");
+    if (separator > 0) return `${address[0]}•••${address.slice(separator)}`;
+  }
+  const digits = address.replace(/\D/g, "");
+  return `•••• ${digits.slice(-4).padStart(4, "•")}`;
+}
+
 function encodeCursor(value: {
   rank: number;
   shortage: string | null;
@@ -743,6 +765,42 @@ export async function getCaseDetail(
     }];
   });
 
+  const quoteRows = await selectRows(
+    base.client.from("quotes").select("*")
+      .eq("org_id", context.orgId)
+      .eq("case_id", caseId),
+  );
+  const optionSupplierIds = [...new Set(quoteRows.map((quote) => quote.supplier_id))];
+  const optionSuppliers = optionSupplierIds.length
+    ? await selectRows(
+        base.client.from("suppliers").select("id,name")
+          .eq("org_id", context.orgId)
+          .in("id", optionSupplierIds),
+      )
+    : [];
+  const supplierNames = new Map(optionSuppliers.map((supplier) => [supplier.id, supplier.name]));
+  const supplierContactRows = optionSupplierIds.length
+    ? await selectRows(
+        base.client.from("supplier_contacts")
+          .select("id,supplier_id,channel,normalized_address,display_name,permitted_channels,outreach_approved_at")
+          .eq("org_id", context.orgId)
+          .in("supplier_id", optionSupplierIds),
+      )
+    : [];
+  const supplierContacts: SupplierContactView[] = supplierContactRows.flatMap((contact) => {
+    if (contact.channel !== "email" && contact.channel !== "phone") return [];
+    return [{
+      id: contact.id,
+      supplier_id: contact.supplier_id,
+      supplier_name: supplierNames.get(contact.supplier_id) ?? "Unknown supplier",
+      channel: contact.channel,
+      display_name: contact.display_name ?? null,
+      masked_address: maskContactAddress(contact.normalized_address, contact.channel),
+      permitted_channels: Array.isArray(contact.permitted_channels) ? contact.permitted_channels : [],
+      outreach_approved: Boolean(contact.outreach_approved_at),
+    }];
+  });
+
   let planView: ApprovalView | null = null;
   const plan = base.plan;
   if (plan) {
@@ -750,11 +808,6 @@ export async function getCaseDetail(
       base.client.from("plan_steps").select("*")
         .eq("org_id", context.orgId)
         .eq("plan_id", plan.id),
-    );
-    const quoteRows = await selectRows(
-      base.client.from("quotes").select("*")
-        .eq("org_id", context.orgId)
-        .eq("case_id", caseId),
     );
     const quote = quoteRows.find((candidate) =>
       (plan.dependencies ?? []).some((dependency: Row) =>
@@ -794,6 +847,9 @@ export async function getCaseDetail(
         summary: String(step.payload?.summary ?? step.kind),
         execution_mode: step.execution_mode,
       })),
+      plan_actions: base.data.actions
+        .filter((action) => action.plan_id === plan.id)
+        .map((action) => ({ id: action.id, kind: action.kind, state: action.state })),
       supplier: supplier ? { id: supplier.id, name: supplier.name } : null,
       evidence_ids: [...new Set([
         ...(plan.evidence_ids ?? []),
@@ -827,6 +883,7 @@ export async function getCaseDetail(
     assessment: assessmentView,
     order_lines: orderLines,
     plan: planView,
+    supplier_contacts: supplierContacts,
     permissions: {
       can_control: context.role === "owner" || context.role === "operator",
       can_approve: context.role === "owner" && row.phase === "awaiting_approval",

@@ -5,6 +5,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { type QueryContext } from "@/lib/db/queries/client";
 import { getCaseDetail, getCaseEvidence, getCaseTimeline, listCases } from "@/lib/db/queries/cases";
 import { applyCaseControl } from "@/lib/db/queries/case-control";
+import { approvePlanHandler, type HandlerDeps } from "@/lib/actions/api/handlers";
+import { applyCaseControlEffects } from "@/lib/actions/control";
+import type { Clock, Rpc } from "@/lib/actions/rpc";
+import { AuthorizationError } from "@/lib/auth/membership";
 import { setMembershipRole, supplierApproval } from "@/lib/db/queries/commands";
 import { withIdempotency } from "@/lib/db/queries/idempotency";
 import { getEvidenceAccess } from "@/lib/db/queries/evidence-access";
@@ -323,6 +327,57 @@ describe("F6 database/API trust boundaries", () => {
       caseId = result.case_id;
       priorDatasetId = result.dataset_id;
     });
+
+    it("supersedes an active imported dataset and session when resetting the demo", async () => {
+      const { error: fixtureError } = await service.from("datasets")
+        .update({ status: "superseded" })
+        .eq("org_id", harborOrgId)
+        .eq("id", priorDatasetId);
+      if (fixtureError) throw fixtureError;
+      const { data: importedDataset, error: importedDatasetError } = await service.from("datasets")
+        .insert({
+          org_id: harborOrgId,
+          source_type: "csv",
+          source_as_of: HARBOR_PACK_FIXTURE_CLOCK,
+          content_hash: randomUUID().replaceAll("-", ""),
+          status: "active",
+        })
+        .select("id").single();
+      if (importedDatasetError) throw importedDatasetError;
+      const { data: importSession, error: importSessionError } = await service.from("import_sessions")
+        .insert({
+          org_id: harborOrgId,
+          dataset_id: importedDataset.id,
+          status: "active",
+          content_hash: randomUUID().replaceAll("-", ""),
+          source_as_of: HARBOR_PACK_FIXTURE_CLOCK,
+          created_by: ownerContext.userId,
+          idempotency_key: randomUUID(),
+          request_hash: randomUUID().replaceAll("-", ""),
+        })
+        .select("id").single();
+      if (importSessionError) throw importSessionError;
+
+      const loaded = await loadHarborPack({
+        orgId: harborOrgId,
+        fixtureId: "harbor-pack-canonical",
+        reset: true,
+      });
+      const { data: supersededDataset, error: datasetError } = await service.from("datasets")
+        .select("status").eq("org_id", harborOrgId).eq("id", importedDataset.id).single();
+      if (datasetError) throw datasetError;
+      const { data: supersededSession, error: sessionError } = await service.from("import_sessions")
+        .select("status").eq("org_id", harborOrgId).eq("id", importSession.id).single();
+      if (sessionError) throw sessionError;
+      const { data: activeDatasets, error: activeDatasetsError } = await service.from("datasets")
+        .select("id").eq("org_id", harborOrgId).eq("status", "active");
+      if (activeDatasetsError) throw activeDatasetsError;
+      expect(supersededDataset.status).toBe("superseded");
+      expect(supersededSession.status).toBe("superseded");
+      expect(activeDatasets).toEqual([{ id: loaded.dataset_id }]);
+      caseId = loaded.case_id;
+      priorDatasetId = loaded.dataset_id;
+    });
   });
 
   describe("AT-28 case facts, pending decisions, sources, and deadlines", () => {
@@ -342,6 +397,150 @@ describe("F6 database/API trust boundaries", () => {
       const timeline = await getCaseTimeline(ownerContext, caseId);
       expect(timeline.some((entry) => entry.actor.label === "Conduit (replay)")).toBe(true);
       expect(timeline.some((entry) => entry.evidence_ids.length > 0)).toBe(true);
+    });
+  });
+
+  describe("F5 plan approval and dispatcher controls", () => {
+    it("approves the canonical plan for an owner with fixed clock and rejects an operator", async () => {
+      const planExpiresAt = new Date(Math.max(
+        Date.parse("2026-10-12T19:00:00Z"),
+        Date.now() + 20 * 60 * 1000,
+      ));
+      const loaded = await loadHarborPack({
+        orgId: harborOrgId,
+        fixtureId: "harbor-pack-canonical",
+        reset: true,
+        planExpiresAt,
+      });
+      caseId = loaded.case_id;
+      const detail = await getCaseDetail(ownerContext, caseId, fixedNow);
+      const plan = detail.plan!;
+      const rpc: Rpc = async (fn, args) => {
+        const { data, error } = await service.rpc(fn as never, args as never);
+        if (error) throw error;
+        return data;
+      };
+      const clock: Clock = { now: () => fixedNow };
+      const depsFor = (context: QueryContext): HandlerDeps => ({
+        ledger: { rpc, clock },
+        auth: async (roles) => {
+          if (roles && !roles.includes(context.role)) throw new AuthorizationError();
+          return { orgId: context.orgId, userId: context.userId, role: context.role };
+        },
+        publish: async () => {},
+      });
+      const request = new Request(`http://localhost/api/v1/plans/${plan.plan_id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
+        body: JSON.stringify({
+          plan_version: plan.plan_version,
+          input_fingerprint: plan.input_fingerprint,
+          approved_ceiling_minor: plan.approved_ceiling_minor ?? plan.incremental_cost_minor ?? "0",
+          expected_version: plan.row_version,
+        }),
+      });
+      const ownerResponse = await approvePlanHandler(depsFor(ownerContext), request, plan.plan_id);
+      expect(ownerResponse.status).toBe(200);
+      const ownerEnvelope = await ownerResponse.json() as { data?: { status?: string; approval_id?: string } };
+      expect(ownerEnvelope.data).toMatchObject({ status: "active" });
+      const { data: storedPlan, error: planError } = await service.from("recovery_plans")
+        .select("status,row_version").eq("org_id", harborOrgId).eq("id", plan.plan_id).single();
+      if (planError) throw planError;
+      expect(storedPlan.status).toBe("approved");
+      const { data: approval, error: approvalError } = await service.from("approvals")
+        .select("status").eq("org_id", harborOrgId).eq("id", ownerEnvelope.data!.approval_id!).single();
+      if (approvalError) throw approvalError;
+      expect(approval.status).toBe("active");
+
+      const operatorResponse = await approvePlanHandler(
+        depsFor(operatorContext),
+        new Request(`http://localhost/api/v1/plans/${plan.plan_id}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
+          body: JSON.stringify({
+            plan_version: plan.plan_version,
+            input_fingerprint: plan.input_fingerprint,
+            approved_ceiling_minor: plan.approved_ceiling_minor ?? plan.incremental_cost_minor ?? "0",
+            expected_version: plan.row_version,
+          }),
+        }),
+        plan.plan_id,
+      );
+      expect(operatorResponse.status).toBe(403);
+    });
+
+    it("holds a prepared action on pause and cancels it on close", async () => {
+      const loaded = await loadHarborPack({
+        orgId: harborOrgId,
+        fixtureId: "harbor-pack-canonical",
+        reset: true,
+      });
+      caseId = loaded.case_id;
+      const detail = await getCaseDetail(ownerContext, caseId, fixedNow);
+      const actionId = randomUUID();
+      const { error: actionError } = await service.from("actions").insert({
+        id: actionId,
+        org_id: harborOrgId,
+        case_id: caseId,
+        plan_id: detail.plan!.plan_id,
+        kind: "supplier_email",
+        state: "prepared",
+        payload_version: 1,
+        payload_hash: randomUUID().replaceAll("-", ""),
+        payload: { summary: "Prepared for case-control integration test" },
+        idempotency_key: `case-control:${randomUUID()}`,
+        mode: "replay",
+      });
+      if (actionError) throw actionError;
+
+      const { data: beforePause, error: beforePauseError } = await service.from("cases")
+        .select("row_version").eq("org_id", harborOrgId).eq("id", caseId).single();
+      if (beforePauseError) throw beforePauseError;
+      await applyCaseControl({
+        orgId: harborOrgId,
+        caseId,
+        actorUserId: ownerContext.userId,
+        actorRole: "owner",
+        command: "pause",
+        expectedVersion: beforePause.row_version,
+        reason: "Hold prepared action",
+      });
+      const rpc: Rpc = async (fn, args) => {
+        const { data, error } = await service.rpc(fn as never, args as never);
+        if (error) throw error;
+        return data;
+      };
+      const effectsClock: Clock = { now: () => fixedNow };
+      const paused = await applyCaseControlEffects(
+        { rpc, clock: effectsClock },
+        { orgId: harborOrgId, caseId, command: "pause", actorUserId: ownerContext.userId },
+      );
+      expect(paused).toMatchObject({ ok: true, held_action_ids: [actionId] });
+
+      const { data: beforeClose, error: beforeCloseError } = await service.from("cases")
+        .select("row_version").eq("org_id", harborOrgId).eq("id", caseId).single();
+      if (beforeCloseError) throw beforeCloseError;
+      await applyCaseControl({
+        orgId: harborOrgId,
+        caseId,
+        actorUserId: ownerContext.userId,
+        actorRole: "owner",
+        command: "close",
+        expectedVersion: beforeClose.row_version,
+        reason: "Close prepared-action test",
+        outcome: "cancelled",
+      });
+      const closed = await applyCaseControlEffects(
+        { rpc, clock: effectsClock },
+        { orgId: harborOrgId, caseId, command: "cancel", actorUserId: ownerContext.userId },
+      );
+      expect(closed).toMatchObject({ ok: true, cancelled_action_ids: [actionId] });
+      const restored = await loadHarborPack({
+        orgId: harborOrgId,
+        fixtureId: "harbor-pack-canonical",
+        reset: true,
+      });
+      caseId = restored.case_id;
     });
   });
 

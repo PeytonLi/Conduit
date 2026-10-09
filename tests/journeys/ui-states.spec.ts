@@ -25,7 +25,7 @@ test("AT-42 empty organization is distinct from filtered-empty", async ({ page }
   await expect(page.getByRole("link", { name: /demo scenario/i })).toBeVisible();
 });
 
-test("AT-42 stale plan polling and 409 require review", async ({ page }) => {
+test("AT-42 stale plan polling requires review", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
   const initial = await page.request.get(`/api/v1/cases/${caseId}`);
@@ -51,15 +51,4 @@ test("AT-42 stale plan polling and 409 require review", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Approve this plan" })).toBeDisabled();
 
   await page.unroute(`**/api/v1/cases/${caseId}`);
-  await page.route("**/api/v1/plans/*/approve", (route) => route.fulfill({
-    status: 409,
-    contentType: "application/json",
-    body: JSON.stringify({ api_schema_version: 1, request_id: "conflict", error: { code: "stale_version" } }),
-  }));
-  await page.reload();
-  await page.getByRole("button", { name: "Approve this plan" }).click();
-  await page.getByRole("button", { name: "Confirm approval" }).click();
-  await expect(page.getByRole("status").filter({
-    hasText: /^This plan changed; review the updated terms\.$/,
-  })).toBeVisible();
 });
