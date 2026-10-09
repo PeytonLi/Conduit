@@ -44,6 +44,17 @@ If provider credentials remain unavailable, continue deterministic inventory and
 7. Hackathon coding window must be respected for an eligible entry.
 8. Entire CLI 0.11.4 is installed, but `entire status` reports not set up. `entire enable` requires selecting a supported coding-agent integration; none was available in this Devin environment.
 
+## Voice connection investigation — October 9, 2026
+
+- Addressed F4/M0/AT-15 diagnosis on `codex/fix-signalwire-tls`, based on `origin/main` at `7635346`.
+- Read-only ElevenLabs checks found three failed Conduit calls with `SIP 404: Domain unavailable` and no transcript. The configured outbound address was a registered-device `.sip.signalwire.com` domain; the inspected SignalWire project had no Domain Applications.
+- Verified trusted TLS 1.3 on port 5061 for that SignalWire host and `sip.rtc.elevenlabs.io`. This does not prove SIP routing or media interoperability.
+- Corrected setup to reject the known wrong domain/address format and empty digest credentials before provider writes, and to update existing SIP trunk routing and credentials instead of only assigning the agent. Added missing setup variables to `.env.example` and documented the authenticated Domain Application path in `docs/voice-setup.md`.
+- Regression reproduced before the fix: setup updated only `agentId` on an existing number; seven invalid configurations were accepted. After the fix, all 24 focused voice tests passed, including rejection before any provider writes. Typecheck, lint, and diff whitespace checks passed. The full unit suite had 260 passes and two unrelated failures: CSV content hashing with Windows CRLF fixtures, and the inventory performance threshold (106.37 ms versus 100 ms). Checks ran on the available Node 24.14.0; the project pins Node 22.
+- Inspected the user's live harness branch at `8928486` (`devin/1791582744-live-voice-harness`); its preparation scripts use the same voice adapter and need no contract changes for this fix.
+- Provider configurations and application data were not changed; no test calls were placed and no external side effect has an uncertain outcome. Schema and supplier-call payload contracts are unchanged.
+- Next action: obtain a PSTN termination Domain Application and its digest credentials from SignalWire, apply the corrected setup in the live environment, and run AT-15 with an explicitly authorized test contact. Live voice remains unverified. Rem's persistent media bridge is an alternative if direct SIP provisioning is unavailable.
+
 ## Specification checks completed
 
 - All internal document links resolve and fenced blocks are balanced.
