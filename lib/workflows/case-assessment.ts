@@ -6,7 +6,7 @@ import type { PlannerStore } from "@/lib/agent/store";
 import { SupabasePlannerStore } from "@/lib/agent/store-supabase";
 import { defaultAssessor, type InventoryAssessor } from "@/lib/agent/ports";
 import { transitionAllowed } from "@/lib/agent/phases";
-import { canonicalJson } from "@/lib/agent/store-memory";
+import { canonicalJson } from "@/lib/agent/canonical-json";
 import { withBusinessSpan, flushTelemetry, orgPseudonym } from "@/lib/telemetry";
 
 export interface AssessmentStepTools {

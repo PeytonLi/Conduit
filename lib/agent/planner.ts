@@ -7,7 +7,7 @@ import { allowedTools, toolAllowed } from "./phases";
 import { buildPlannerContext } from "./context";
 import { parseModelTurn } from "./decision";
 import { PLANNER_SYSTEM_PROMPT, PROMPT_VERSION } from "./prompt";
-import { canonicalJson } from "./store-memory";
+import { canonicalJson } from "./canonical-json";
 import { toolInputToJsonSchema } from "./tool-schema";
 import { withBusinessSpan, orgPseudonym } from "@/lib/telemetry";
 
