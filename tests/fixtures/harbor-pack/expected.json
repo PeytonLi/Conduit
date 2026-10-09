@@ -1,0 +1,18 @@
+{
+  "fixture_clock": "2026-10-12T15:00:00Z",
+  "first_shortage_at": "2026-10-14T16:00:00Z",
+  "bridge_quantity": 600,
+  "requirements": [
+    {
+      "by": "2026-10-14T16:00:00Z",
+      "cumulative_quantity": 200
+    },
+    {
+      "by": "2026-10-15T16:00:00Z",
+      "cumulative_quantity": 600
+    }
+  ],
+  "split_incremental_cost": 7500,
+  "alternative_gross": 31200,
+  "alternative_net_with_confirmed_21000_credit": 10200
+}

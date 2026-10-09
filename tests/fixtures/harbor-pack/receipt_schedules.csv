@@ -1,0 +1,2 @@
+receipt_id,po_id,line_id,quantity_remaining,earliest_at,latest_at,promise_state,source_reference
+PO-1042-RECEIPT,PO-1042,1,4000,2026-10-16T08:00:00-07:00,2026-10-16T08:00:00-07:00,confirmed,delay-po-1042.eml

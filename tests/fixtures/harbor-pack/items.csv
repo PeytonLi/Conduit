@@ -1,0 +1,3 @@
+item_id,sku,description,base_unit,length_mm,width_mm,height_mm,material_grade
+CARTON-ITEM,CARTON-302015,Shipping carton,carton,300,200,150,KRAFT-SW-DEMO
+BUDGET-BOX-ALT,BUDGET-BOX-ALT,Budget Box advertised alternative (incompatible),carton,350,250,200,KRAFT-STD
