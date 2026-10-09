@@ -35,11 +35,18 @@ export function createSupplierCallAdapter(deps: SupplierCallAdapterDeps): Provid
     if (action.kind !== "supplier_call") return failed("Not a supplier call action.");
     const payload = supplierCallPayloadSchema.safeParse(action.payload);
     if (!payload.success) return failed("Call payload is invalid; no call placed.");
+    const payloadContactId = payload.data.contact_id ?? null;
+    const actionContactId = action.contactId ?? null;
+    if (payloadContactId && actionContactId && payloadContactId !== actionContactId) {
+      return failed("Call payload contact does not match the action contact; no call placed.");
+    }
+    const contactId = actionContactId ?? payloadContactId;
+    if (!contactId) return failed("Call payload has no contact; no call placed.");
     if (!isReplay(action) && (deps.appEnv === "replay" || !deps.provider)) {
       return failed("Live voice is not configured in this environment; no call placed.");
     }
 
-    const context = await deps.store.callContext(action.orgId, action.id, payload.data.contact_id);
+    const context = await deps.store.callContext(action.orgId, action.id, contactId);
     if (!context || context.case_id !== action.caseId) return failed("Call target not found in this organization.");
     if (context.existing_call_session) {
       return unknown("A call was already attempted for this action; reconcile instead of redialing.");

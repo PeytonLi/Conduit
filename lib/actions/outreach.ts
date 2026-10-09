@@ -13,7 +13,22 @@ export const outreachRequestSchema = z
       })
       .strict(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (input.channel === "phone" && input.message.body.length > 200) {
+      context.addIssue({
+        code: "custom",
+        path: ["message", "body"],
+        message: "Phone message body must be 200 characters or fewer.",
+      });
+    }
+  });
+
+export type OutreachRequest = z.infer<typeof outreachRequestSchema>;
+
+export function buildOutreachPayload(input: OutreachRequest): Record<string, unknown> {
+  return input.channel === "phone" ? { purpose: input.message.body } : { message: input.message };
+}
 
 export type OutreachResult =
   | { result: "prepared_action"; action: LedgerAction; replayed: boolean }
@@ -30,7 +45,7 @@ export function requestOutreach(
     p_actor_user_id: input.userId,
     p_contact_id: input.body.contact_id,
     p_channel: input.body.channel,
-    p_payload: { message: input.body.message },
+    p_payload: buildOutreachPayload(input.body),
     p_idempotency_key: input.idempotencyKey,
     p_now: deps.clock.now().toISOString(),
   });
