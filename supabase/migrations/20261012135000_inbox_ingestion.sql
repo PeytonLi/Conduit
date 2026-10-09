@@ -544,14 +544,16 @@ begin
       if (v_line->>'full')::boolean then
         insert into public.receipt_schedules (
           org_id, po_line_id, quantity_remaining, earliest_at, latest_at,
-          evidence_id, promise_state, supersedes_id, source_as_of
+          evidence_id, promise_state, supersedes_id, source_as_of,
+          dataset_id, external_id
         )
         values (
           v_org, v_sched.po_line_id, (v_line->>'affected_qty')::integer,
           nullif(v_line->>'new_earliest_at', '')::timestamptz,
           nullif(v_line->>'new_latest_at', '')::timestamptz,
           nullif(v_line->>'evidence_id', '')::uuid,
-          (v_line->>'new_promise_state')::public.promise_state, v_sched.id, v_message.sent_at
+          (v_line->>'new_promise_state')::public.promise_state, v_sched.id, v_message.sent_at,
+          v_sched.dataset_id, v_sched.external_id
         )
         returning id into v_new_sched;
 
@@ -567,14 +569,16 @@ begin
       else
         insert into public.receipt_schedules (
           org_id, po_line_id, quantity_remaining, earliest_at, latest_at,
-          evidence_id, promise_state, supersedes_id, source_as_of
+          evidence_id, promise_state, supersedes_id, source_as_of,
+          dataset_id, external_id
         )
         values (
           v_org, v_sched.po_line_id,
           v_sched.quantity_remaining - (v_line->>'affected_qty')::integer,
           v_sched.earliest_at, v_sched.latest_at,
           nullif(v_line->>'evidence_id', '')::uuid,
-          v_sched.promise_state, v_sched.id, v_message.sent_at
+          v_sched.promise_state, v_sched.id, v_message.sent_at,
+          v_sched.dataset_id, v_sched.external_id
         )
         returning id into v_remainder_sched;
 
@@ -590,14 +594,16 @@ begin
 
         insert into public.receipt_schedules (
           org_id, po_line_id, quantity_remaining, earliest_at, latest_at,
-          evidence_id, promise_state, supersedes_id, source_as_of
+          evidence_id, promise_state, supersedes_id, source_as_of,
+          dataset_id, external_id
         )
         values (
           v_org, v_sched.po_line_id, (v_line->>'affected_qty')::integer,
           nullif(v_line->>'new_earliest_at', '')::timestamptz,
           nullif(v_line->>'new_latest_at', '')::timestamptz,
           nullif(v_line->>'evidence_id', '')::uuid,
-          (v_line->>'new_promise_state')::public.promise_state, v_sched.id, v_message.sent_at
+          (v_line->>'new_promise_state')::public.promise_state, v_sched.id, v_message.sent_at,
+          v_sched.dataset_id, v_sched.external_id
         )
         returning id into v_new_sched;
 
