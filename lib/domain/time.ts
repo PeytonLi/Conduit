@@ -5,6 +5,10 @@ const INSTANT_PATTERN =
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
 
+export function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function formatterFor(timeZone: string): Intl.DateTimeFormat {
   let formatter = formatterCache.get(timeZone);
   if (!formatter) {

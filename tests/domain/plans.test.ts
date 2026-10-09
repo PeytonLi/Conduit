@@ -128,6 +128,8 @@ describe("recovery plan validation", () => {
     ], { quotes: { "north-quote": quote } }));
     expect(accepted.feasible).toBe(true);
     expect(accepted.finalBalance).toBe(3_400);
+    expect(accepted.baselineFinalBalance).toBe(3_400);
+    expect(accepted.surplus).toEqual({ quantity: 0, costMinor: 0n });
     expect(accepted.incrementalCostMinor).toBe(10_200n);
 
     const unconfirmed = validatePlan(planArgs([
@@ -146,6 +148,27 @@ describe("recovery plan validation", () => {
     ], { quotes: { "north-quote": quote } }));
     expect(unconfirmed.incrementalCostMinor).toBe(31_200n);
     expect(unconfirmed.unconfirmedCreditsMinor).toBe(21_000n);
+  });
+
+  it("AT-18 does not mutate baseline projections while applying a cancellation", () => {
+    const args = planArgs([
+      common({
+        step_id: "cancel-only",
+        kind: "cancel_original_quantity",
+        quantity: 600,
+        execution_mode: "manual",
+        po_line_id: "line-1042",
+        cancellation_quantity: 600,
+        confirmed_credit_minor: null,
+        cancellation_fee_minor: 0n,
+        supplier_acceptance_evidence_id: null,
+      }),
+    ]);
+    const before = structuredClone(args.baseline);
+
+    validatePlan(args);
+
+    expect(args.baseline).toEqual(before);
   });
 
   it("AT-11 rejects transfers that leave the source location short", () => {

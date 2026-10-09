@@ -38,7 +38,7 @@ type PlanLines = Record<
 
 export function buildProjectionInput(
   facts: ProjectionFacts,
-  options: { now?: string; horizonDays?: number; safetyBufferQty?: number } = {},
+  options: { horizonDays?: number; safetyBufferQty?: number } = {},
 ): {
   input: ProjectionInput | null;
   context: Omit<AssessmentContext, "now" | "mode">;

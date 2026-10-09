@@ -3,7 +3,7 @@ import { parseCsv, CsvParseError, type ParsedCsv } from "./import-csv";
 import { DomainValidationError } from "./errors";
 import { currencyMinorDigits, parseMinorUnits } from "./money";
 import { parseQuantity } from "./quantity";
-import { isValidTimeZone, parseInstant, toIso } from "./time";
+import { compareText, isValidTimeZone, parseInstant, toIso } from "./time";
 
 const requiredColumns = {
   "suppliers.csv": [
@@ -541,7 +541,7 @@ export function validateImport(args: ValidateImportArgs): {
   };
   const canonicalFiles = Object.entries(files)
     .map(([name, content]) => [name, content.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n")] as const)
-    .sort(([left], [right]) => left.localeCompare(right));
+    .sort(([left], [right]) => compareText(left, right));
   const contentHash = hash(JSON.stringify({
     metadata: normalizedMetadata,
     files: canonicalFiles,

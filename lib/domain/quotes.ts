@@ -2,7 +2,7 @@ import { DomainValidationError } from "./errors";
 import { projectInventory } from "./inventory";
 import { mulQtyPrice, sumMinor } from "./money";
 import { isQuantity } from "./quantity";
-import { parseInstant, toIso } from "./time";
+import { compareText, parseInstant, toIso } from "./time";
 import type { ProjectionInput } from "./types";
 
 export type QuoteTerms = {
@@ -228,7 +228,12 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
       outcome = "rejected";
     }
   }
-  if (q.status === "provisional" || q.supplierPurchasingStatus === "candidate") outcome = "incomplete";
+  if (
+    (q.status === "provisional" || q.supplierPurchasingStatus === "candidate") &&
+    outcome === "feasible"
+  ) {
+    outcome = "incomplete";
+  }
   if (outcome === "feasible" && !q.reservesQuantityThroughExecution) {
     const confirmedAt = parseInstant(q.availabilityConfirmedAt ?? q.verifiedAt ?? "");
     if (confirmedAt === null) {
@@ -272,14 +277,21 @@ export function rankQuotes(evaluations: QuoteEvaluation[]): {
     if (right === null) return -1;
     return left < right ? -1 : left > right ? 1 : 0;
   };
+  const compareArrival = (left: string | null, right: string | null): number => {
+    const leftMs = left === null ? null : parseInstant(left);
+    const rightMs = right === null ? null : parseInstant(right);
+    if (leftMs === null) return rightMs === null ? 0 : 1;
+    if (rightMs === null) return -1;
+    return leftMs < rightMs ? -1 : leftMs > rightMs ? 1 : 0;
+  };
   const ranked = eligible.sort(
     (left, right) =>
       outcomeRank[left.outcome] - outcomeRank[right.outcome] ||
-      (left.effectiveArrivalAt ?? "\uffff").localeCompare(right.effectiveArrivalAt ?? "\uffff") ||
+      compareArrival(left.effectiveArrivalAt, right.effectiveArrivalAt) ||
       compareNullableMoney(left.landedCostMinor, right.landedCostMinor) ||
       Number(Boolean(right.writtenConfirmationEvidenceId)) -
         Number(Boolean(left.writtenConfirmationEvidenceId)) ||
-      left.quoteId.localeCompare(right.quoteId),
+      compareText(left.quoteId, right.quoteId),
   );
   const recommended = ranked[0]?.outcome === "feasible" ? ranked[0] : null;
   return {

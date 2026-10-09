@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isQuantity } from "./quantity";
-import { endOfLocalDate, isValidTimeZone, parseInstant, toIso } from "./time";
+import { compareText, endOfLocalDate, isValidTimeZone, parseInstant, toIso } from "./time";
 import type { ProjectionDiagnostics } from "./projection-types";
 import type { ProjectionInput, ProjectionPoint, ProjectionResult } from "./types";
 
@@ -11,7 +11,7 @@ function canonicalize(value: unknown): unknown {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => compareText(left, right))
         .map(([key, entry]) => [key, canonicalize(entry)]),
     );
   }
@@ -30,11 +30,11 @@ function fingerprintInput(input: ProjectionInput): string {
         latestAt: receipt.latestAt === null ? null : canonicalTime(receipt.latestAt),
         evidenceIds: [...receipt.evidenceIds].sort(),
       }))
-      .sort((left, right) => left.id.localeCompare(right.id)),
+      .sort((left, right) => compareText(left.id, right.id)),
     demand: input.demand
       .map((demand) => ({ ...demand, requiredAt: canonicalTime(demand.requiredAt) }))
-      .sort((left, right) => left.id.localeCompare(right.id)),
-    pendingClaims: [...input.pendingClaims].sort((left, right) => left.id.localeCompare(right.id)),
+      .sort((left, right) => compareText(left.id, right.id)),
+    pendingClaims: [...input.pendingClaims].sort((left, right) => compareText(left.id, right.id)),
   };
   return createHash("sha256").update(JSON.stringify(canonicalize(copy))).digest("hex");
 }
@@ -204,7 +204,7 @@ function project(input: ProjectionInput, includeForecast: boolean): ProjectionOu
     (left, right) =>
       left.at - right.at ||
       (left.kind === right.kind ? 0 : left.kind === "receipt" ? -1 : 1) ||
-      left.sourceId.localeCompare(right.sourceId),
+      compareText(left.sourceId, right.sourceId),
   );
 
   const points: ProjectionPoint[] = [

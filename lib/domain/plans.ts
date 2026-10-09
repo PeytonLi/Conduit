@@ -151,7 +151,10 @@ export function validatePlan(args: PlanArgs): PlanValidation {
 
   const modified: ProjectionInput = {
     ...args.baseline,
-    receipts: [...args.baseline.receipts],
+    receipts: args.baseline.receipts.map((receipt) => ({
+      ...receipt,
+      evidenceIds: [...receipt.evidenceIds],
+    })),
     demand: [...args.baseline.demand],
     pendingClaims: [...args.baseline.pendingClaims],
   };

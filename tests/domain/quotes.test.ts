@@ -105,6 +105,59 @@ describe("quote evaluation and ranking", () => {
     expect(ranking.recommended?.quoteId).toBe("verified");
   });
 
+  it("AT-17 keeps deadline-missing provisional quotes rejected", () => {
+    const provisional = evaluateQuote(quote({
+      id: "late-provisional",
+      status: "provisional",
+      writtenConfirmationEvidenceId: null,
+    }), {
+      ...context,
+      projection: {
+        t0: context.now,
+        timezone: "America/Los_Angeles",
+        unit: "carton",
+        horizonEnd: "2026-11-11T15:00:00Z",
+        physicalQty: 0,
+        unusableQty: 0,
+        outsideAllocationsQty: 0,
+        safetyBufferQty: 0,
+        receipts: [],
+        demand: [{
+          id: "deadline",
+          quantity: 600,
+          requiredAt: "2026-10-13T15:00:00Z",
+          certainty: "confirmed",
+          includedReservedQty: 0,
+        }],
+        pendingClaims: [],
+      },
+    });
+    expect(provisional.outcome).toBe("rejected");
+    expect(provisional.reasons).toContain("misses_deadline");
+  });
+
+  it("AT-17 ranks arrival instants and quote IDs with deterministic comparisons", () => {
+    const template = evaluateQuote(quote(), context);
+    const later = {
+      ...template,
+      quoteId: "Z",
+      effectiveArrivalAt: "2026-10-12T10:00:00-07:00",
+    };
+    const earlier = {
+      ...template,
+      quoteId: "Å",
+      effectiveArrivalAt: "2026-10-12T16:00:00Z",
+    };
+    expect(rankQuotes([later, earlier]).ranked.map((evaluation) => evaluation.quoteId)).toEqual([
+      "Å",
+      "Z",
+    ]);
+    expect(rankQuotes([
+      { ...template, quoteId: "Å", effectiveArrivalAt: "2026-10-14T15:00:00Z" },
+      { ...template, quoteId: "Z", effectiveArrivalAt: "2026-10-14T15:00:00Z" },
+    ]).ranked.map((evaluation) => evaluation.quoteId)).toEqual(["Z", "Å"]);
+  });
+
   it("AT-18 separates landed gross commitment from confirmed-credit net incremental cost", () => {
     const evaluation = evaluateQuote(quote(), context);
     expect(evaluation.landedCostMinor).toBe(31_200n);

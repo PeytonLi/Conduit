@@ -17,6 +17,47 @@ describe("inventory assessment", () => {
     expect(result.projection.missingFacts).toContain("stale:inventory:stock-1");
     expect(result.projection.bridgeQuantity).toBeNull();
     expect(result.liveCommitmentAllowed).toBe(false);
+    expect(result.staleSources).toEqual(["stale:inventory:stock-1"]);
+  });
+
+  it("AT-02 reports stale sources without downgrading replay or sandbox projections", () => {
+    const t0 = "2026-10-12T15:00:00Z";
+    for (const mode of ["replay", "sandbox"] as const) {
+      const result = assessInventory(baseProjection({ t0 }), {
+        now: "2026-10-12T15:16:00Z",
+        mode,
+        itemBaseUnit: "carton",
+        sources: [{ kind: "inventory", id: "stock-1", sourceAsOf: t0 }],
+        sourceType: "connector",
+      });
+      expect(result.projection.quality).toBe("sufficient");
+      expect(result.staleSources).toEqual(["stale:inventory:stock-1"]);
+      expect(result.missingFacts).not.toContain("stale:inventory:stock-1");
+      expect(result.liveCommitmentAllowed).toBe(false);
+    }
+  });
+
+  it("AT-02 keeps future-dated and invalid source timestamps insufficient in every mode", () => {
+    const input = baseProjection();
+    for (const mode of ["replay", "sandbox", "live"] as const) {
+      const future = assessInventory(input, {
+        now: input.t0,
+        mode,
+        itemBaseUnit: "carton",
+        sources: [{ kind: "inventory", id: "stock-1", sourceAsOf: "2026-10-12T15:01:00Z" }],
+      });
+      expect(future.projection.quality).toBe("insufficient");
+      expect(future.missingFacts).toContain("contradictory:source_as_of_in_future:inventory:stock-1");
+
+      const invalid = assessInventory(input, {
+        now: input.t0,
+        mode,
+        itemBaseUnit: "carton",
+        sources: [{ kind: "inventory", id: "stock-1", sourceAsOf: "2026-10-12T15:00:00" }],
+      });
+      expect(invalid.projection.quality).toBe("insufficient");
+      expect(invalid.missingFacts).toContain("invalid:source_as_of:inventory:stock-1");
+    }
   });
 
   it("AT-02 rejects unit mismatches and never allows CSV data for live commitment", () => {

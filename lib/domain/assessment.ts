@@ -21,11 +21,14 @@ export function assessInventory(
   projection: AssessmentProjection;
   liveCommitmentAllowed: boolean;
   missingFacts: string[];
+  staleSources: string[];
 } {
   const initial = projectInventory(input);
   const missingFacts = [...initial.missingFacts];
   const now = parseInstant(context.now);
+  if (now === null) missingFacts.push("invalid:now");
   const threshold = context.freshnessThresholdMs ?? 15 * 60_000;
+  const staleSources: string[] = [];
 
   if (input.unit !== context.itemBaseUnit) {
     missingFacts.push(`unit_mismatch:${input.unit}!=${context.itemBaseUnit}`);
@@ -35,14 +38,15 @@ export function assessInventory(
   }
   for (const source of context.sources) {
     const sourceAsOf = parseInstant(source.sourceAsOf);
-    if (now === null || sourceAsOf === null) {
+    if (sourceAsOf === null) {
       missingFacts.push(`invalid:source_as_of:${source.kind}:${source.id}`);
-    } else if (sourceAsOf > now) {
+    } else if (now !== null && sourceAsOf > now) {
       missingFacts.push(`contradictory:source_as_of_in_future:${source.kind}:${source.id}`);
-    } else if (now - sourceAsOf > threshold) {
-      missingFacts.push(`stale:${source.kind}:${source.id}`);
+    } else if (now !== null && now - sourceAsOf > threshold) {
+      staleSources.push(`stale:${source.kind}:${source.id}`);
     }
   }
+  if (context.mode === "live") missingFacts.push(...staleSources);
 
   const uniqueMissingFacts = [...new Set(missingFacts)].sort();
   const downgraded = uniqueMissingFacts.length > 0;
@@ -63,9 +67,11 @@ export function assessInventory(
   return {
     projection,
     missingFacts: uniqueMissingFacts,
+    staleSources: [...new Set(staleSources)].sort(),
     liveCommitmentAllowed:
       projection.quality === "sufficient" &&
       context.mode === "live" &&
+      staleSources.length === 0 &&
       context.sourceType !== "csv" &&
       context.sourceType !== "fixture",
   };
