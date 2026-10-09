@@ -21,8 +21,11 @@ interface LoadedCredential {
   key_version: string | null;
 }
 
-// Registration is intentionally lazy: no env, DB, or network access happens
-// at import time — only inside dispatch/findResult calls.
+// Sandbox/live supplier_email adapter registration. Replay dispatch is owned
+// by F5's replay-outreach adapter (resolveAdapterForMode routes mode==='replay'
+// to getReplayAdapter); the internal replay guard in outbound.ts is
+// defense-in-depth only. Registration is lazy: no env, DB, or network access
+// happens at import time — only inside dispatch/findResult calls.
 let registered = false;
 
 export function ensureSupplierEmailAdapter(): void {
