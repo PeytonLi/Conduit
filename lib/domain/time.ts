@@ -125,6 +125,12 @@ function firstInstantOfDate(parts: [number, number, number], timeZone: string): 
   return high;
 }
 
+export function startOfLocalDate(instantOrDate: string, timeZone: string): number {
+  if (!isValidTimeZone(timeZone)) throw new DomainValidationError("invalid_timezone", "timeZone");
+  const date = dateParts(instantOrDate, timeZone);
+  return firstInstantOfDate(date, timeZone);
+}
+
 export function endOfLocalDate(instantOrDate: string, timeZone: string): number {
   if (!isValidTimeZone(timeZone)) throw new DomainValidationError("invalid_timezone", "timeZone");
   const date = dateParts(instantOrDate, timeZone);

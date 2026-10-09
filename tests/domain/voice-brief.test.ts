@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { parseBody } from "@/lib/api/http";
+import { buildOutreachPayload, outreachRequestSchema } from "@/lib/actions/outreach";
 import { buildCallBrief, CALL_QUESTIONS } from "@/lib/integrations/elevenlabs/brief";
 import { parseDecimalToMinor } from "@/lib/integrations/elevenlabs/money";
 import { normalizeTranscription } from "@/lib/integrations/elevenlabs/outcomes";
@@ -32,6 +34,35 @@ describe("call brief", () => {
   it("rejects payloads that try to smuggle scope or prices", () => {
     expect(supplierCallPayloadSchema.safeParse({ contact_id: CONTACT_A, org_id: ORG_A }).success).toBe(false);
     expect(supplierCallPayloadSchema.safeParse({ contact_id: CONTACT_A, max_price_minor: 100 }).success).toBe(false);
+  });
+
+  it("builds a phone outreach payload accepted by the supplier-call contract", () => {
+    const request = outreachRequestSchema.parse({
+      contact_id: CONTACT_A,
+      channel: "phone",
+      message: { body: "Please confirm availability and earliest delivery date." },
+    });
+    expect(supplierCallPayloadSchema.parse(buildOutreachPayload(request))).toMatchObject({
+      purpose: "Please confirm availability and earliest delivery date.",
+    });
+  });
+
+  it("rejects a phone message body over 200 characters as validation_failed", async () => {
+    const parsed = await parseBody(
+      new Request("http://localhost/api/outreach", {
+        method: "POST",
+        body: JSON.stringify({
+          contact_id: CONTACT_A,
+          channel: "phone",
+          message: { body: "x".repeat(201) },
+        }),
+      }),
+      outreachRequestSchema,
+    );
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(await parsed.response.json()).toMatchObject({ error: { code: "validation_failed" } });
+    }
   });
 
   it("versioned prompt forbids revealing willingness to pay and requires disclosure", () => {

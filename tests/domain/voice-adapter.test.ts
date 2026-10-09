@@ -6,8 +6,20 @@ import { hashVoiceToken, VOICE_TOKEN_DYNAMIC_VARIABLE } from "@/lib/integrations
 import type { VoiceProviderClient } from "@/lib/integrations/elevenlabs/client";
 import { ACTION_A, CASE_A, CONTACT_A, createFakeVoiceStore, fakeClock, ORG_A } from "./voice-fakes";
 
-function action(mode: ActionRecord["mode"] = "sandbox"): ActionRecord {
-  return { id: ACTION_A, orgId: ORG_A, caseId: CASE_A, kind: "supplier_call", idempotencyKey: "k", payloadHash: "h", payload: { contact_id: CONTACT_A }, providerRef: null, mode };
+function action(mode: ActionRecord["mode"] = "sandbox", overrides: Partial<ActionRecord> = {}): ActionRecord {
+  return {
+    id: ACTION_A,
+    orgId: ORG_A,
+    caseId: CASE_A,
+    kind: "supplier_call",
+    idempotencyKey: "k",
+    payloadHash: "h",
+    payload: { purpose: "availability and split delivery" },
+    contactId: CONTACT_A,
+    providerRef: null,
+    mode,
+    ...overrides,
+  };
 }
 
 function provider(overrides: Partial<VoiceProviderClient> = {}): VoiceProviderClient & { startOutboundCall: ReturnType<typeof vi.fn> } {
@@ -49,6 +61,37 @@ describe("supplier_call dispatch", () => {
     expect(result.safeSummary).toMatch(/Replay/);
     expect(p.startOutboundCall).not.toHaveBeenCalled();
     expect(await adapter.findResult(action("replay"))).toMatchObject({ outcome: "unknown" });
+  });
+
+  it("uses the action contact when the payload only carries a purpose", async () => {
+    const p = provider();
+    const { adapter } = adapterWith(p);
+    expect((await adapter.dispatch(action())).outcome).toBe("submitted");
+    expect(p.startOutboundCall).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a payload contact that differs from the action contact", async () => {
+    const p = provider();
+    const { adapter } = adapterWith(p);
+    const result = await adapter.dispatch(
+      action("sandbox", { payload: { contact_id: "50000000-0000-4000-8000-000000000002", purpose: "availability" } }),
+    );
+    expect(result).toEqual({
+      outcome: "failed",
+      safeSummary: "Call payload contact does not match the action contact; no call placed.",
+    });
+    expect(p.startOutboundCall).not.toHaveBeenCalled();
+  });
+
+  it("rejects a call with neither an action nor payload contact", async () => {
+    const p = provider();
+    const { adapter } = adapterWith(p);
+    const result = await adapter.dispatch(action("sandbox", { contactId: null, payload: { purpose: "availability" } }));
+    expect(result).toEqual({
+      outcome: "failed",
+      safeSummary: "Call payload has no contact; no call placed.",
+    });
+    expect(p.startOutboundCall).not.toHaveBeenCalled();
   });
 
   it("fails closed for live actions in a replay environment or without credentials", async () => {

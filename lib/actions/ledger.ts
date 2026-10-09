@@ -74,6 +74,7 @@ export function toActionRecord(action: LedgerAction): ActionRecord {
     idempotencyKey: action.idempotency_key,
     payloadHash: action.payload_hash,
     payload: action.payload,
+    contactId: action.contact_id,
     providerRef: action.provider_ref,
     mode: action.mode,
   };

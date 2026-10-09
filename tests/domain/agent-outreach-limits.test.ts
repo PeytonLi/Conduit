@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRequestSupplierEmailTool } from "@/lib/agent/tools/request-supplier-email";
 import { createRequestSupplierCallTool } from "@/lib/agent/tools/request-supplier-call";
+import { supplierCallPayloadSchema } from "@/lib/integrations/elevenlabs/payload";
 import { fixedClock } from "@/lib/agent/clock";
 import {
   BAY_EMAIL_CONTACT,
@@ -63,6 +64,17 @@ describe("NFR-011 outreach limits", () => {
       case_version: 1,
     });
     expect(okCall.ok).toBe(true);
+    const preparedCall = [...store.actions.values()].find(
+      (a) => a.idempotency_key === `${ctx.caseId}:1:call:${BAY_PHONE_CONTACT}:availability_and_split`,
+    );
+    expect(supplierCallPayloadSchema.parse(preparedCall?.payload)).toEqual({
+      contact_id: BAY_PHONE_CONTACT,
+      purpose: "availability_and_split",
+      qty_needed: 600,
+      needed_by: "2026-10-14T16:00:00Z",
+      allowed_tradeoffs: [],
+      extra_questions: [],
+    });
     const dupCall = await call.run(ctx, {
       contact_id: BAY_PHONE_CONTACT,
       purpose: "confirm_terms",
