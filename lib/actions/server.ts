@@ -1,4 +1,5 @@
 import "server-only";
+import "@/lib/integrations/register-providers";
 import { inngest } from "@/lib/workflows/client";
 import { publishAfterCommit, type PublishedEvent } from "@/lib/workflows/outbox";
 import { registerF5Adapters } from "./adapters/index";

@@ -67,6 +67,7 @@ export interface VoiceGrantResolution {
 export interface VoiceOfferContext {
   org_currency: string;
   negotiation_ceiling_minor: string | null;
+  timezone: string;
   unit: string;
   bridge_qty: number | null;
   first_shortage_at: string | null;
