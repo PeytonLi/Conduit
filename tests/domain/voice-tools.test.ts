@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { startOfLocalDate } from "@/lib/domain/time";
 import { generateVoiceToken, hashVoiceToken, VOICE_GRANT_TTL_MS, VOICE_TOOL_NAMES } from "@/lib/integrations/elevenlabs/capability";
 import { toInstant } from "@/lib/integrations/elevenlabs/offer-evaluation";
 import { handleVoiceToolRequest } from "@/lib/integrations/elevenlabs/tools";
@@ -129,6 +130,15 @@ describe("AT-16 negotiation boundary", () => {
 
     await call("record_provisional_offer", tokenA, { ...goodOffer, arrival_date: "2026-10-16" });
     expect(fake.quotes[0].arrival_by).toBe(arrivalBy);
+  });
+
+  it("uses the start of the local day for date-only order cutoff persistence", async () => {
+    const { call, tokenA, fake } = await setup();
+    const cutoff = "2026-10-13T07:00:00.000Z";
+    expect(startOfLocalDate("2026-10-13", "America/Los_Angeles")).toBe(Date.parse(cutoff));
+
+    await call("record_provisional_offer", tokenA, { ...goodOffer, order_cutoff: "2026-10-13" });
+    expect(fake.quotes[0].order_cutoff).toBe(cutoff);
   });
 
   it("rejects float-like or negative money", async () => {

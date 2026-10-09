@@ -72,50 +72,43 @@ export function createRequestSupplierCallTool(
       if (calls.length >= limits.callsPerEpisode) {
         return fail("budget_exhausted", "call budget exhausted for episode");
       }
-      if (
-        calls.some((a) => a.payload?.supplier_id === supplier.id)
-      ) {
-        return fail("budget_exhausted", "call budget exhausted for supplier");
-      }
       const contacted = new Set<string>();
+      let callsToSupplier = 0;
       for (const a of actions) {
-        if (
-          (a.kind === "supplier_email" || a.kind === "supplier_call") &&
+        const actionSupplierId =
           typeof a.payload?.supplier_id === "string"
-        ) {
-          contacted.add(a.payload.supplier_id);
+            ? a.payload.supplier_id
+            : a.contact_id
+              ? (await deps.store.getContact(ctx.orgId, a.contact_id))?.supplier_id
+              : undefined;
+        if ((a.kind === "supplier_email" || a.kind === "supplier_call") && actionSupplierId) {
+          contacted.add(actionSupplierId);
         }
+        if (a.kind === "supplier_call" && actionSupplierId === supplier.id) callsToSupplier += 1;
+      }
+      if (callsToSupplier > 0) {
+        return fail("budget_exhausted", "call budget exhausted for supplier");
       }
       if (!contacted.has(supplier.id) && contacted.size >= limits.distinctSuppliersPerEpisode) {
         return fail("budget_exhausted", "distinct supplier limit reached for episode");
       }
 
       const assessment = await deps.store.getCurrentAssessment(ctx.orgId, ctx.caseId);
-      const item = await deps.store.getItem(ctx.orgId, c.item_id);
+      const payload = {
+        contact_id: contact.id,
+        purpose: input.purpose,
+        ...(assessment?.bridge_qty !== null && assessment?.bridge_qty !== undefined
+          ? { qty_needed: assessment.bridge_qty }
+          : {}),
+        ...(assessment?.first_shortage_at ? { needed_by: assessment.first_shortage_at } : {}),
+      };
       const prepared = await deps.preparer.prepare({
         orgId: ctx.orgId,
         caseId: ctx.caseId,
         kind: "supplier_call",
         idempotencyKey: `${ctx.caseId}:${c.episode}:call:${contact.id}:${input.purpose}`,
         contactId: contact.id,
-        payload: {
-          recipient: contact.normalized_address,
-          contact_id: contact.id,
-          supplier_id: supplier.id,
-          episode: c.episode,
-          purpose: input.purpose,
-          max_duration_s: limits.maxCallSeconds,
-          item: item
-            ? {
-                sku: item.sku,
-                description: item.description,
-                specification: item.specification,
-                base_unit: item.base_unit,
-              }
-            : null,
-          needed_qty: assessment?.bridge_qty ?? null,
-          deadline: assessment?.first_shortage_at ?? null,
-        },
+        payload,
       });
       if (!prepared.ok) return fail(prepared.code, prepared.safeMessage);
       return ok({

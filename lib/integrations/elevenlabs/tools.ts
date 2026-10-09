@@ -149,7 +149,7 @@ async function execute(
         fees_minor: evaluation.fees_minor?.toString() ?? null,
         arrival_by: toInstant(terms.arrival_date, context.timezone)?.toISOString() ?? null,
         valid_until: toInstant(terms.quote_valid_until, context.timezone)?.toISOString() ?? null,
-        order_cutoff: toInstant(terms.order_cutoff, context.timezone)?.toISOString() ?? null,
+        order_cutoff: toInstant(terms.order_cutoff, context.timezone, "start")?.toISOString() ?? null,
         added_cost_minor: evaluation.added_cost_minor?.toString() ?? null,
         owner_task_kind: ownerTask?.kind ?? null,
         owner_task_reason: ownerTask?.reason ?? null,

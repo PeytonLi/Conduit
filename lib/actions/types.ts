@@ -12,6 +12,7 @@ export interface ActionRecord {
   idempotencyKey: string;
   payloadHash: string;
   payload: unknown;
+  contactId?: string | null;
   providerRef: string | null;
   mode: "replay" | "sandbox" | "live";
 }

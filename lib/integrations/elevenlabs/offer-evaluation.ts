@@ -1,5 +1,5 @@
 import type { VoiceOfferContext } from "@/lib/db/voice-store";
-import { endOfLocalDate } from "@/lib/domain/time";
+import { endOfLocalDate, startOfLocalDate } from "@/lib/domain/time";
 import { parseDecimalToMinor } from "./money";
 
 export interface OfferTerms {
@@ -27,11 +27,11 @@ export interface OfferEvaluation {
   ceiling_status: CeilingStatus;
 }
 
-export function toInstant(value: string | undefined, timeZone: string): Date | null {
+export function toInstant(value: string | undefined, timeZone: string, boundary: "start" | "end" = "end"): Date | null {
   if (!value) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     try {
-      return new Date(endOfLocalDate(value, timeZone));
+      return new Date(boundary === "start" ? startOfLocalDate(value, timeZone) : endOfLocalDate(value, timeZone));
     } catch {
       return null;
     }
