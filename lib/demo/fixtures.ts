@@ -1,0 +1,47 @@
+export type HarborPackFixtureId = "harbor-pack-canonical" | "harbor-pack-harmless";
+
+export const HARBOR_PACK_ORG_ID = "00000000-0000-4000-8000-000000000001";
+export const HARBOR_PACK_FIXTURE_CLOCK = "2026-10-12T15:00:00.000Z";
+
+export const HARBOR_PACK_EXPECTED = {
+  firstShortageAt: "2026-10-14T16:00:00Z",
+  bridgeQuantity: 600,
+  requirements: [
+    { by: "2026-10-14T16:00:00Z", cumulative_quantity: 200 },
+    { by: "2026-10-15T16:00:00Z", cumulative_quantity: 600 },
+  ],
+  splitIncrementalCost: 7500,
+  alternativeGross: 31200,
+} as const;
+
+export const HARBOR_PACK_FIXTURES = {
+  "harbor-pack-canonical": {
+    itemSku: "CARTON-302015",
+    startingInventory: 600,
+    phase: "awaiting_approval",
+    severity: "urgent",
+    firstShortageAt: HARBOR_PACK_EXPECTED.firstShortageAt,
+    bridgeQuantity: HARBOR_PACK_EXPECTED.bridgeQuantity,
+  },
+  "harbor-pack-harmless": {
+    itemSku: "CARTON-302015",
+    startingInventory: 1500,
+    phase: "monitoring",
+    severity: "info",
+    firstShortageAt: null,
+    bridgeQuantity: null,
+  },
+} as const;
+
+export const HARBOR_PACK_TIMES = {
+  sourceAsOf: HARBOR_PACK_FIXTURE_CLOCK,
+  originalDueAt: "2026-10-13T15:00:00.000Z",
+  delayedArrivalAt: "2026-10-16T15:00:00.000Z",
+  firstBridgeArrivalAt: "2026-10-14T15:00:00.000Z",
+  quoteValidUntil: "2026-10-12T19:00:00.000Z",
+  demandAt: [
+    "2026-10-13T16:00:00.000Z",
+    "2026-10-14T16:00:00.000Z",
+    "2026-10-15T16:00:00.000Z",
+  ],
+} as const;
