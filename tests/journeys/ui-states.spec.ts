@@ -29,7 +29,12 @@ test("AT-42 stale plan polling and 409 require review", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
   const initial = await page.request.get(`/api/v1/cases/${caseId}`);
-  const data = (await initial.json()).data;
+  const initialEnvelope = await initial.json() as {
+    data?: { case: { row_version: number }; plan: { row_version: number } };
+  };
+  expect(initial.ok(), JSON.stringify(initialEnvelope)).toBeTruthy();
+  const data = initialEnvelope.data!;
+  expect(data, JSON.stringify(initialEnvelope)).toBeDefined();
   await page.route(`**/api/v1/cases/${caseId}`, (route) => route.fulfill({
     status: 200,
     contentType: "application/json",

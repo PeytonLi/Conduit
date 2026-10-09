@@ -18,7 +18,6 @@ export interface LoadHarborPackInput {
   orgId: string;
   fixtureId: HarborPackFixtureId;
   reset: boolean;
-  now: Date;
   client?: ReturnType<typeof createServiceClient>;
 }
 
@@ -43,6 +42,43 @@ const fixtureFiles = [
   "receipt_schedules.csv",
   "messages/delay-po-1042.eml",
 ];
+
+const fixtureTimestampFields: Record<string, string[]> = {
+  items: ["created_at", "updated_at"],
+  locations: ["created_at", "updated_at"],
+  suppliers: ["created_at", "updated_at"],
+  supplier_contacts: ["created_at", "updated_at"],
+  supplier_items: ["created_at", "updated_at"],
+  datasets: ["imported_at", "created_at", "updated_at"],
+  purchase_orders: ["created_at", "updated_at"],
+  purchase_order_lines: ["created_at", "updated_at"],
+  receipt_schedules: ["created_at", "updated_at"],
+  inventory_snapshots: ["created_at", "updated_at"],
+  demand_requirements: ["created_at", "updated_at"],
+  source_messages: ["created_at", "updated_at"],
+  evidence: ["captured_at", "created_at"],
+  case_order_lines: ["created_at"],
+  cases: ["created_at", "updated_at"],
+  assessments: ["created_at"],
+  offers: ["created_at"],
+  quotes: ["created_at", "updated_at"],
+  recovery_plans: ["created_at", "updated_at"],
+  plan_steps: ["created_at"],
+  actions: ["created_at", "updated_at"],
+  case_evidence: ["created_at"],
+};
+
+function fixtureTimestamps(table: string, value: Row): Row {
+  return {
+    ...value,
+    ...Object.fromEntries(
+      (fixtureTimestampFields[table] ?? []).map((field) => [
+        field,
+        HARBOR_PACK_FIXTURE_CLOCK,
+      ]),
+    ),
+  };
+}
 
 function failDatabase(error: { code?: string } | null, operation: string): void {
   if (error) {
@@ -69,7 +105,7 @@ async function upsert(
   conflict: string,
 ): Promise<Row> {
   return result(
-    client.from(table).upsert(value, { onConflict: conflict }).select("*").single(),
+    client.from(table).upsert(fixtureTimestamps(table, value), { onConflict: conflict }).select("*").single(),
     `upsert ${table}`,
   );
 }
@@ -91,7 +127,10 @@ async function insert(
   table: string,
   value: Row,
 ): Promise<Row> {
-  return result(client.from(table).insert(value).select("*").single(), `insert ${table}`);
+  return result(
+    client.from(table).insert(fixtureTimestamps(table, value)).select("*").single(),
+    `insert ${table}`,
+  );
 }
 
 async function fixtureHash(): Promise<string> {
@@ -165,7 +204,7 @@ async function ensureDataset(
     if (existing) return existing;
   } else {
     const { error } = await client.from("datasets")
-      .update({ status: "superseded", updated_at: new Date().toISOString() })
+      .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
       .eq("org_id", orgId)
       .eq("source_type", "fixture")
       .in("validation_summary->>fixture_id", [
@@ -516,6 +555,7 @@ async function ensureSupplierItem(
     minimum_qty: 1,
     verified_specification_evidence_id: evidenceId,
     last_verified_at: evidenceId ? HARBOR_PACK_FIXTURE_CLOCK : null,
+    updated_at: HARBOR_PACK_FIXTURE_CLOCK,
   };
   if (existing) {
     const { error } = await client.from("supplier_items").update(value)
@@ -577,7 +617,7 @@ async function ensureCase(
         previous_version: caseRow.row_version,
         new_version: caseRow.row_version + 1,
         reason: "Demo reset",
-        occurred_at: now.toISOString(),
+        occurred_at: HARBOR_PACK_FIXTURE_CLOCK,
       });
     }
   }
@@ -590,8 +630,8 @@ async function ensureCase(
     run_control: "active",
     severity: definition.severity,
     next_check_at: fixtureId === "harbor-pack-canonical" ? HARBOR_PACK_TIMES.quoteValidUntil : null,
-    created_at: now.toISOString(),
-    updated_at: now.toISOString(),
+    created_at: HARBOR_PACK_FIXTURE_CLOCK,
+    updated_at: HARBOR_PACK_FIXTURE_CLOCK,
   });
 }
 
@@ -655,6 +695,7 @@ async function ensureAssessment(
         mode: "replay",
         fixture_id: input.fixtureId,
         dataset_id: input.datasetId,
+        fixture_clock: HARBOR_PACK_FIXTURE_CLOCK,
       },
       horizon_start: HARBOR_PACK_FIXTURE_CLOCK,
       horizon_end: HARBOR_PACK_TIMES.delayedArrivalAt,
@@ -758,9 +799,7 @@ async function ensurePlan(
       gross_commitment_minor: input.grossMinor,
       incremental_cost_minor: input.incrementalMinor,
       expires_at: input.quote.valid_until,
-      dependencies: [
-        { quote_id: input.quote.id, supplier_id: input.supplier.id, description: input.summary },
-      ],
+      dependencies: [{ quote_id: input.quote.id, resolved: true }],
       evidence_ids: input.evidenceIds,
     },
     "org_id,case_id,version",
@@ -976,6 +1015,7 @@ async function loadCanonicalData(
       po_line_id: input.poLine.id,
       affected_qty: 4000,
       triggering_message_id: messageId,
+      created_at: HARBOR_PACK_FIXTURE_CLOCK,
     }, { onConflict: "org_id,case_id,po_line_id" });
   failDatabase(caseOrderError, "upsert case purchase order line");
   const canonical = input.fixtureId === "harbor-pack-canonical";
@@ -1159,6 +1199,8 @@ async function loadCanonicalData(
       permitted_by: null,
       attempts: 1,
       dispatch_started_at: HARBOR_PACK_FIXTURE_CLOCK,
+      created_at: HARBOR_PACK_FIXTURE_CLOCK,
+      updated_at: HARBOR_PACK_FIXTURE_CLOCK,
       outcome: { result: "confirmed", mode: "replay" },
       mode: "replay",
     }, { onConflict: "org_id,idempotency_key" });
@@ -1166,7 +1208,7 @@ async function loadCanonicalData(
     const auditEvents = [
       {
         seed: "delay-received",
-        at: "2026-10-12T15:00:00.000Z",
+        at: HARBOR_PACK_TIMES.timeline.delayReceivedAt,
         eventName: "supplier.delay.received",
         title: "Bay Carton reported PO-1042 delayed to October 16",
         actorType: "system" as const,
@@ -1174,7 +1216,7 @@ async function loadCanonicalData(
       },
       {
         seed: "order-matched",
-        at: "2026-10-12T15:02:00.000Z",
+        at: HARBOR_PACK_TIMES.timeline.orderMatchedAt,
         eventName: "purchase_order.line_matched",
         title: "Matched the delay notice to PO-1042 line 1",
         actorType: "agent" as const,
@@ -1182,7 +1224,7 @@ async function loadCanonicalData(
       },
       {
         seed: "stock-recalculated",
-        at: "2026-10-12T15:04:00.000Z",
+        at: HARBOR_PACK_TIMES.timeline.stockRecalculatedAt,
         eventName: "assessment.recalculated",
         title: "Stock first runs short October 14 at 9:00 AM PDT",
         actorType: "system" as const,
@@ -1190,7 +1232,7 @@ async function loadCanonicalData(
       },
       {
         seed: "request-sent",
-        at: "2026-10-12T15:10:00.000Z",
+        at: HARBOR_PACK_TIMES.timeline.supplierRequestAt,
         eventName: "supplier.request.sent",
         title: "A split delivery request was recorded in replay",
         actorType: "system" as const,
@@ -1198,7 +1240,7 @@ async function loadCanonicalData(
       },
       {
         seed: "offer-verified",
-        at: "2026-10-12T15:12:00.000Z",
+        at: HARBOR_PACK_TIMES.timeline.offerVerifiedAt,
         eventName: "supplier.offer.verified",
         title: "Bay Carton confirmed the split delivery and freight",
         actorType: "agent" as const,
@@ -1206,7 +1248,7 @@ async function loadCanonicalData(
       },
       {
         seed: "plan-ready",
-        at: "2026-10-12T15:14:00.000Z",
+        at: HARBOR_PACK_TIMES.timeline.planReadyAt,
         eventName: "recovery.plan.ready",
         title: "Recovery plan is ready for owner approval",
         actorType: "system" as const,
@@ -1271,6 +1313,7 @@ export async function loadHarborPack(
   if (organization.environment_mode === "live") {
     throw new QueryError("demo_disabled", 409, "Demo data cannot be loaded in a live organization");
   }
+  const fixtureNow = new Date(HARBOR_PACK_FIXTURE_CLOCK);
   const hash = await fixtureHash();
   const [fixtureRows, dataset] = await Promise.all([
     upsertFixtureRows(client, input.orgId),
@@ -1283,7 +1326,7 @@ export async function loadHarborPack(
     input.fixtureId,
     fixtureRows.item.id,
     fixtureRows.location.id,
-    input.now,
+    fixtureNow,
     input.reset,
   );
   await ensureCaseOrderLine(client, input.orgId, caseRow.id, fixtureRows.poLine.id);
@@ -1298,7 +1341,7 @@ export async function loadHarborPack(
     suppliers: fixtureRows.suppliers,
     contacts: fixtureRows.contacts,
     poLine: fixtureRows.poLine,
-    now: input.now,
+    now: fixtureNow,
     inventory: definition.startingInventory,
   });
   return {

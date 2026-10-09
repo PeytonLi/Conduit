@@ -10,6 +10,7 @@ describe("F6 formatters", () => {
   it("formats integer minor-unit money without floating point", () => {
     expect(formatMoney("31200", "USD")).toBe("USD 312.00");
     expect(formatMoney(7500n, "USD")).toBe("USD 75.00");
+    expect(formatMoney("140000", "USD")).toBe("USD 1,400.00");
   });
 
   it("formats quantities with their unit", () => {

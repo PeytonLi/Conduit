@@ -2,7 +2,6 @@ import { withMembership, mutationGuard, executeMutation } from "@/lib/db/queries
 import { parseBody } from "@/lib/api/http";
 import { demoRunRequestSchema } from "@/lib/db/queries/contracts";
 import { loadHarborPack } from "@/lib/demo/harbor-pack";
-import { systemClock } from "@/lib/db/queries/clock";
 
 export async function POST(request: Request): Promise<Response> {
   const guard = mutationGuard(request);
@@ -16,7 +15,6 @@ export async function POST(request: Request): Promise<Response> {
           orgId: context.orgId,
           fixtureId: parsed.data.fixture_id,
           reset: parsed.data.reset,
-          now: systemClock.now(),
         }),
       })),
     ["owner", "operator"],

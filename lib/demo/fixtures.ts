@@ -39,6 +39,14 @@ export const HARBOR_PACK_TIMES = {
   delayedArrivalAt: "2026-10-16T15:00:00.000Z",
   firstBridgeArrivalAt: "2026-10-14T15:00:00.000Z",
   quoteValidUntil: "2026-10-12T19:00:00.000Z",
+  timeline: {
+    delayReceivedAt: "2026-10-12T15:00:00.000Z",
+    orderMatchedAt: "2026-10-12T15:02:00.000Z",
+    stockRecalculatedAt: "2026-10-12T15:04:00.000Z",
+    supplierRequestAt: "2026-10-12T15:10:00.000Z",
+    offerVerifiedAt: "2026-10-12T15:12:00.000Z",
+    planReadyAt: "2026-10-12T15:14:00.000Z",
+  },
   demandAt: [
     "2026-10-13T16:00:00.000Z",
     "2026-10-14T16:00:00.000Z",

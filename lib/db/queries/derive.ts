@@ -162,9 +162,10 @@ export function isDataStale(
   sourceAsOf: string | null,
   environmentMode: "live" | "sandbox" | "replay",
   now: Date,
+  isReplayData = false,
 ): boolean {
   if (!sourceAsOf) return true;
-  if (environmentMode !== "live") return false;
+  if (environmentMode !== "live" && !isReplayData) return false;
   return now.getTime() - new Date(sourceAsOf).getTime() > 15 * 60 * 1000;
 }
 

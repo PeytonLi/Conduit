@@ -5,46 +5,13 @@ import type {
   TimelineEntry,
 } from "@/lib/db/queries/cases";
 import { formatDateTime, formatMoney, formatQuantity } from "@/lib/db/queries/format";
+import { humanLabel, originalOrderTreatmentLabel } from "@/lib/db/queries/labels";
 import { CaseControls } from "./CaseControls";
 import { EvidenceDrawer } from "./EvidenceDrawer";
 import { QuoteCorrectionForm } from "./QuoteCorrectionForm";
 import { StatusBadge } from "./StatusBadge";
 import { ApprovalCard } from "./ApprovalCard";
 import styles from "./case-detail.module.css";
-
-const phaseLabels: Record<string, string> = {
-  new: "New",
-  needs_review: "Needs review",
-  assessing: "Assessing",
-  recovering: "Recovering",
-  awaiting_supplier: "Awaiting supplier",
-  awaiting_approval: "Awaiting approval",
-  executing: "Executing",
-  monitoring: "Monitoring",
-  closed: "Closed",
-};
-
-const groupLabels: Record<TimelineEntry["group"], string> = {
-  received_delay: "Supplier delay received",
-  matched_order: "Purchase order matched",
-  recalculated_stock: "Stock impact recalculated",
-  request_sent: "Supplier request",
-  call_outcome: "Supplier call",
-  offer_verified: "Supplier offer verified",
-  approval: "Owner decision",
-  execution: "Recovery execution",
-  receipt: "Delivery receipt",
-  control: "Case control",
-};
-
-const statusLabels: Record<TimelineEntry["status"], string> = {
-  intended: "Intended",
-  submitted: "Submitted",
-  confirmed: "Confirmed",
-  failed: "Failed",
-  unknown: "Unknown",
-  info: "Recorded",
-};
 
 function severityTone(severity: string): "danger" | "warning" | "neutral" {
   if (severity === "critical" || severity === "urgent") return "danger";
@@ -130,7 +97,7 @@ function StockProjection({
             {points.length ? points.map((point, index) => (
               <tr key={`${point.at}-${index}`}>
                 <td>{formatDateTime(point.at, detail.case.location.timezone) ?? "Unknown"}</td>
-                <td>{point.label || point.kind}</td>
+                <td>{point.label || humanLabel("projectionKind", point.kind)}</td>
                 <td>{formatQuantity(point.delta, unit) ?? "Unknown"}</td>
                 <td>{displayBalance(point.balance, unit)}</td>
               </tr>
@@ -230,15 +197,15 @@ function SupplierOptionTable({
                   <p>{option.item_sku || "Unknown item"} · {option.location ?? "Unknown location"}</p>
                 </header>
                 <dl className={styles.optionFacts}>
-                  <div><dt>Purchasing status</dt><dd>{option.supplier.purchasing_status}</dd></div>
-                  <div><dt>Specification status</dt><dd>{option.specification_status}</dd></div>
+                  <div><dt>Purchasing status</dt><dd>{humanLabel("supplierStatus", option.supplier.purchasing_status)}</dd></div>
+                  <div><dt>Specification status</dt><dd>{humanLabel("specificationStatus", option.specification_status)}</dd></div>
                   <div><dt>Quantity and schedule</dt><dd>{option.quantity === null ? "Unknown" : formatQuantity(option.quantity, detail.case.item.unit)}
                     {option.schedule.map((entry, index) => <span key={`${option.id}-schedule-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTime(entry.arrival_start, detail.case.location.timezone) ?? "Unknown"}{entry.arrival_end ? `–${formatDateTime(entry.arrival_end, detail.case.location.timezone)}` : ""}</span>)}
                   </dd></div>
                   <div><dt>Quote validity</dt><dd>{formatDateTime(option.valid_until, detail.case.location.timezone) ?? "Unknown"}</dd></div>
                   <div><dt>Latest order time</dt><dd>{formatDateTime(option.latest_order_at, detail.case.location.timezone) ?? "Unknown"}</dd></div>
                   <div><dt>Written confirmation</dt><dd>{option.written_confirmation ? "Yes" : "No"}</dd></div>
-                  <div><dt>Original order treatment</dt><dd>{option.original_order_treatment.replaceAll("_", " ")}</dd></div>
+                  <div><dt>Original order treatment</dt><dd>{originalOrderTreatmentLabel(option.original_order_treatment, detail.case.purchase_orders[0])}</dd></div>
                   <div><dt>Surplus</dt><dd>{quantityLabel(option.surplus_quantity, detail.case.item.unit)}</dd></div>
                 </dl>
                 {option.reasons.length > 0 && <div className={styles.reasons}><strong>Constraints and reasons</strong><ul>{option.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>}
@@ -249,15 +216,23 @@ function SupplierOptionTable({
                   ))}
                 </dl>
                 <p className={styles.verified}>Last verified: {formatDateTime(option.last_verified_at, detail.case.location.timezone) ?? "Unknown"}</p>
-                {[...new Set(option.evidence_ids)].map((evidenceId) => {
-                  const source = evidence.find((entry) => entry.id === evidenceId);
-                  return source ? <EvidenceDrawer evidence={source} key={evidenceId} timeZone={detail.case.location.timezone} /> : null;
-                })}
+                {[...new Set(option.evidence_ids)].length > 0 && (
+                  <ul className={styles.sourceLinks}>
+                    {[...new Set(option.evidence_ids)].flatMap((evidenceId, index) => {
+                      const source = evidence.find((entry) => entry.id === evidenceId);
+                      return source ? (
+                        <li key={evidenceId}>
+                          <EvidenceDrawer evidence={source} label={`Source ${index + 1}`} timeZone={detail.case.location.timezone} />
+                        </li>
+                      ) : [];
+                    })}
+                  </ul>
+                )}
                 {detail.permissions.can_correct_quote && (
                   <QuoteCorrectionForm
                     evidenceOptions={option.evidence_ids.map((id) => {
                       const source = evidence.find((entry) => entry.id === id);
-                      return { id, label: source?.source_type ?? id };
+                      return { id, label: source ? humanLabel("evidenceSourceType", source.source_type) : "Unknown source" };
                     })}
                     expectedVersion={detail.case.row_version}
                     originalText={option.evidence_ids.map((id) => evidence.find((entry) => entry.id === id)?.supported_excerpt).filter(Boolean).join("\n\n")}
@@ -286,6 +261,8 @@ function ActionTimeline({
   environmentMode: "live" | "sandbox" | "replay";
 }) {
   const callActions = timeline.filter((entry) => entry.group === "call_outcome");
+  const isReplay = detail.case.data_label === "Replay" ||
+    (detail.case.data_label === null && environmentMode === "replay");
   return (
     <>
       <section aria-labelledby="timeline-heading" className={styles.timeline}>
@@ -293,28 +270,31 @@ function ActionTimeline({
         {timeline.length ? (
           <ol>
             {timeline.map((entry) => {
-              const status = entry.title.toLowerCase().includes("sending")
-                ? "Sending"
-                : entry.title.toLowerCase().includes("cancelled")
-                  ? "Cancelled"
-                  : statusLabels[entry.status];
+              const status = humanLabel("timelineStatus", entry.status);
               const tone = status === "Failed" ? "danger" : status === "Unknown" ? "warning" : "neutral";
               return (
                 <li key={entry.id}>
                   <div className={styles.timelineHeading}>
-                    <h3>{groupLabels[entry.group]}</h3>
+                    <h3>{entry.title}</h3>
                     <StatusBadge tone={tone}>{status}</StatusBadge>
                   </div>
-                  <p>{entry.title}</p>
                   <dl>
                     <div><dt>Time</dt><dd>{formatDateTime(entry.at, detail.case.location.timezone) ?? "Unknown"}</dd></div>
                     <div><dt>Actor</dt><dd>{entry.actor.label}</dd></div>
                   </dl>
-                  {environmentMode === "replay" && entry.action_ref && <StatusBadge>Replay</StatusBadge>}
-                  {[...new Set(entry.evidence_ids)].map((id) => {
-                    const source = evidence.find((item) => item.id === id);
-                    return source ? <EvidenceDrawer evidence={source} key={id} timeZone={detail.case.location.timezone} /> : null;
-                  })}
+                  {isReplay && entry.action_ref && <StatusBadge>Replay</StatusBadge>}
+                  {[...new Set(entry.evidence_ids)].length > 0 && (
+                    <ul className={styles.sourceLinks}>
+                      {[...new Set(entry.evidence_ids)].flatMap((id, index) => {
+                        const source = evidence.find((item) => item.id === id);
+                        return source ? (
+                          <li key={id}>
+                            <EvidenceDrawer evidence={source} label={`Source ${index + 1}`} timeZone={detail.case.location.timezone} />
+                          </li>
+                        ) : [];
+                      })}
+                    </ul>
+                  )}
                 </li>
               );
             })}
@@ -324,18 +304,18 @@ function ActionTimeline({
       <section aria-labelledby="calls-heading" className={styles.calls}>
         <h2 id="calls-heading">Supplier call</h2>
         {callActions.length ? (
-          <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {statusLabels[call.status]}</li>)}</ul>
+          <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {humanLabel("timelineStatus", call.status)}</li>)}</ul>
         ) : <p>No calls for this case.</p>}
-        {callActions.length > 0 && environmentMode === "replay" && (
+        {callActions.length > 0 && isReplay && (
           <>
             <p>Replay mode: calls are simulated; no real call will be placed.</p>
             <button disabled type="button">Start call</button>
           </>
         )}
-        {callActions.length > 0 && environmentMode !== "replay" && (
+        {callActions.length > 0 && !isReplay && (
           <button aria-describedby="call-unavailable" disabled type="button">Start call</button>
         )}
-        {callActions.length > 0 && environmentMode !== "replay" && <p id="call-unavailable">Calling isn’t available in this build yet.</p>}
+        {callActions.length > 0 && !isReplay && <p id="call-unavailable">Calling isn’t available in this build yet.</p>}
       </section>
     </>
   );
@@ -362,25 +342,31 @@ export function CaseDetailView({
     .map((id) => evidence.find((item) => item.id === id))
     .filter((item): item is CaseEvidence => item !== undefined) ?? [];
   const specification = detail.case.item.specification;
+  const specificationText = specification
+    ? `${String(specification.length_mm ?? "Unknown")} × ${String(specification.width_mm ?? "Unknown")} × ${String(specification.height_mm ?? "Unknown")} mm · ${String(specification.material_grade ?? "Unknown")}`
+    : "Unknown";
   return (
     <div className={styles.detail}>
       <header className={styles.caseHeader}>
-        <p className={styles.eyebrow}>Case {detail.case.id}</p>
+        <p className={styles.eyebrow}>Case {detail.case.id.slice(0, 8)}</p>
         <h1>{detail.case.title}</h1>
         <p>{detail.case.item.description || "Unknown item description"} · {detail.case.item.sku || "Unknown SKU"}</p>
-        <p>Specification: {specification ? Object.entries(specification).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") : "Unknown"}</p>
+        <p>Specification: {specificationText}</p>
         <p>Location: {detail.case.location.name || "Unknown"}</p>
         <p>Purchase orders: {detail.case.purchase_orders.length ? detail.case.purchase_orders.join(", ") : "Unknown"}</p>
         <p>Assignee: {detail.case.assignee?.email ?? "Unassigned"}</p>
         <div className={styles.headerBadges}>
-          <StatusBadge>{phaseLabels[detail.case.phase] ?? detail.case.phase}</StatusBadge>
+          <StatusBadge>{humanLabel("phase", detail.case.phase)}</StatusBadge>
           <StatusBadge tone={detail.case.run_control === "blocked" ? "warning" : "neutral"}>
-            {detail.case.run_control}{detail.case.block_reason ? ` · ${detail.case.block_reason.replaceAll("_", " ")}` : ""}
+            {humanLabel("runControl", detail.case.run_control)}{detail.case.block_reason ? ` · ${humanLabel("blockReason", detail.case.block_reason)}` : ""}
           </StatusBadge>
-          <StatusBadge tone={severityTone(detail.case.severity)}>{detail.case.severity.replaceAll("_", " ")}</StatusBadge>
-          <StatusBadge>{detail.data_label ?? "Unknown"}</StatusBadge>
+          <StatusBadge tone={severityTone(detail.case.severity)}>{humanLabel("severity", detail.case.severity)}</StatusBadge>
+          <StatusBadge>{humanLabel("dataLabel", detail.data_label)}</StatusBadge>
           {detail.case.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}
         </div>
+        {detail.case.replay_clock && (
+          <p>Replay clock: {formatDateTime(detail.case.replay_clock, detail.case.location.timezone)}</p>
+        )}
         <p className={styles.sourceTimes}>
           Source data as of {formatDateTime(detail.case.source_as_of, detail.case.location.timezone) ?? "Unknown"}
           {" · "}
@@ -403,7 +389,10 @@ export function CaseDetailView({
             canApprove={detail.permissions.can_approve}
             caseSummary={detail.case}
             environmentMode={environmentMode}
-            originalOrderTreatment={planOption?.original_order_treatment ?? "Unknown"}
+            originalOrderTreatment={originalOrderTreatmentLabel(
+              planOption?.original_order_treatment ?? "unknown",
+              detail.case.purchase_orders[0],
+            )}
             plan={detail.plan}
             role={role}
           />
@@ -416,16 +405,24 @@ export function CaseDetailView({
       <section aria-labelledby="evidence-heading" className={styles.evidenceList}>
         <h2 id="evidence-heading">Evidence</h2>
         {evidence.length ? (
-          <ul>
-            {evidence.map((entry) => (
-              <li key={`${entry.id}:${entry.purpose}`}>
-                <strong>{entry.source_type || "Unknown source"}</strong>
-                <span>{entry.purpose.replaceAll("_", " ")}</span>
-                <span>{formatDateTime(entry.source_time, detail.case.location.timezone) ?? "Unknown"}</span>
-                <EvidenceDrawer evidence={entry} timeZone={detail.case.location.timezone} />
-              </li>
-            ))}
-          </ul>
+          <div className={styles.tableWrap}>
+            <table>
+              <caption>Sources linked to this case</caption>
+              <thead>
+                <tr><th scope="col">Source</th><th scope="col">What it supports</th><th scope="col">Source time</th><th scope="col">Open</th></tr>
+              </thead>
+              <tbody>
+                {evidence.map((entry) => (
+                  <tr key={`${entry.id}:${entry.purpose}`}>
+                    <td>{humanLabel("evidenceSourceType", entry.source_type)}</td>
+                    <td>{humanLabel("evidencePurpose", entry.purpose)}</td>
+                    <td>{formatDateTime(entry.source_time, detail.case.location.timezone) ?? "Unknown"}</td>
+                    <td><EvidenceDrawer evidence={entry} label="Open" timeZone={detail.case.location.timezone} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : <p>No evidence is linked to this case.</p>}
         {planEvidence.length > 0 && <p>{planEvidence.length} source{planEvidence.length === 1 ? "" : "s"} support the current plan.</p>}
       </section>

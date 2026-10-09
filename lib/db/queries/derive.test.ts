@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveSeverity,
   nextAction,
   optionFeasibility,
   orderOptions,
@@ -8,6 +9,8 @@ import {
   type OptionForOrdering,
   type PriorityInput,
 } from "./derive";
+import { caseEvaluationTime, isExpiredAt } from "./clock";
+import { HARBOR_PACK_FIXTURE_CLOCK, HARBOR_PACK_FIXTURES } from "@/lib/demo/fixtures";
 
 const now = new Date("2026-10-12T15:00:00.000Z");
 
@@ -103,5 +106,23 @@ describe("F6 case derivation", () => {
     expect(shortageLabel("sufficient", null)).toBe("No shortage in the next 30 days.");
     expect(shortageLabel("insufficient", null)).toBeNull();
     expect(shortageLabel("sufficient", "2026-10-14T16:00:00.000Z")).toBeNull();
+  });
+
+  it("uses the canonical Replay clock for urgency and approval expiry independent of system date", () => {
+    const systemNow = new Date("2035-04-22T12:00:00.000Z");
+    const replayNow = caseEvaluationTime(
+      "Replay",
+      { fixture_clock: HARBOR_PACK_FIXTURE_CLOCK },
+      systemNow,
+    );
+    const firstShortageAt = HARBOR_PACK_FIXTURES["harbor-pack-canonical"].firstShortageAt;
+
+    expect(replayNow.toISOString()).toBe(HARBOR_PACK_FIXTURE_CLOCK);
+    expect(deriveSeverity("sufficient", firstShortageAt, replayNow)).toBe("urgent");
+    expect(priorityRank(priority({ id: "canonical", first_shortage_at: firstShortageAt }), replayNow))
+      .toBe(1);
+    expect(isExpiredAt("2026-10-12T19:00:00.000Z", replayNow)).toBe(false);
+    expect(caseEvaluationTime("Replay", null, systemNow).toISOString())
+      .toBe(HARBOR_PACK_FIXTURE_CLOCK);
   });
 });

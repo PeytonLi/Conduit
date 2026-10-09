@@ -72,7 +72,6 @@ describe("F6 database/API trust boundaries", () => {
       orgId: harborOrgId,
       fixtureId: "harbor-pack-canonical",
       reset: true,
-      now: fixedNow,
     });
     caseId = loaded.case_id;
     priorDatasetId = loaded.dataset_id;
@@ -278,7 +277,6 @@ describe("F6 database/API trust boundaries", () => {
           orgId: harborOrgId,
           fixtureId: "harbor-pack-canonical",
           reset: false,
-          now: fixedNow,
         })).rejects.toMatchObject({ code: "demo_disabled", status: 409 });
       } finally {
         await service.from("organizations").update({ environment_mode: "sandbox" })
@@ -295,7 +293,6 @@ describe("F6 database/API trust boundaries", () => {
         orgId: harborOrgId,
         fixtureId: "harbor-pack-canonical",
         reset: true,
-        now: fixedNow,
       });
       expect(result.case_id).not.toBe(priorCaseId);
       const { data: oldCase, error: oldCaseError } = await service.from("cases")
@@ -343,7 +340,7 @@ describe("F6 database/API trust boundaries", () => {
       const evidence = await getCaseEvidence(ownerContext, caseId);
       expect(evidence.some((entry) => entry.supported_excerpt?.includes("4,000 cartons"))).toBe(true);
       const timeline = await getCaseTimeline(ownerContext, caseId);
-      expect(timeline.some((entry) => entry.actor.label === "harbor-pack-loader")).toBe(true);
+      expect(timeline.some((entry) => entry.actor.label === "Conduit (replay)")).toBe(true);
       expect(timeline.some((entry) => entry.evidence_ids.length > 0)).toBe(true);
     });
   });

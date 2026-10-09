@@ -18,6 +18,8 @@ import {
 import { formatDateTime, formatQuantity } from "./format";
 import { QueryError, type QueryContext, queryClient } from "./client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { caseEvaluationTime } from "./clock";
+import { actorLabel, humanLabel } from "./labels";
 
 // PostgREST table names are dynamic in this projection layer.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +52,8 @@ export interface CaseSummary {
   data_stale: boolean;
   last_business_update_at: string;
   data_label: "Replay" | "Imported" | "Live" | null;
+  clock_now: string;
+  replay_clock: string | null;
   has_uncertain_action: boolean;
   closed_outcome: string | null;
   priority_rank: number;
@@ -217,6 +221,7 @@ export interface CaseListResult {
     uncertain_actions: number;
     recoveries_recorded: number;
     active_cases: number;
+    total_cases: number;
   };
   refreshed_at: string;
 }
@@ -380,6 +385,11 @@ function summarize(row: Row, data: CaseData, role: MembershipRole, now: Date): C
   const quality = assessment?.quality ?? null;
   const phase = row.phase as CasePhase;
   const runControl = row.run_control as "active" | "paused" | "blocked";
+  const sourceAsOf = dataset?.source_as_of ?? null;
+  const dataSourceType = dataset?.source_type ?? null;
+  const sourceVersions = assessment?.source_versions ?? null;
+  const labels = dataLabel(sourceVersions, dataSourceType);
+  const evaluatedAt = caseEvaluationTime(labels, sourceVersions, now);
   const derivedRank = priorityRank(
     {
       id: row.id,
@@ -391,13 +401,9 @@ function summarize(row: Row, data: CaseData, role: MembershipRole, now: Date): C
       next_check_at: dueAt,
       updated_at: row.updated_at,
     },
-    now,
+    evaluatedAt,
   );
-  const sourceAsOf = dataset?.source_as_of ?? null;
-  const dataSourceType = dataset?.source_type ?? null;
-  const sourceVersions = assessment?.source_versions ?? null;
-  const severity = deriveSeverity(quality, shortageAt, now);
-  const labels = dataLabel(sourceVersions, dataSourceType);
+  const severity = deriveSeverity(quality, shortageAt, evaluatedAt);
   const supplierIds = [...supplierRows.values()];
   return {
     id: row.id,
@@ -435,9 +441,16 @@ function summarize(row: Row, data: CaseData, role: MembershipRole, now: Date): C
         }
       : null,
     source_as_of: sourceAsOf,
-    data_stale: isDataStale(sourceAsOf, data.organizations.environment_mode, now),
+    data_stale: isDataStale(
+      sourceAsOf,
+      data.organizations.environment_mode,
+      evaluatedAt,
+      labels === "Replay",
+    ),
     last_business_update_at: row.updated_at,
     data_label: labels,
+    clock_now: evaluatedAt.toISOString(),
+    replay_clock: labels === "Replay" ? evaluatedAt.toISOString() : null,
     has_uncertain_action: uncertain,
     closed_outcome: row.closed_outcome ?? null,
     priority_rank: derivedRank,
@@ -606,6 +619,7 @@ export async function listCases(
       ["monitoring", "closed"].includes(item.phase),
     ).length,
     active_cases: base.filter(({ summary: item }) => item.phase !== "closed").length,
+    total_cases: data.cases.length,
   };
 
   return {
@@ -763,7 +777,14 @@ export async function getCaseDetail(
         plan.gross_commitment_minor === null ? null : String(plan.gross_commitment_minor),
       expires_at: plan.expires_at,
       dependencies: Array.isArray(plan.dependencies)
-        ? plan.dependencies.map((dependency: Row) => String(dependency.description ?? dependency.kind ?? ""))
+        ? plan.dependencies.flatMap((dependency: Row) =>
+            dependency.resolved === false ||
+            dependency.satisfied === false ||
+            dependency.status === "unresolved" ||
+            dependency.state === "unresolved"
+              ? [String(dependency.description ?? dependency.kind ?? "Required follow-up")]
+              : [],
+          )
         : [],
       steps: planSteps.map((step) => ({
         step_id: step.step_id,
@@ -1045,7 +1066,12 @@ export async function getCaseTimeline(
   context: QueryContext,
   caseId: string,
 ): Promise<TimelineEntry[]> {
-  const { client } = await singleCaseData(context, caseId);
+  const { client, data, row } = await singleCaseData(context, caseId);
+  const assessment = data.assessments.get(row.current_assessment_id) ?? null;
+  const dataset = assessment
+    ? data.datasets.get(assessment.source_versions?.dataset_id) ?? null
+    : null;
+  const isReplay = dataLabel(assessment?.source_versions ?? null, dataset?.source_type ?? null) === "Replay";
   const [auditRows, actionRows, evidenceLinks] = await Promise.all([
     selectRows(
       client.from("audit_events").select("*")
@@ -1066,6 +1092,26 @@ export async function getCaseTimeline(
     evidenceIds.push(link.evidence_id);
     evidenceByPurpose.set(link.purpose, evidenceIds);
   }
+  const actorIds = [...new Set(
+    auditRows
+      .filter((event) => event.actor_type === "user" && typeof event.actor_id === "string")
+      .map((event) => event.actor_id as string),
+  )];
+  const actorMemberships = actorIds.length
+    ? await selectRows(
+        createServiceClient().from("memberships").select("auth_user_id,role")
+          .eq("org_id", context.orgId).in("auth_user_id", actorIds),
+      )
+    : [];
+  const actorUsers = new Map<string, { email: string | null; role: string | null }>();
+  await Promise.all(actorMemberships.map(async (membership) => {
+    const userId = String(membership.auth_user_id);
+    const { data: userData } = await createServiceClient().auth.admin.getUserById(userId);
+    actorUsers.set(userId, {
+      email: userData.user?.email ?? null,
+      role: membership.role ?? null,
+    });
+  }));
   const auditTimeline = auditRows.map((event): TimelineEntry => {
     const name = event.event_name as string;
     const group = name.includes("delay")
@@ -1089,8 +1135,11 @@ export async function getCaseTimeline(
       id: event.id,
       at: event.occurred_at,
       group,
-      title: name.replaceAll(".", " ").replaceAll("_", " "),
-      actor: { type: event.actor_type, label: event.actor_id ?? event.actor_type },
+      title: humanLabel("auditEvent", name),
+      actor: {
+        type: event.actor_type,
+        label: actorLabel(event.actor_type, isReplay, actorUsers.get(String(event.actor_id))),
+      },
       status: "info",
       action_ref: null,
       evidence_ids: evidenceByPurpose.get(name) ?? [],
@@ -1111,19 +1160,21 @@ export async function getCaseTimeline(
       id: action.id,
       at: action.created_at,
       group: action.kind === "supplier_call" ? "call_outcome" : "request_sent",
-      title:
-        state === "dispatching"
-          ? "Sending"
-          : state === "cancelled"
-            ? "Cancelled"
-            : `${action.kind.replaceAll("_", " ")} ${state}`,
-      actor: { type: "system", label: action.provider ?? "Conduit" },
+      title: humanLabel("actionKind", action.kind),
+      actor: { type: "system", label: actorLabel("system", action.mode === "replay") },
       status,
       action_ref: action.id,
       evidence_ids: evidenceIds,
     };
   });
-  return [...auditTimeline, ...actionTimeline].sort(
+  const hasReplayRequestEvent = isReplay &&
+    auditRows.some((event) => event.event_name === "supplier.request.sent");
+  const visibleActions = hasReplayRequestEvent
+    ? actionTimeline.filter((entry) => !actionRows.some((action) =>
+        action.id === entry.id && action.kind === "supplier_email",
+      ))
+    : actionTimeline;
+  return [...auditTimeline, ...visibleActions].sort(
     (left, right) => new Date(left.at).getTime() - new Date(right.at).getTime(),
   );
 }

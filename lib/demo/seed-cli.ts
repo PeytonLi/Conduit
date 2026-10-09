@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
-import { HARBOR_PACK_FIXTURE_CLOCK, HARBOR_PACK_ORG_ID } from "./fixtures";
+import { HARBOR_PACK_ORG_ID } from "./fixtures";
 import { loadHarborPack } from "./harbor-pack";
 
 function localSupabaseEnvironment(): {
@@ -40,7 +40,6 @@ async function main(): Promise<void> {
     orgId: HARBOR_PACK_ORG_ID,
     fixtureId: "harbor-pack-canonical",
     reset: true,
-    now: new Date(HARBOR_PACK_FIXTURE_CLOCK),
     client,
   });
   console.log(`Harbor Pack Replay case ready: ${result.case_id}`);

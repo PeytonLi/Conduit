@@ -6,28 +6,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseListQuery } from "@/lib/db/queries/contracts";
 import { formatDateTime, formatQuantity } from "@/lib/db/queries/format";
 import type { CaseListResult, CaseSummary } from "@/lib/db/queries/cases";
+import { humanLabel, labels } from "@/lib/db/queries/labels";
 import { LiveRegion } from "./LiveRegion";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./case-queue.module.css";
 
-const phaseLabels: Record<NonNullable<CaseListQuery["phase"]>[number], string> = {
-  new: "New",
-  needs_review: "Needs review",
-  assessing: "Assessing",
-  recovering: "Recovering",
-  awaiting_supplier: "Awaiting supplier",
-  awaiting_approval: "Awaiting approval",
-  executing: "Executing",
-  monitoring: "Monitoring",
-  closed: "Closed",
-};
-const severityLabels: Record<NonNullable<CaseListQuery["severity"]>[number], string> = {
-  critical: "Critical",
-  urgent: "Urgent",
-  warning: "Warning",
-  info: "Informational",
-  needs_information: "Needs information",
-};
+const phaseLabels = labels.phase;
+const severityLabels = labels.severity;
 type FilterState = Omit<CaseListQuery, "limit" | "cursor">;
 
 function encodeFilters(filters: FilterState, cursor?: string | null): string {
@@ -103,6 +88,7 @@ export function CaseQueue({
   const displayTimeZone = result?.items[0]?.location.timezone ?? "UTC";
   const isFiltered = hasFilters(filters);
   const caseRows = useMemo(() => result?.items ?? [], [result]);
+  const replayCase = caseRows.find((item) => item.data_label === "Replay");
 
   async function load(nextFilters: FilterState, announce: boolean, append = false) {
     const requestId = ++requestNumber.current;
@@ -168,17 +154,17 @@ export function CaseQueue({
     updateFilters({});
   }
 
-  function renderCaseBadges(item: CaseSummary) {
+  function renderCaseBadges(item: CaseSummary, includeDataLabel = false) {
     return (
       <div className={styles.badges}>
-        <StatusBadge>{phaseLabels[item.phase] ?? item.phase}</StatusBadge>
+        <StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge>
         {item.run_control !== "active" && (
           <StatusBadge tone={item.run_control === "blocked" ? "warning" : "neutral"}>
-            {item.run_control === "blocked" ? "Blocked" : "Paused"}{item.block_reason ? `: ${item.block_reason.replaceAll("_", " ")}` : ""}
+            {humanLabel("runControl", item.run_control)}{item.block_reason ? `: ${humanLabel("blockReason", item.block_reason)}` : ""}
           </StatusBadge>
         )}
-        <StatusBadge tone={toneForSeverity(item.severity)}>{severityLabels[item.severity] ?? item.severity}</StatusBadge>
-        <StatusBadge>{item.data_label ?? "Unknown"}</StatusBadge>
+        <StatusBadge tone={toneForSeverity(item.severity)}>{humanLabel("severity", item.severity)}</StatusBadge>
+        {includeDataLabel && <StatusBadge>{humanLabel("dataLabel", item.data_label)}</StatusBadge>}
         {item.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}
         {item.has_uncertain_action && <StatusBadge tone="warning">Outcome unknown</StatusBadge>}
       </div>
@@ -196,14 +182,14 @@ export function CaseQueue({
   function renderTableRow(item: CaseSummary) {
     return (
       <tr key={item.id}>
-        <td>{renderCaseTitle(item)}<span className={styles.caseId}>{item.id}</span>{renderCaseBadges(item)}</td>
+        <td>{renderCaseTitle(item)}<span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>{renderCaseBadges(item)}</td>
         <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</td>
         <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</td>
         <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Unknown"}</td>
-        <td><StatusBadge>{phaseLabels[item.phase] ?? item.phase}</StatusBadge></td>
+        <td><StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge></td>
         <td>{item.next_action.label}</td>
         <td>{item.assignee?.email ?? "Unassigned"}</td>
-        <td>{item.data_label ?? "Unknown"}{item.data_stale && <span className={styles.staleText}> · Data stale</span>}</td>
+        <td>{humanLabel("dataLabel", item.data_label)}{item.data_stale && <span className={styles.staleText}> · Data stale</span>}</td>
       </tr>
     );
   }
@@ -212,17 +198,21 @@ export function CaseQueue({
     <div className={styles.queue} data-state={loading && !result ? "loading" : error ? "failed-fetch" : refreshError ? "failed-refresh" : !caseRows.length && !isFiltered ? "empty-org" : !caseRows.length ? "filtered-empty" : "ready"}>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>Owner / operator workspace</p>
           <h1>Cases</h1>
           <p>Review supplier delays, business impact, and recovery work.</p>
         </div>
       </header>
+      {replayCase?.replay_clock && (
+        <p className={styles.replayClock} role="status">
+          Replay clock: {formatDateTime(replayCase.replay_clock, replayCase.location.timezone)}
+        </p>
+      )}
       <section aria-label="Case summary" className={styles.summaryGrid}>
         {[
           ["Active shortages", result?.summary.active_shortages ?? 0, `of ${result?.summary.active_cases ?? 0} active cases`],
           ["Decisions waiting", result?.summary.decisions_waiting ?? 0, `of ${result?.summary.active_cases ?? 0} active cases`],
           ["Uncertain actions", result?.summary.uncertain_actions ?? 0, `of ${result?.summary.active_cases ?? 0} active cases`],
-          ["Recoveries recorded", result?.summary.recoveries_recorded ?? 0, "recorded cases"],
+          ["Recoveries recorded", result?.summary.recoveries_recorded ?? 0, `of ${result?.summary.total_cases ?? 0} cases`],
         ].map(([label, value, denominator]) => (
           <article className={styles.summaryTile} key={label}>
             <span>{label}</span><strong>{value}</strong><small>{denominator}</small>
@@ -314,7 +304,7 @@ export function CaseQueue({
           Closed outcome
           <select onChange={(event) => updateFilters({ ...filters, closed_outcome: event.target.value as FilterState["closed_outcome"] || undefined })} value={filters.closed_outcome ?? ""}>
             <option value="">Any outcome</option>
-            {["delivered", "no_impact", "accepted_risk", "cancelled", "unresolved"].map((outcome) => <option key={outcome} value={outcome}>{outcome.replaceAll("_", " ")}</option>)}
+            {["delivered", "no_impact", "accepted_risk", "cancelled", "unresolved"].map((outcome) => <option key={outcome} value={outcome}>{humanLabel("caseOutcome", outcome)}</option>)}
           </select>
         </label>
         <button className={styles.clearButton} onClick={clearFilters} type="button">Clear filters</button>
@@ -369,8 +359,8 @@ export function CaseQueue({
               <li key={item.id}>
                 <article className={styles.caseCard}>
                   {renderCaseTitle(item)}
-                  <span className={styles.caseId}>{item.id}</span>
-                  {renderCaseBadges(item)}
+                  <span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>
+                  {renderCaseBadges(item, true)}
                   <dl>
                     <div><dt>Supplier</dt><dd>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</dd></div>
                     <div><dt>First shortage</dt><dd>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</dd></div>

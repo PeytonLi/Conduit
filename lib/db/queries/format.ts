@@ -23,8 +23,9 @@ export function formatMoney(
   const negative = value < 0n;
   const digits = (negative ? -value : value).toString().padStart(3, "0");
   const dollars = digits.slice(0, -2) || "0";
+  const groupedDollars = dollars.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const cents = digits.slice(-2);
-  return `${currency} ${negative ? "-" : ""}${dollars}.${cents}`;
+  return `${currency} ${negative ? "-" : ""}${groupedDollars}.${cents}`;
 }
 
 export function formatQuantity(quantity: number | string | null, unit: string): string | null {

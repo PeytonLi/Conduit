@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CaseEvidence } from "@/lib/db/queries/cases";
 import { formatDateTime } from "@/lib/db/queries/format";
+import { humanLabel } from "@/lib/db/queries/labels";
 import styles from "./evidence-drawer.module.css";
 
 export function EvidenceDrawer({
@@ -71,7 +72,7 @@ export function EvidenceDrawer({
             <button aria-label="Close evidence" className={styles.close} onClick={() => dialogRef.current?.close()} type="button">×</button>
           </div>
           <dl className={styles.metadata}>
-            <div><dt>Source type</dt><dd>{evidence.source_type || "Unknown"}</dd></div>
+            <div><dt>Source type</dt><dd>{humanLabel("evidenceSourceType", evidence.source_type)}</dd></div>
             {evidence.locator && <div><dt>Source locator</dt><dd>{evidence.locator}</dd></div>}
             <div><dt>Source time</dt><dd>{formatDateTime(evidence.source_time, timeZone) ?? "Unknown"}</dd></div>
             <div><dt>Captured</dt><dd>{formatDateTime(evidence.captured_at, timeZone) ?? "Unknown"}</dd></div>

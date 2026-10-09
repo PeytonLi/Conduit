@@ -1,4 +1,5 @@
 import { requireMembership } from "@/lib/auth";
+import { humanLabel } from "@/lib/db/queries/labels";
 import { listSuppliers } from "@/lib/db/queries/suppliers";
 import { SupplierApprovalControls } from "@/components/SupplierApprovalControls";
 
@@ -12,7 +13,7 @@ export default async function SuppliersPage() {
       {suppliers.length ? suppliers.map((supplier) => (
         <article key={supplier.id}>
           <h2>{supplier.name}</h2>
-          <p>Purchasing: {supplier.purchasing_status} · Approval updated: {supplier.approval_at ?? "Unknown"}</p>
+          <p>Purchasing: {humanLabel("supplierStatus", supplier.purchasing_status)} · Approval updated: {supplier.approval_at ?? "Unknown"}</p>
           <h3>Contacts</h3>
           {supplier.contacts.length ? <ul>{supplier.contacts.map((contact) => (
             <li key={contact.id}>

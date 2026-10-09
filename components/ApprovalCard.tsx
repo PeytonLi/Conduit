@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ApprovalView, CaseSummary } from "@/lib/db/queries/cases";
 import { formatDateTime, formatMoney, formatQuantity } from "@/lib/db/queries/format";
+import { isExpiredAt } from "@/lib/db/queries/clock";
+import { humanLabel } from "@/lib/db/queries/labels";
 import { StatusBadge } from "./StatusBadge";
 import { postJson, WorkspaceApiError, workspaceErrorMessage } from "./client-api";
 import { LiveRegion } from "./LiveRegion";
@@ -36,9 +38,7 @@ export function ApprovalCard({
   const intentKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [stale, setStale] = useState(false);
-  const [expired] = useState(() => Boolean(
-    plan.expires_at && new Date(plan.expires_at).getTime() <= Date.now(),
-  ));
+  const [expired] = useState(() => isExpiredAt(plan.expires_at, new Date(caseSummary.clock_now)));
   const [message, setMessage] = useState("");
   const [polling, setPolling] = useState(false);
   const timeZone = caseSummary.location.timezone;
@@ -170,14 +170,14 @@ export function ApprovalCard({
     <section aria-labelledby="approval-title" className={styles.card}>
       <div className={styles.header}>
         <div><p className={styles.eyebrow}>Decision</p><h2 id="approval-title">Approve recovery plan v{plan.plan_version}</h2></div>
-        <StatusBadge tone={plan.status === "approved" ? "success" : "warning"}>{plan.status.replaceAll("_", " ")}</StatusBadge>
+        <StatusBadge tone={plan.status === "approved" ? "success" : "info"}>{humanLabel("planStatus", plan.status)}</StatusBadge>
       </div>
       <dl className={styles.terms}>
         <div><dt>Supplier</dt><dd>{plan.supplier?.name ?? "Unknown"}</dd></div>
         <div><dt>Additional commitment</dt><dd>{commitment ?? "Unknown"}</dd></div>
         <div><dt>Gross commitment</dt><dd>{gross ?? "Unknown"}</dd></div>
-        <div><dt>Original order treatment</dt><dd>{originalOrderTreatment.replaceAll("_", " ") || "Unknown"}</dd></div>
-        <div><dt>Dependencies</dt><dd>{plan.dependencies.length ? plan.dependencies.join(", ") : "None listed"}</dd></div>
+        <div><dt>Original order treatment</dt><dd>{originalOrderTreatment || "Unknown"}</dd></div>
+        <div><dt>Dependencies</dt><dd>{plan.dependencies.length ? plan.dependencies.join(", ") : "None"}</dd></div>
         <div><dt>Approval expiry</dt><dd>{plan.expires_at ? `Expires ${formatDateTime(plan.expires_at, timeZone)}` : "Unknown"}</dd></div>
       </dl>
       <h3>Recovery steps</h3>
@@ -186,12 +186,13 @@ export function ApprovalCard({
           <li key={step.step_id}>
             <strong>{step.summary}</strong>
             {step.quantity !== null && <span>{formatQuantity(step.quantity, step.unit) ?? "Unknown"}</span>}
-            <span>{step.execution_mode.replaceAll("_", " ")}</span>
+            <span>{humanLabel("executionMode", step.execution_mode)}</span>
           </li>
         ))}
       </ol>
       <p className={styles.replayNotice}>
-        {environmentMode === "replay"
+        {caseSummary.data_label === "Replay" ||
+        (caseSummary.data_label === null && environmentMode === "replay")
           ? "Replay: approving records the decision in the demo only; no supplier or business system is contacted."
           : "Approval records the owner’s decision; external execution depends on configured capabilities."}
       </p>

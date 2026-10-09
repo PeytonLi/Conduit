@@ -30,7 +30,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
         <caption>Organization activity</caption>
         <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Outcome</th><th scope="col">Reason</th><th scope="col">Case</th></tr></thead>
         <tbody>{page.items.map((entry) => <tr key={entry.id}>
-          <td>{formatDateTime(entry.at, "UTC") ?? "Unknown"}</td><td>{entry.event_name}</td><td>{entry.actor.type}{entry.actor.id ? ` · ${entry.actor.id}` : ""}</td><td>{entry.outcome ?? "Unknown"}</td><td>{entry.reason ?? "Unknown"}</td><td>{entry.case_id ? <Link href={`/cases/${entry.case_id}`}>Open case</Link> : "—"}</td>
+          <td>{formatDateTime(entry.at, "UTC") ?? "Unknown"}</td><td>{entry.event_name}</td><td>{entry.actor.label}</td><td>{entry.outcome ?? "Unknown"}</td><td>{entry.reason ?? "Unknown"}</td><td>{entry.case_id ? <Link href={`/cases/${entry.case_id}`}>Open case</Link> : "—"}</td>
         </tr>)}</tbody>
       </table> : <p>No activity matches these filters.</p>}
       {page.next_cursor && <Link href={`/activity?${new URLSearchParams({ ...(value("case_id") ? { case_id: value("case_id")! } : {}), ...(value("actor") ? { actor: value("actor")! } : {}), ...(value("outcome") ? { outcome: value("outcome")! } : {}), cursor: page.next_cursor })}`}>Next page</Link>}

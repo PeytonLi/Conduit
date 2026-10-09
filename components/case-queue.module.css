@@ -264,6 +264,16 @@
   overflow-wrap: anywhere;
 }
 
+.replayClock {
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 8px;
+  background: #f0f6ff;
+  color: #254c7a;
+  font-weight: 600;
+}
+
 .badges {
   display: flex;
   flex-wrap: wrap;

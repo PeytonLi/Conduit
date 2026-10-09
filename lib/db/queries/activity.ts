@@ -1,4 +1,6 @@
 import { QueryError, type QueryContext, queryClient } from "./client";
+import { actorLabel, humanLabel } from "./labels";
+import { listMemberships } from "./memberships";
 
 export interface ActivityFilters {
   case_id?: string;
@@ -15,7 +17,7 @@ export interface ActivityEntry {
   entity_type: string;
   entity_id: string | null;
   event_name: string;
-  actor: { type: string; id: string | null };
+  actor: { type: string; id: string | null; label: string };
   outcome: string | null;
   reason: string | null;
   previous_version: number | null;
@@ -71,19 +73,38 @@ export async function listActivity(
   const rows = data ?? [];
   const hasMore = rows.length > filters.limit;
   const pageRows = rows.slice(0, filters.limit);
-  const items = pageRows.map((row) => ({
+  const userActorIds = new Set(
+    pageRows.filter((row) => row.actor_type === "user").map((row) => row.actor_id).filter(Boolean),
+  );
+  const memberships = userActorIds.size > 0 ? await listMemberships(context) : [];
+  const membershipByUser = new Map(memberships.map((membership) => [membership.user_id, membership]));
+  const items = pageRows.map((row) => {
+    const actorMembership = row.actor_type === "user"
+      ? membershipByUser.get(row.actor_id ?? "")
+      : undefined;
+    const replayActor = row.actor_type === "replay" || row.actor_id === "harbor-pack-loader";
+    return ({
     id: row.id,
     at: row.occurred_at,
     case_id: row.case_id,
     entity_type: row.entity_type,
     entity_id: row.entity_id,
-    event_name: row.event_name,
-    actor: { type: row.actor_type, id: row.actor_id },
-    outcome: row.event_name,
+    event_name: humanLabel("auditEvent", row.event_name),
+    actor: {
+      type: row.actor_type,
+      id: row.actor_id,
+      label: actorLabel(
+        row.actor_type,
+        replayActor,
+        actorMembership ? { email: actorMembership.email, role: actorMembership.role } : undefined,
+      ),
+    },
+    outcome: humanLabel("auditEvent", row.event_name),
     reason: row.reason,
     previous_version: row.previous_version,
     new_version: row.new_version,
-  }));
+    });
+  });
   const last = pageRows.at(-1);
   return {
     items,
