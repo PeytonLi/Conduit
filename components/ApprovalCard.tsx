@@ -242,23 +242,31 @@ export function ApprovalCard({
       {canApprove && (
         <>
           {disabledReason && <p className={styles.disabledReason}>{disabledReason}</p>}
-          <button
-            aria-busy={submitting || polling}
-            className={styles.approve}
-            disabled={Boolean(disabledReason) || submitting || polling}
-            onClick={openConfirmation}
-            ref={approveButton}
-            type="button"
-          >
-            Approve this plan
-          </button>
-          <button ref={rejectButton} onClick={() => {
-            setMessage("");
-            rejectDialog.current?.showModal();
-            window.requestAnimationFrame(() => rejectHeading.current?.focus());
-          }} type="button">
-            Reject plan
-          </button>
+          <div className={styles.actions}>
+            <button
+              aria-busy={submitting || polling}
+              className={styles.approve}
+              disabled={Boolean(disabledReason) || submitting || polling}
+              onClick={openConfirmation}
+              ref={approveButton}
+              type="button"
+            >
+              Approve this plan
+            </button>
+            <button
+              className={styles.reject}
+              disabled={submitting || polling}
+              onClick={() => {
+                setMessage("");
+                rejectDialog.current?.showModal();
+                window.requestAnimationFrame(() => rejectHeading.current?.focus());
+              }}
+              ref={rejectButton}
+              type="button"
+            >
+              Reject plan
+            </button>
+          </div>
         </>
       )}
       {message && <p className={styles.result}>{message}{stale && <button onClick={() => router.refresh()} type="button">Reload case</button>}</p>}

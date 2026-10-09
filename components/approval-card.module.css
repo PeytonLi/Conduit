@@ -95,12 +95,32 @@
   cursor: pointer;
 }
 
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reject {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
 .approve:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
 .approve:focus-visible,
+.reject:focus-visible,
 .confirmActions button:focus-visible,
 .result button:focus-visible {
   outline: 2px solid var(--focus, #1d4ed8);
@@ -145,13 +165,20 @@
 }
 
 .confirmActions button {
-  padding: 9px 12px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: 1px solid var(--border, #d9dde3);
   border-radius: 6px;
   background: var(--surface, #fff);
   color: var(--text, #16191d);
   font: inherit;
+  font-weight: 650;
   cursor: pointer;
+}
+
+.confirmActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .confirmActions button:last-child {
