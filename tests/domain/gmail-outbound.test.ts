@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// gmail/register.ts pulls in lib/db/service which is server-only; stub it so
+// the adapter-routing test can import the registration module.
+vi.mock("server-only", () => ({}));
+
 import {
   createSupplierEmailAdapter,
   renderSupplierEmail,

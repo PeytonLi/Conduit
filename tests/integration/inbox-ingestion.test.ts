@@ -3,9 +3,6 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client } from "pg";
 import {
-  fixture.orgId,
-  fixture.itemCartonId,
-  fixture.locationId,
   seedInboxData,
   cleanupMessages,
   resetPoSchedules,
