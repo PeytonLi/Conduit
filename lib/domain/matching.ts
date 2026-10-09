@@ -124,7 +124,15 @@ export function matchDelay(input: MatchInput): MatchOutcome {
       reason:
         supplierIds.length === 0 ? "sender_not_a_supplier_contact" : "sender_matches_multiple_suppliers",
     });
-    return finish(input.verifiedLines, unresolved, candidates, context, pins);
+    // Supplier unresolved: never offer other suppliers' lines as candidates
+    // and never open or join a case.
+    return {
+      status: "needs_review",
+      lines: [],
+      unresolved,
+      candidates: [],
+      case_groups: [],
+    };
   }
   const supplierId = supplierIds[0];
   const supplierLines = context.lines.filter((l) => l.supplier_id === supplierId);
@@ -133,6 +141,29 @@ export function matchDelay(input: MatchInput): MatchOutcome {
   const candidatePool: ContextLine[][] = input.verifiedLines.map(() => []);
 
   input.verifiedLines.forEach((vl, i) => {
+    if (pins?.[i] !== undefined) {
+      const pinned = context.lines.find((l) => l.po_line_id === pins[i]);
+      if (!pinned || pinned.supplier_id !== supplierId) {
+        unresolved.push({
+          line_index: i,
+          field: "order_line",
+          reason: "pin_invalid",
+        });
+        return;
+      }
+      if (seen.has(pinned.po_line_id)) {
+        unresolved.push({
+          line_index: i,
+          field: "order_line",
+          reason: "duplicate_line",
+        });
+        return;
+      }
+      seen.add(pinned.po_line_id);
+      candidatePool[i] = [pinned];
+      return;
+    }
+
     let pool = supplierLines;
 
     if (vl.order_ref) {
@@ -154,15 +185,24 @@ export function matchDelay(input: MatchInput): MatchOutcome {
       );
       if (filtered.length > 0) pool = filtered;
     }
+    // Item refs match only an exact SKU or supplier SKU (post-normalize); a
+    // generic noun never narrows the pool.
     const itemRefMatches = (l: ContextLine, want: string) =>
       normalizeSku(l.sku) === want ||
-      normalizeSku(l.sku).startsWith(want) ||
       l.supplier_skus.some((s) => normalizeSku(s) === want);
 
     if (itemRef) {
       const want = normalizeSku(itemRef);
       const filtered = pool.filter((l) => itemRefMatches(l, want));
-      if (filtered.length > 0) pool = filtered;
+      if (filtered.length > 0) {
+        pool = filtered;
+      } else {
+        unresolved.push({
+          line_index: i,
+          field: "item_ref",
+          reason: "no_matching_item",
+        });
+      }
     }
 
     if (pool.length === 0) {
@@ -172,22 +212,13 @@ export function matchDelay(input: MatchInput): MatchOutcome {
         : supplierLines;
       return;
     }
-    if (pool.length > 1 && !pins?.[i]) {
+    if (pool.length > 1) {
       unresolved.push({ line_index: i, field: "order_line", reason: "ambiguous_line" });
       candidatePool[i] = pool;
       return;
     }
 
-    let chosen = pool[0];
-    if (pins?.[i] !== undefined) {
-      const pinned = context.lines.find((l) => l.po_line_id === pins[i]);
-      if (!pinned || pinned.supplier_id !== supplierId) {
-        unresolved.push({ line_index: i, field: "order_line", reason: "pin_invalid" });
-        return;
-      }
-      chosen = pinned;
-    }
-
+    const chosen = pool[0];
     if (seen.has(chosen.po_line_id)) {
       unresolved.push({ line_index: i, field: "order_line", reason: "duplicate_line" });
       return;

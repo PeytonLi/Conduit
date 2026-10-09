@@ -130,12 +130,17 @@ export interface ContactRecord {
 }
 
 export interface OutboundDeps {
-  appEnv: "replay" | "sandbox" | "live";
+  /** Evaluated per call so env changes mid-process are honored. */
+  appEnv(): "replay" | "sandbox" | "live";
   transportFor(action: ActionRecord): Promise<GmailApi | null> | GmailApi | null;
   loadContact(orgId: string, contactId: string): Promise<ContactRecord | null>;
+  /** Full From address for this action; the Message-ID domain derives from it. */
   fromAddressFor(action: ActionRecord): Promise<string> | string;
-  domain: string;
   replayTransport: GmailApi;
+}
+
+function domainOf(fromAddress: string): string {
+  return fromAddress.split("@")[1] ?? "conduit.local";
 }
 
 function failed(summary: string): DispatchResult {
@@ -173,7 +178,7 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
         };
       }
 
-      const isReplay = action.mode === "replay" || deps.appEnv === "replay";
+      const isReplay = action.mode === "replay" || deps.appEnv() === "replay";
       const transport = isReplay
         ? deps.replayTransport
         : await deps.transportFor(action);
@@ -181,22 +186,22 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
         return failed("no gmail transport for connection");
       }
 
+      const fromAddress = await deps.fromAddressFor(action);
       const { mime, rfcMessageId } = renderSupplierEmail(payload, action, {
-        fromAddress: await deps.fromAddressFor(action),
-        domain: deps.domain,
+        fromAddress,
+        domain: domainOf(fromAddress),
       });
-      void rfcMessageId;
 
       try {
-        if (!isReplay) {
-          const existing = await transport.findSentByRfcMessageId(rfcMessageId);
-          if (existing) {
-            return {
-              outcome: "confirmed",
-              providerRef: existing.id,
-              safeSummary: "supplier email already sent (found in Sent)",
-            };
-          }
+        // Idempotent in every mode: replay's transport records sends and can
+        // answer this lookup without touching a network.
+        const existing = await transport.findSentByRfcMessageId(rfcMessageId);
+        if (existing) {
+          return {
+            outcome: "confirmed",
+            providerRef: existing.id,
+            safeSummary: "supplier email already sent (found in Sent)",
+          };
         }
         const sent = await transport.send({
           raw: mime,
@@ -222,7 +227,7 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
       if (!parsed.success || !action.providerRef) {
         return { outcome: "unknown", safeSummary: "no provider reference" };
       }
-      const isReplay = action.mode === "replay" || deps.appEnv === "replay";
+      const isReplay = action.mode === "replay" || deps.appEnv() === "replay";
       const transport = isReplay
         ? deps.replayTransport
         : await deps.transportFor(action);
@@ -230,9 +235,10 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
         return { outcome: "unknown", safeSummary: "no gmail transport" };
       }
       try {
+        const fromAddress = await deps.fromAddressFor(action);
         const { rfcMessageId } = renderSupplierEmail(parsed.data, action, {
-          fromAddress: await deps.fromAddressFor(action),
-          domain: deps.domain,
+          fromAddress,
+          domain: domainOf(fromAddress),
         });
         const found = await transport.findSentByRfcMessageId(rfcMessageId);
         if (found) {

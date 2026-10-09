@@ -1,8 +1,45 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import OpenAI from "openai";
 import { z } from "zod";
 import { extractionV1Schema, PROMPT_VERSION, type ExtractionV1 } from "./extraction-schema";
+
+export interface DeepSeekEnv {
+  DEEPSEEK_API_KEY?: string;
+  DEEPSEEK_BASE_URL?: string;
+  DEEPSEEK_MODEL?: string;
+}
+
+/**
+ * Builds the real DeepSeek ChatClient. Returns null when the capability is
+ * not configured so callers get a deterministic 'unavailable' extraction.
+ */
+export function createDeepSeekClient(env: DeepSeekEnv): ChatClient | null {
+  if (!env.DEEPSEEK_API_KEY || !env.DEEPSEEK_MODEL) return null;
+  const client = new OpenAI({
+    apiKey: env.DEEPSEEK_API_KEY,
+    baseURL: env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
+    timeout: 60_000,
+    maxRetries: 0,
+  });
+  return {
+    async complete(params) {
+      const res = await client.chat.completions.create({
+        model: params.model,
+        messages: params.messages,
+        response_format: params.response_format,
+        temperature: params.temperature,
+        max_tokens: params.max_tokens,
+        thinking: params.thinking,
+      } as OpenAI.ChatCompletionCreateParamsNonStreaming);
+      return {
+        content: res.choices[0]?.message?.content ?? "",
+        usage: res.usage,
+      };
+    },
+  };
+}
 
 export interface ChatClient {
   complete(params: {
@@ -149,7 +186,7 @@ export async function extractDelayFacts({
   }
 
   const client = deps.deepseek;
-  const model = deps.model ?? process.env.DEEPSEEK_MODEL;
+  const model = deps.model;
   if (!client || !model) {
     return {
       extractor: "deepseek",

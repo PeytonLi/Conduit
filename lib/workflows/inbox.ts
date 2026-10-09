@@ -2,12 +2,16 @@ import { inngest } from "./client";
 import { createServiceClient } from "@/lib/db/service";
 import { supabaseRpcClient } from "@/lib/db/messages";
 import { processSourceMessage } from "@/lib/db/cases-open";
-import { syncGmailConnection } from "@/lib/integrations/gmail/sync";
+import {
+  gmailPollEnabled,
+  syncGmailConnection,
+} from "@/lib/integrations/gmail/sync";
 import { createGoogleGmailApi } from "@/lib/integrations/gmail/api";
 import { decryptCredential } from "@/lib/integrations/gmail/crypto";
 import { google } from "googleapis";
 import { ingestMessage } from "@/lib/db/messages";
 import { parseServerEnv } from "@/lib/env";
+import { createDeepSeekClient } from "@/lib/agent/extraction";
 
 export const inboxGmailPoll = inngest.createFunction(
   {
@@ -17,17 +21,24 @@ export const inboxGmailPoll = inngest.createFunction(
   },
   async ({ step }) => {
     const env = parseServerEnv(process.env);
+    if (!gmailPollEnabled(env)) {
+      return { skipped: true, reason: "gmail poll disabled or not configured" };
+    }
     const client = createServiceClient();
     const rpc = supabaseRpcClient(client);
 
     const connections = await step.run("list-connections", async () => {
-      return rpc.rpc<{ org_id: string; connection_id: string }[]>(
-        "inbox_list_gmail_connections",
-        {},
-      );
+      return rpc.rpc<
+        {
+          org_id: string;
+          connection_id: string;
+          environment_mode: string;
+        }[]
+      >("inbox_list_gmail_connections", {});
     });
 
     for (const conn of connections) {
+      if (conn.environment_mode === "replay") continue;
       await step.run(`sync-${conn.connection_id}`, async () => {
         const cred = await rpc.rpc<{
           encrypted_b64: string | null;
@@ -58,7 +69,15 @@ export const inboxGmailPoll = inngest.createFunction(
           api,
           now: () => new Date(),
           store: {
-            getCursor: async () => cred.sync_cursor,
+            // Re-read the cursor so the CAS compares against fresh state,
+            // not the value captured before this sync started.
+            getCursor: async (orgId, connectionId) => {
+              const fresh = await rpc.rpc<{ sync_cursor: string | null }>(
+                "gmail_load_credential",
+                { org_id: orgId, connection_id: connectionId },
+              );
+              return fresh.sync_cursor;
+            },
             storeMessage: async (m) => {
               const r = await ingestMessage({
                 rpc,
@@ -118,12 +137,17 @@ export const inboxProcessMessage = inngest.createFunction(
     const client = createServiceClient();
     const rpc = supabaseRpcClient(client);
     return step.run("process-message", async () => {
+      const deepseek = createDeepSeekClient(env);
       return processSourceMessage({
         rpc,
         orgId,
         sourceMessageId: messageId,
         mode: "auto",
-        deps: { mode: env.APP_ENV },
+        deps: {
+          mode: env.APP_ENV,
+          deepseek: deepseek ?? undefined,
+          model: env.DEEPSEEK_MODEL,
+        },
         now: () => new Date(),
       });
     });

@@ -27,6 +27,25 @@ export interface SyncStore {
   ): Promise<boolean>;
 }
 
+export interface GmailPollEnv {
+  APP_ENV?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_REDIRECT_URI?: string;
+  CREDENTIAL_ENCRYPTION_KEY?: string;
+}
+
+/** The gmail poll never runs in replay and requires full OAuth config. */
+export function gmailPollEnabled(env: GmailPollEnv): boolean {
+  if (env.APP_ENV === "replay") return false;
+  return Boolean(
+    env.GOOGLE_CLIENT_ID &&
+      env.GOOGLE_CLIENT_SECRET &&
+      env.GOOGLE_REDIRECT_URI &&
+      env.CREDENTIAL_ENCRYPTION_KEY,
+  );
+}
+
 export interface SyncResult {
   ok: boolean;
   stored: number;

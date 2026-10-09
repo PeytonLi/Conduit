@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ok, fail, parseBody, idempotencyKey } from "@/lib/api/http";
 import {
   AuthenticationError,
@@ -11,6 +12,7 @@ import {
   resolveMessageMatch,
   ResolveError,
 } from "@/lib/db/cases-open";
+import { createDeepSeekClient } from "@/lib/agent/extraction";
 import { parseServerEnv } from "@/lib/env";
 
 export async function POST(
@@ -29,6 +31,23 @@ export async function POST(
 
     const env = parseServerEnv(process.env);
     const rpc = supabaseRpcClient(createServiceClient());
+    const deepseek = createDeepSeekClient(env);
+
+    const requestKey = `resolve:${caseId}:${key}`;
+    const requestHash = createHash("sha256")
+      .update(JSON.stringify(parsed.data))
+      .digest("hex");
+    const stored = await rpc.rpc<{
+      replayed: boolean;
+      response: unknown;
+    }>("inbox_request_key_store", {
+      org_id: membership.orgId,
+      idempotency_key: requestKey,
+      request_hash: requestHash,
+    });
+    if (stored.replayed && stored.response) {
+      return ok(stored.response as Record<string, unknown>);
+    }
 
     const result = await resolveMessageMatch({
       rpc,
@@ -36,17 +55,27 @@ export async function POST(
       caseId,
       actorUserId: membership.userId,
       input: parsed.data,
-      deps: { mode: env.APP_ENV },
+      deps: {
+        mode: env.APP_ENV,
+        deepseek: deepseek ?? undefined,
+        model: env.DEEPSEEK_MODEL,
+      },
       now: () => new Date(),
     });
-    return ok({
+    const response = {
       case_id: caseId,
       status: result.status,
       case_ids: result.case_ids,
       review_id: result.review_id,
       extraction_version: result.extraction_version,
       mode: env.APP_ENV,
+    };
+    await rpc.rpc("inbox_request_key_complete", {
+      org_id: membership.orgId,
+      idempotency_key: requestKey,
+      response,
     });
+    return ok(response);
   } catch (err) {
     if (err instanceof AuthenticationError) {
       return fail("unauthenticated", err.message, 401, false);

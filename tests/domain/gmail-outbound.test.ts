@@ -6,6 +6,7 @@ import {
   type SupplierEmailPayload,
 } from "@/lib/integrations/gmail/outbound";
 import type { GmailApi } from "@/lib/integrations/gmail/api";
+import { createReplayTransport } from "@/lib/integrations/gmail/replay";
 import type { ActionRecord } from "@/lib/actions/types";
 
 const CONTACT: ContactRecord = {
@@ -84,13 +85,12 @@ function adapter(over: {
   appEnv?: "replay" | "sandbox" | "live";
 }) {
   const gmail = over.gmail ?? fakeGmail();
-  const replay = fakeGmail();
+  const replay = createReplayTransport();
   const a = createSupplierEmailAdapter({
-    appEnv: over.appEnv ?? "live",
+    appEnv: () => over.appEnv ?? "live",
     transportFor: () => gmail,
     loadContact: async () => (over.contact === undefined ? CONTACT : over.contact),
     fromAddressFor: () => "ops@harbor.example",
-    domain: "harbor.example",
     replayTransport: replay,
   });
   return { a, gmail: gmail as ReturnType<typeof fakeGmail>, replay };
@@ -208,12 +208,24 @@ describe("AT-13 supplier email adapter", () => {
     expect(r.outcome).toBe("unknown");
   });
 
+  it("AT-13 replay dispatch is idempotent: second dispatch confirms, one send", async () => {
+    const { a, replay } = adapter({ appEnv: "replay" });
+    const first = await a.dispatch(action({ providerRef: null }));
+    expect(first.outcome).toBe("submitted");
+    const second = await a.dispatch(action({ providerRef: null }));
+    expect(second.outcome).toBe("confirmed");
+    expect(replay.sent).toHaveLength(1);
+    const found = await a.findResult(action({ providerRef: "replay:act-1" }));
+    expect(found.outcome).toBe("confirmed");
+    expect(replay.sent).toHaveLength(1);
+  });
+
   it("AT-13 replay mode performs zero calls to the real transport", async () => {
     const gmail = fakeGmail();
     const { a, replay } = adapter({ gmail, appEnv: "replay" });
     const r = await a.dispatch(action({ mode: "live" }));
     expect(gmail.sends).toHaveLength(0);
-    expect(replay.sends).toHaveLength(1);
+    expect(replay.sent).toHaveLength(1);
     expect(r.safeSummary).toContain("replay");
     const r2 = await adapter({ gmail }).a.dispatch(action({ mode: "replay" }));
     expect(gmail.sends).toHaveLength(0);

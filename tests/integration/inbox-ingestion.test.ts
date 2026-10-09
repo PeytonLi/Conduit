@@ -112,11 +112,26 @@ describe("AT-03 dedupe and idempotent processing", () => {
     );
     expect(Number(cases.rows[0].count)).toBe(1);
     const assessments = await client.query(
-      `select count(*) from public.event_outbox
+      `select event_id, correlation_id, payload from public.event_outbox
        where org_id = $1 and event_type = 'case.assessment.requested'`,
       [ORG_A],
     );
-    expect(Number(assessments.rows[0].count)).toBe(1);
+    expect(assessments.rows).toHaveLength(1);
+    // The outbox columns and the payload envelope share the same ids.
+    expect(assessments.rows[0].payload.event_id).toBe(
+      assessments.rows[0].event_id,
+    );
+    expect(assessments.rows[0].payload.correlation_id).toBe(
+      assessments.rows[0].correlation_id,
+    );
+
+    // Exactly one extraction was recorded across both processing attempts.
+    const extractions = await client.query(
+      `select count(*) from public.message_extractions
+       where org_id = $1 and source_message_id = $2`,
+      [ORG_A, first.source_message_id],
+    );
+    expect(Number(extractions.rows[0].count)).toBe(1);
   });
 });
 
@@ -205,6 +220,17 @@ describe("AT-04 multi-line partial delay", () => {
       "delay",
       "split",
     ]);
+
+    // Outbox envelope ids match the event_outbox columns.
+    const outbox = await client.query(
+      `select event_id, correlation_id, payload from public.event_outbox
+       where org_id = $1 and event_type = 'case.assessment.requested'`,
+      [ORG_A],
+    );
+    for (const row of outbox.rows) {
+      expect(row.payload.event_id).toBe(row.event_id);
+      expect(row.payload.correlation_id).toBe(row.correlation_id);
+    }
   });
 });
 
@@ -236,9 +262,10 @@ describe("AT-05 ambiguous match review and resolution", () => {
     const candIds = (review.rows[0].candidates as { po_line_id: string }[]).map(
       (c) => c.po_line_id,
     );
-    expect(candIds.sort()).toEqual(
-      [fixture.po1042LineId, fixture.po1044LineId].sort(),
-    );
+    // item_ref "carton" doesn't narrow; candidates fall back to the
+    // supplier's open lines, which include the ambiguity twins.
+    expect(candIds).toContain(fixture.po1042LineId);
+    expect(candIds).toContain(fixture.po1044LineId);
     const fields = (review.rows[0].unresolved as { field: string }[]).map(
       (u) => u.field,
     );
@@ -491,6 +518,10 @@ describe("AT-31 prompt injection containment", () => {
         [ORG_A],
       )
     ).rows[0].count;
+    const casesBefore = await client.query(
+      `select id, row_version from public.cases where org_id = $1 order by id`,
+      [ORG_A],
+    );
     const { source_message_id: mid } = await ingestFile(
       "inbox-prompt-injection.eml",
     );
@@ -503,8 +534,9 @@ describe("AT-31 prompt injection containment", () => {
       now,
     });
     expect(r.status).toBe("needs_review");
+    expect(r.case_ids).toHaveLength(0);
     const review = await client.query(
-      `select unresolved from public.message_match_reviews where id = $1`,
+      `select unresolved, candidates from public.message_match_reviews where id = $1`,
       [r.review_id],
     );
     expect(
@@ -512,6 +544,13 @@ describe("AT-31 prompt injection containment", () => {
         (u) => u.field === "supplier",
       ),
     ).toBe(true);
+    expect(review.rows[0].candidates).toHaveLength(0);
+    // No case created or touched.
+    const casesAfter = await client.query(
+      `select id, row_version from public.cases where org_id = $1 order by id`,
+      [ORG_A],
+    );
+    expect(casesAfter.rows).toEqual(casesBefore.rows);
     // no schedule changes, no outbound action rows, no contact change
     const supersededBefore = await client.query(
       `select count(*) from public.receipt_schedules

@@ -165,6 +165,19 @@ describe("matching", () => {
     expect(out.status).toBe("needs_review");
     expect(out.unresolved.some((u) => u.field === "supplier")).toBe(true);
     expect(out.lines).toHaveLength(0);
+    // Unresolved supplier: no other suppliers' lines offered, no case opened.
+    expect(out.candidates).toHaveLength(0);
+    expect(out.case_groups).toHaveLength(0);
+  });
+
+  it("a generic item_ref never narrows to a unique line", () => {
+    const ctx = context([line({})]); // single open carton line for supplier
+    const out = matchDelay(
+      args(ctx, [vline({ order_ref: null, item_ref: "carton" })]),
+    );
+    expect(out.status).toBe("needs_review");
+    expect(out.unresolved.some((u) => u.field === "item_ref")).toBe(true);
+    expect(out.lines).toHaveLength(0);
   });
 
   it("not a delay notice returns not_delay", () => {

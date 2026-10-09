@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { syncGmailConnection, type SyncStore } from "@/lib/integrations/gmail/sync";
+import {
+  gmailPollEnabled,
+  syncGmailConnection,
+  type SyncStore,
+} from "@/lib/integrations/gmail/sync";
 import type { GmailApi } from "@/lib/integrations/gmail/api";
 
 function memStore(): SyncStore & {
@@ -156,5 +160,30 @@ describe("AT-22 gmail sync failure statuses", () => {
     expect(r.status).toBe("expired");
     expect(store.cursor).toBe("C1");
     expect(store.messages).toEqual(["kept-1"]);
+  });
+});
+
+describe("gmailPollEnabled", () => {
+  const full = {
+    APP_ENV: "live",
+    GOOGLE_CLIENT_ID: "id",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://x.example/cb",
+    CREDENTIAL_ENCRYPTION_KEY: "k",
+  };
+  it("is false in replay env and true when fully configured", () => {
+    expect(gmailPollEnabled({ ...full, APP_ENV: "replay" })).toBe(false);
+    expect(gmailPollEnabled(full)).toBe(true);
+    expect(gmailPollEnabled({ ...full, APP_ENV: "sandbox" })).toBe(true);
+  });
+  it("is false when any required env var is missing", () => {
+    for (const key of [
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+      "GOOGLE_REDIRECT_URI",
+      "CREDENTIAL_ENCRYPTION_KEY",
+    ] as const) {
+      expect(gmailPollEnabled({ ...full, [key]: undefined })).toBe(false);
+    }
   });
 });

@@ -44,7 +44,23 @@ async function callOpenCases(
 }
 
 export interface ProcessDeps extends ExtractDeps {
+  /** The app-level environment mode (not yet org-aware). */
   mode: "replay" | "sandbox" | "live";
+}
+
+export type EffectiveMode = "replay" | "sandbox" | "live";
+
+/**
+ * The strictest of the app env and the org's environment_mode wins: a replay
+ * org never triggers provider calls even in a sandbox/live deployment.
+ */
+export function effectiveMode(
+  appEnv: EffectiveMode,
+  orgEnvironmentMode: string | null | undefined,
+): EffectiveMode {
+  if (appEnv === "replay" || orgEnvironmentMode === "replay") return "replay";
+  if (appEnv === "sandbox" || orgEnvironmentMode === "sandbox") return "sandbox";
+  return "live";
 }
 
 /** Extract (if needed), verify, match, then run the atomic open-cases call. */
@@ -66,6 +82,25 @@ export async function processSourceMessage({
   const loaded = await loadMessage(rpc, orgId, sourceMessageId);
   const message = loaded.message;
 
+  // Already processed (e.g. duplicate event delivery): inbox_open_cases
+  // replays the recorded result; skip extraction entirely.
+  if (mode === "auto" && message.processing_state !== "pending") {
+    const out = await callOpenCases(rpc, {
+      org_id: orgId,
+      source_message_id: sourceMessageId,
+      extraction_version: null,
+      actor_user_id: null,
+      mode,
+      outcome: {},
+    });
+    return {
+      ...out,
+      extraction_version: loaded.latest_extraction?.version ?? null,
+    };
+  }
+
+  const effectiveModeOfOrg = effectiveMode(deps.mode, loaded.org_environment_mode);
+
   let facts: ExtractionV1 | null = null;
   let extractionVersion: number | null = null;
 
@@ -80,7 +115,7 @@ export async function processSourceMessage({
 
   if (!facts) {
     const result = await extractDelayFacts({
-      mode: deps.mode,
+      mode: effectiveModeOfOrg,
       message: {
         rfcMessageId: message.rfc_message_id,
         bodyHash: "",
@@ -281,6 +316,7 @@ export async function resolveMessageMatch({
       unresolved: unknown;
       case_ids: string[];
     } | null;
+    org_environment_mode: string | null;
   }>("inbox_case_review_lookup", { org_id: orgId, case_id: caseId });
 
   if (lookup.case_row_version !== input.expected_version) {
@@ -289,7 +325,9 @@ export async function resolveMessageMatch({
   if (!lookup.review) {
     throw new ResolveError("no_open_review", "No open match review for this case", 409);
   }
-  void deps;
+  // Operator corrections never invoke the model; the effective mode is
+  // computed anyway so a replay org stays on replay semantics end-to-end.
+  void effectiveMode(deps.mode, lookup.org_environment_mode);
   const sourceMessageId = input.source_message_id ?? lookup.review.source_message_id;
   if (sourceMessageId !== lookup.review.source_message_id) {
     throw new ResolveError(

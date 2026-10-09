@@ -28,8 +28,12 @@ export function createReplayTransport(): GmailApi & {
       sent.push({ raw, threadId });
       return { id: `replay:${sent.length}`, threadId: threadId ?? "" };
     },
-    async findSentByRfcMessageId() {
-      return null;
+    async findSentByRfcMessageId(rfcId) {
+      const idx = sent.findIndex(
+        (s) => s.raw.match(/^Message-ID:\s*(<[^>\r\n]+>)/im)?.[1] === rfcId,
+      );
+      if (idx === -1) return null;
+      return { id: `replay:${idx + 1}`, threadId: sent[idx].threadId ?? "" };
     },
   };
 }

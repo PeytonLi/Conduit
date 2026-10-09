@@ -81,6 +81,7 @@ export interface LoadResult {
     facts: unknown;
     unresolved: unknown;
   } | null;
+  org_environment_mode: "replay" | "sandbox" | "live" | null;
 }
 
 export async function ingestMessage({

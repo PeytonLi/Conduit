@@ -14,6 +14,7 @@ import {
   supabaseRpcClient,
 } from "@/lib/db/messages";
 import { processSourceMessage } from "@/lib/db/cases-open";
+import { createDeepSeekClient } from "@/lib/agent/extraction";
 import { RpcError } from "@/lib/db/messages";
 import { parseServerEnv } from "@/lib/env";
 
@@ -62,6 +63,12 @@ export async function POST(request: Request) {
 
     const env = parseServerEnv(process.env);
     const mode = env.APP_ENV;
+    const deepseek = createDeepSeekClient(env);
+    const extractDeps = {
+      mode,
+      deepseek: deepseek ?? undefined,
+      model: env.DEEPSEEK_MODEL,
+    };
     const client = createServiceClient();
     const rpc = supabaseRpcClient(client);
     const body = parsed.data;
@@ -71,7 +78,20 @@ export async function POST(request: Request) {
       .digest("hex");
 
     let sourceMessageId: string;
+    let requestKey: string | null = null;
     if ("message_id" in body) {
+      requestKey = `message:${key}`;
+      const stored = await rpc.rpc<{
+        replayed: boolean;
+        response: unknown;
+      }>("inbox_request_key_store", {
+        org_id: membership.orgId,
+        idempotency_key: requestKey,
+        request_hash: requestHash,
+      });
+      if (stored.replayed && stored.response) {
+        return ok(stored.response as Record<string, unknown>);
+      }
       // Must belong to this org (404 otherwise).
       const loaded = await loadMessage(rpc, membership.orgId, body.message_id);
       sourceMessageId = loaded.message.id;
@@ -95,7 +115,7 @@ export async function POST(request: Request) {
           orgId: membership.orgId,
           sourceMessageId: stored.source_message_id,
           mode: "auto",
-          deps: { mode },
+          deps: extractDeps,
           now: () => new Date(),
         });
         return ok({
@@ -124,7 +144,7 @@ export async function POST(request: Request) {
       orgId: membership.orgId,
       sourceMessageId,
       mode: "auto",
-      deps: { mode },
+      deps: extractDeps,
       now: () => new Date(),
     });
 
@@ -135,14 +155,12 @@ export async function POST(request: Request) {
       review_id: result.review_id,
       mode,
     };
-    if (!("message_id" in body)) {
-      await rpc.rpc("inbox_request_key_complete", {
-        org_id: membership.orgId,
-        idempotency_key: key,
-        source_message_id: sourceMessageId,
-        response,
-      });
-    }
+    await rpc.rpc("inbox_request_key_complete", {
+      org_id: membership.orgId,
+      idempotency_key: requestKey ?? key,
+      source_message_id: sourceMessageId,
+      response,
+    });
     return ok(response);
   } catch (err) {
     if (err instanceof AuthenticationError) {

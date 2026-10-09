@@ -144,3 +144,25 @@ describe("inbox-extraction: deepseek request params", () => {
     expect(r.facts?.lines[0].order_ref).toBe("PO-1042");
   });
 });
+
+describe("effectiveMode and deepseek factory", () => {
+  it("effectiveMode is replay if either side is replay, then sandbox wins over live", async () => {
+    const { effectiveMode } = await import("@/lib/db/cases-open");
+    expect(effectiveMode("replay", "live")).toBe("replay");
+    expect(effectiveMode("live", "replay")).toBe("replay");
+    expect(effectiveMode("sandbox", "live")).toBe("sandbox");
+    expect(effectiveMode("live", "sandbox")).toBe("sandbox");
+    expect(effectiveMode("live", "live")).toBe("live");
+    expect(effectiveMode("live", null)).toBe("live");
+  });
+
+  it("createDeepSeekClient returns null without key or model", async () => {
+    const { createDeepSeekClient } = await import("@/lib/agent/extraction");
+    expect(createDeepSeekClient({})).toBeNull();
+    expect(createDeepSeekClient({ DEEPSEEK_API_KEY: "k" })).toBeNull();
+    expect(createDeepSeekClient({ DEEPSEEK_MODEL: "m" })).toBeNull();
+    expect(
+      createDeepSeekClient({ DEEPSEEK_API_KEY: "k", DEEPSEEK_MODEL: "m" }),
+    ).not.toBeNull();
+  });
+});

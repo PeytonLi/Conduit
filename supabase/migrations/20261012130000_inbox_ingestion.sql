@@ -326,7 +326,8 @@ begin
     'message', to_jsonb(v_message),
     'provider', v_provider,
     'segments', v_segments,
-    'latest_extraction', v_extraction
+    'latest_extraction', v_extraction,
+    'org_environment_mode', (select o.environment_mode from public.organizations o where o.id = v_org)
   );
 end;
 $$;
@@ -467,6 +468,8 @@ declare
   v_case_ids uuid[] := '{}';
   v_review_id uuid;
   v_group record;
+  v_event_id uuid;
+  v_correlation uuid;
   v_actor_type text := case when v_actor is null then 'system' else 'user' end;
 begin
   select * into v_message
@@ -668,18 +671,20 @@ begin
         v_prev_version, v_case.row_version, p->>'review_reason'
       );
 
+      v_event_id := gen_random_uuid();
+      v_correlation := gen_random_uuid();
       insert into public.event_outbox (
-        org_id, aggregate_id, correlation_id, event_type, schema_version, payload
+        event_id, org_id, aggregate_id, correlation_id, event_type, schema_version, payload
       )
       values (
-        v_org, v_case.id, gen_random_uuid(), 'case.assessment.requested', 1,
+        v_event_id, v_org, v_case.id, v_correlation, 'case.assessment.requested', 1,
         jsonb_build_object(
           'schema_version', 1,
-          'event_id', gen_random_uuid(),
+          'event_id', v_event_id,
           'org_id', v_org,
           'aggregate_id', v_case.id,
           'occurred_at', now(),
-          'correlation_id', gen_random_uuid(),
+          'correlation_id', v_correlation,
           'causation_id', null,
           'name', 'case.assessment.requested',
           'data', jsonb_build_object('case_id', v_case.id, 'source_version', v_case.row_version)
@@ -901,6 +906,7 @@ begin
   return jsonb_build_object(
     'case_row_version', v_case.row_version,
     'case_phase', v_case.phase,
+    'org_environment_mode', (select o.environment_mode from public.organizations o where o.id = v_org),
     'review', case when v_review.id is null then null else jsonb_build_object(
       'id', v_review.id,
       'source_message_id', v_review.source_message_id,
@@ -1034,9 +1040,13 @@ set search_path = public, pg_temp
 as $$
 begin
   return coalesce((
-    select jsonb_agg(jsonb_build_object('org_id', org_id, 'connection_id', id))
-    from public.connections
-    where provider = 'gmail' and status in ('healthy', 'degraded')
+    select jsonb_agg(jsonb_build_object(
+      'org_id', c.org_id, 'connection_id', c.id,
+      'environment_mode', o.environment_mode
+    ))
+    from public.connections c
+    join public.organizations o on o.id = c.org_id
+    where c.provider = 'gmail' and c.status in ('healthy', 'degraded')
   ), '[]'::jsonb);
 end;
 $$;

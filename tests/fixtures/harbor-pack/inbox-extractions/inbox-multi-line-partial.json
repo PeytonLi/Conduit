@@ -8,7 +8,7 @@
       {
         "order_ref": "PO-1042",
         "line_ref": null,
-        "item_ref": "cartons",
+        "item_ref": "CARTON-302015",
         "affected_quantity": 200,
         "quantity_scope": "partial",
         "unit": "carton",

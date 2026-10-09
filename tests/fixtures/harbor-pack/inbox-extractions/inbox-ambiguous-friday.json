@@ -8,7 +8,7 @@
       {
         "order_ref": null,
         "line_ref": null,
-        "item_ref": "carton",
+        "item_ref": "CARTON-302015",
         "affected_quantity": null,
         "quantity_scope": "all_remaining",
         "unit": "carton",
