@@ -1,0 +1,48 @@
+.loginPage {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.loginCard {
+  width: min(100%, 420px);
+  padding: 36px;
+  border: 1px solid #e2e6df;
+  border-radius: 14px;
+  background: white;
+}
+
+.loginCard form,
+.loginCard label {
+  display: grid;
+  gap: 10px;
+}
+
+.loginCard form {
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.loginCard input {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #aeb7aa;
+  border-radius: 6px;
+}
+
+.loginCard button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: #315f46;
+  color: white;
+  cursor: pointer;
+}
+
+.eyebrow {
+  color: #536d5b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}

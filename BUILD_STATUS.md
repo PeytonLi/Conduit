@@ -2,14 +2,15 @@
 
 Last updated: October 9, 2026
 Specification baseline: PRD v1.0
-Current phase: Planning complete; implementation not started
+Current phase: Phase 1 foundation implemented and locally verified; provider feasibility remains open
 
 ## Observed workspace state
 
 - Research notes exist at research/neathack-research.md.
 - PRD, handoff, and detailed reference chapters have been authored.
-- No application source, package manifest, installed project dependencies, or database migrations were present when this specification was written.
-- Git is initialized on main, with origin pointing to the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit).
+- At the time this specification was written, no application source, package manifest, installed project dependencies, or database migrations were present.
+- The implementation work is on `devin/1791572968-phase1-setup`, based on the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit).
+- Local environment verified: Node.js v22.23.3, pnpm 10.34.6, Docker 29.7.2, and Supabase CLI 2.120.0.
 - No provider credentials, connected accounts, phone calls, supplier messages, or business-system writes have been tested or provisioned.
 - Current model choice: DeepSeek. Proposed phone provider: SignalWire.
 
@@ -18,7 +19,7 @@ Current phase: Planning complete; implementation not started
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | Specification | Complete | PRD.md and docs/prd/ |
-| M0 — Setup and feasibility | In progress | Public GitHub repository created; runtime and provider feasibility checks not started |
+| M0 — Setup and feasibility | In progress | Pinned: Next 16.4.0, React 19.3.0, Supabase JS 2.117.3, SSR 0.12.7, Inngest 4.22.0, Zod 4.6.5, OpenAI 7.31.0, neatlogs 1.1.28, Vitest 5.0.3, Playwright 1.64.0, Supabase CLI 2.120.0. Passed locally: `pnpm install --frozen-lockfile`, `pnpm db:start`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (5 tests), `pnpm db:reset && pnpm test:db` (3 tests), `pnpm build`, `pnpm exec playwright install chromium`, `pnpm test:e2e` (2 tests), and `pnpm seed:demo`. Local Supabase remains running. Live provider proofs, CI, and Entire agent setup remain incomplete. |
 | M1 — Domain, data and permissions | Not started | None |
 | M2 — Inbox to shortage | Not started | None |
 | M3 — Research, email and voice | Not started | None |
@@ -28,9 +29,9 @@ Current phase: Planning complete; implementation not started
 
 ## Next action
 
-At the allowed build time, inspect the environment and initialize the application runtime in the existing repository. Enable Entire for the coding session. Establish sandbox provider configurations, then run the M0 DeepSeek/neatlogs and ElevenLabs/SignalWire proofs.
+After the lead integrates this foundation, start Phase 2 on the documented feature-owned branches. Complete provider proofs when the required sandbox accounts and permissions are available, and enable Entire when a supported coding-agent integration is available.
 
-Independent work if credentials are missing: implement deterministic inventory and quote checks against the specified fixtures, with replay mode clearly labeled.
+If provider credentials remain unavailable, continue deterministic inventory and quote work against the specified fixtures in clearly labeled replay mode.
 
 ## Open gates
 
@@ -41,6 +42,7 @@ Independent work if credentials are missing: implement deterministic inventory a
 5. Exa account if live public discovery is included in the build.
 6. Partner accounts and publishable evidence.
 7. Hackathon coding window must be respected for an eligible entry.
+8. Entire CLI 0.11.4 is installed, but `entire status` reports not set up. `entire enable` requires selecting a supported coding-agent integration; none was available in this Devin environment.
 
 ## Specification checks completed
 
@@ -49,7 +51,7 @@ Independent work if credentials are missing: implement deterministic inventory a
 - The catalogs contain 16 distinct user journeys and 42 distinct acceptance scenarios.
 - The canonical stock projection, quote/cancellation arithmetic and event/deadline timezone conversions were checked.
 - Cross-document review clarified approval consumption, receiving-versus-expected-delivery records, export authority, quote ordering cutoffs and replay clock boundaries.
-- These are document checks. Application tests and live provider tests remain unperformed.
+- These are document checks. Local application checks are recorded in the M0 ledger; live provider tests remain unperformed.
 
 ## Ongoing update discipline
 

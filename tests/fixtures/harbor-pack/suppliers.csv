@@ -1,0 +1,5 @@
+supplier_id,name,purchasing_status,contact_name,email,phone,contact_timezone,outreach_approved
+BAY-CARTON,Bay Carton,approved,Alyssa Reed,alyssa@baycarton.example.com,,America/Los_Angeles,false
+NORTH-PACKAGING,North Packaging,approved,Jordan Lee,jordan@northpackaging.example.com,,America/Los_Angeles,false
+BUDGET-BOX,Budget Box,candidate,Casey Morgan,casey@budgetbox.example.com,,America/Los_Angeles,false
+QUICK-PACK,Quick Pack,candidate,Riley Chen,riley@quickpack.example.com,,America/Los_Angeles,false

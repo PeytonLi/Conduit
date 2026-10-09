@@ -1,0 +1,2 @@
+po_id,line_id,item_id,location_id,ordered_qty,received_qty,cancelled_qty,unit_price_minor,original_due_at
+PO-1042,1,CARTON-ITEM,MAIN-WAREHOUSE,4000,0,0,35,2026-10-13T08:00:00-07:00

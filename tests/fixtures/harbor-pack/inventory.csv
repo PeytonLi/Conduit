@@ -1,0 +1,2 @@
+item_id,location_id,physical_qty,unusable_qty,outside_allocations_qty,source_as_of
+CARTON-ITEM,MAIN-WAREHOUSE,600,0,0,2026-10-12T15:00:00Z
