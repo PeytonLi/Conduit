@@ -183,30 +183,30 @@ begin
   end if;
   select * into v_case from public.cases where id = p_case_id and org_id = p_org_id;
   if (private.policy_setting(v_settings, '{dispatch_paused}', 'false'))::boolean then
-    v_denials := v_denials || 'dispatch_paused';
+    v_denials := v_denials || 'dispatch_paused'::text;
   end if;
   if v_case.run_control <> 'active' then
-    v_denials := v_denials || 'case_not_active';
+    v_denials := v_denials || 'case_not_active'::text;
   end if;
   if v_contact.outreach_approved_at is null then
-    v_denials := v_denials || 'contact_not_approved';
+    v_denials := v_denials || 'contact_not_approved'::text;
   end if;
   if v_contact.channel <> p_channel then
-    v_denials := v_denials || 'channel_mismatch';
+    v_denials := v_denials || 'channel_mismatch'::text;
   end if;
   if not (v_contact.permitted_channels @> array[p_channel]) then
-    v_denials := v_denials || 'channel_not_permitted';
+    v_denials := v_denials || 'channel_not_permitted'::text;
   end if;
   if v_contact.purchasing_status = 'blocked' then
-    v_denials := v_denials || 'supplier_blocked';
+    v_denials := v_denials || 'supplier_blocked'::text;
   end if;
   if not (private.policy_setting(v_settings,
       case p_channel when 'email' then '{outreach,email_enabled}'::text[] else '{outreach,call_enabled}'::text[] end,
       'false'))::boolean then
-    v_denials := v_denials || 'channel_disabled';
+    v_denials := v_denials || 'channel_disabled'::text;
   end if;
   if not private.within_contact_hours(v_settings, v_contact.timezone, p_now) then
-    v_denials := v_denials || 'outside_contact_hours';
+    v_denials := v_denials || 'outside_contact_hours'::text;
   end if;
   if p_check_counts then
     select count(distinct c.supplier_id) filter (where c.supplier_id <> v_contact.supplier_id),
@@ -217,17 +217,17 @@ begin
     where a.org_id = p_org_id and a.case_id = p_case_id and a.episode = v_case.episode
       and a.kind in ('supplier_email', 'supplier_call') and a.state <> 'cancelled';
     if v_suppliers + 1 > (private.policy_setting(v_settings, '{outreach,max_suppliers_per_episode}', '3'))::integer then
-      v_denials := v_denials || 'supplier_limit';
+      v_denials := v_denials || 'supplier_limit'::text;
     end if;
     if p_channel = 'phone' then
       if v_same_supplier + 1 > (private.policy_setting(v_settings, '{outreach,max_calls_per_supplier_per_episode}', '1'))::integer then
-        v_denials := v_denials || 'call_limit_supplier';
+        v_denials := v_denials || 'call_limit_supplier'::text;
       end if;
       if v_total + 1 > (private.policy_setting(v_settings, '{outreach,max_calls_per_episode}', '3'))::integer then
-        v_denials := v_denials || 'call_limit_case';
+        v_denials := v_denials || 'call_limit_case'::text;
       end if;
     elsif v_same_supplier + 1 > (private.policy_setting(v_settings, '{outreach,max_emails_per_supplier_per_episode}', '2'))::integer then
-      v_denials := v_denials || 'email_limit_supplier';
+      v_denials := v_denials || 'email_limit_supplier'::text;
     end if;
   end if;
   return v_denials;
@@ -899,11 +899,11 @@ begin
     if v_financial then
       update public.recovery_plans set status = 'executed', row_version = row_version + 1, updated_at = p_now
       where id = v_action.plan_id and org_id = p_org_id;
-      update public.cases set phase = 'monitoring', run_control = 'active', block_reason = null,
+      update public.cases set phase = 'monitoring', run_control = case when run_control = 'paused' then run_control else 'active' end, block_reason = null,
         updated_at = p_now, row_version = row_version + 1
       where id = v_action.case_id and org_id = p_org_id;
     else
-      update public.cases set run_control = 'active', block_reason = null, updated_at = p_now,
+      update public.cases set run_control = case when run_control = 'paused' then run_control else 'active' end, block_reason = null, updated_at = p_now,
         phase = case when phase in ('recovering', 'assessing') then 'awaiting_supplier'::public.case_phase else phase end,
         row_version = row_version + 1
       where id = v_action.case_id and org_id = p_org_id and (block_reason = 'outcome_unknown' or block_reason is null);
@@ -913,13 +913,13 @@ begin
     if v_financial then
       update public.recovery_plans set status = 'failed', row_version = row_version + 1, updated_at = p_now
       where id = v_action.plan_id and org_id = p_org_id and p_outcome = 'failed';
-      update public.cases set phase = 'recovering', run_control = 'active', block_reason = null,
+      update public.cases set phase = 'recovering', run_control = case when run_control = 'paused' then run_control else 'active' end, block_reason = null,
         updated_at = p_now, row_version = row_version + 1
       where id = v_action.case_id and org_id = p_org_id and phase <> 'closed';
       perform public.outbox_enqueue(p_org_id, 'case.recovery.requested', v_action.case_id,
         jsonb_build_object('case_id', v_action.case_id, 'assessment_version', 0), null, null, p_now);
     elsif exists (select 1 from public.cases where id = v_action.case_id and block_reason = 'outcome_unknown') then
-      update public.cases set run_control = 'active', block_reason = null, updated_at = p_now,
+      update public.cases set run_control = case when run_control = 'paused' then run_control else 'active' end, block_reason = null, updated_at = p_now,
         row_version = row_version + 1 where id = v_action.case_id and org_id = p_org_id;
     end if;
   elsif p_outcome = 'unknown' then
@@ -1066,6 +1066,7 @@ declare
   v_line record;
   v_existing record;
   v_reversed record;
+  v_reversed_id uuid;
   v_event_id uuid;
   v_left integer := p_quantity;
   v_sched record;
@@ -1102,12 +1103,13 @@ begin
     if not found or p_quantity > v_reversed.quantity or p_quantity > v_line.received_qty then
       return private.result_error('validation_failed', 'Reversal must reference a recorded receipt on this line');
     end if;
+    v_reversed_id := v_reversed.id;
   end if;
 
   insert into public.receiving_events (org_id, external_receipt_id, po_line_id, item_id, location_id, quantity,
     received_at, kind, reverses_event_id, evidence_id, created_at)
   values (p_org_id, p_external_receipt_id, p_po_line_id, v_line.item_id, v_line.destination_location_id, p_quantity,
-    p_received_at, p_kind, v_reversed.id, p_evidence_id, p_now)
+    p_received_at, p_kind, v_reversed_id, p_evidence_id, p_now)
   returning id into v_event_id;
 
   if p_kind = 'received' then
