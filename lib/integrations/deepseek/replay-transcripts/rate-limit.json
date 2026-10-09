@@ -1,0 +1,7 @@
+{
+  "entries": [
+    { "error": { "status": 429, "retry_after_s": 1 } },
+    { "error": { "status": 429, "retry_after_s": 2 } },
+    { "error": { "status": 429, "retry_after_s": 4 } }
+  ]
+}

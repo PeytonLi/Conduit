@@ -1,0 +1,32 @@
+{
+  "entries": [
+    {
+      "response": {
+        "id": "invalid-1",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": "I think we should probably email the supplier and also maybe cancel the order?"
+            }
+          }
+        ],
+        "usage": { "prompt_tokens": 700, "completion_tokens": 30, "total_tokens": 730 }
+      }
+    },
+    {
+      "response": {
+        "id": "invalid-2",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": "{\"decision_type\":\"wait\",\"payload\":{}}"
+            }
+          }
+        ],
+        "usage": { "prompt_tokens": 750, "completion_tokens": 25, "total_tokens": 775 }
+      }
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "entries": [
+    {
+      "response": {
+        "id": "canonical-1",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "name": "read_case",
+                  "arguments": "{}"
+                }
+              ]
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 1200,
+          "completion_tokens": 60,
+          "total_tokens": 1260,
+          "prompt_cache_hit_tokens": 400,
+          "prompt_cache_miss_tokens": 800
+        }
+      }
+    },
+    {
+      "response": {
+        "id": "canonical-2",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "name": "list_approved_suppliers",
+                  "arguments": "{\"item_id\":\"20000000-0000-4000-8000-000000000001\",\"destination_location_id\":\"10000000-0000-4000-8000-000000000001\"}"
+                }
+              ]
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 1400,
+          "completion_tokens": 70,
+          "total_tokens": 1470
+        }
+      }
+    },
+    {
+      "response": {
+        "id": "canonical-3",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_3",
+                  "name": "request_supplier_email",
+                  "arguments": "{\"contact_id\":\"60000000-0000-4000-8000-000000000001\",\"purpose\":\"availability_request\",\"required_fields\":[\"quantity\",\"arrival\"]}"
+                }
+              ]
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 1600,
+          "completion_tokens": 80,
+          "total_tokens": 1680
+        }
+      }
+    },
+    {
+      "response": {
+        "id": "canonical-4",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": "{\"schema_version\":1,\"decision_type\":\"wait\",\"concise_reason\":\"Await supplier availability reply before the shortage window closes.\",\"supporting_evidence_ids\":[],\"missing_facts\":[\"current_stock\"],\"payload\":{\"expected_kind\":\"supplier_response\",\"deadline_at\":\"2026-10-14T08:00:00Z\"}}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 1800,
+          "completion_tokens": 90,
+          "total_tokens": 1890
+        }
+      }
+    }
+  ]
+}
