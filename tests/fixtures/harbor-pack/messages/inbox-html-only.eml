@@ -1,0 +1,10 @@
+From: Alyssa Reed <alyssa@baycarton.example.com>
+To: Purchasing <purchasing@harborpack.example.com>
+Date: Mon, 12 Oct 2026 08:00:00 -0700
+Subject: HTML only message
+Message-ID: <html-only@baycarton.example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><head><script>alert('x')</script><style>body{color:red}</style></head>
+<body><p>PO-1042 will now arrive <b>Friday, October 16</b>.</p></body></html>

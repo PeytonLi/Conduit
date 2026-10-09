@@ -1,0 +1,45 @@
+{
+  "rfc_message_id": "<multi-line-po-1042-1043@baycarton.example.com>",
+  "recorded_model": "replay-fixture",
+  "response": {
+    "schema_version": 1,
+    "is_delay_notice": true,
+    "lines": [
+      {
+        "order_ref": "PO-1042",
+        "line_ref": null,
+        "item_ref": "cartons",
+        "affected_quantity": 200,
+        "quantity_scope": "partial",
+        "unit": "carton",
+        "old_promise": null,
+        "new_promise": {
+          "quote": "Friday, October 16 at 8:00 AM",
+          "local_date": "2026-10-16",
+          "local_time": "08:00",
+          "promise_state": "confirmed"
+        },
+        "quantity_quote": "200 of the 4,000 cartons",
+        "order_quote": "PO-1042"
+      },
+      {
+        "order_ref": "PO-1043",
+        "line_ref": null,
+        "item_ref": "TAPE-48MM",
+        "affected_quantity": 1000,
+        "quantity_scope": "all_remaining",
+        "unit": "roll",
+        "old_promise": null,
+        "new_promise": {
+          "quote": "Monday, October 19",
+          "local_date": "2026-10-19",
+          "local_time": null,
+          "promise_state": "confirmed"
+        },
+        "quantity_quote": "1,000 rolls",
+        "order_quote": "PO-1043"
+      }
+    ],
+    "notes_for_reviewer": "Partial delay on PO-1042 and full delay on PO-1043."
+  }
+}
