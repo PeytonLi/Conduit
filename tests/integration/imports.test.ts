@@ -58,11 +58,18 @@ async function insertAuthUser(id: string) {
   await client.query(
     `insert into auth.users
       (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+       confirmation_token,
        raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
      values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
-       'authenticated', $2, '', now(), '{"provider":"email","providers":["email"]}',
+       'authenticated', $2, '', now(), '', '{"provider":"email","providers":["email"]}',
        '{}', now(), now())`,
     [id, `${id}@imports.test`],
+  );
+  await client.query(
+    `update auth.users set recovery_token = '', email_change_token_new = '',
+      email_change = '', phone_change = '', phone_change_token = '',
+      email_change_token_current = '', reauthentication_token = '' where id = $1`,
+    [id],
   );
 }
 

@@ -23,6 +23,7 @@ export default defineConfig({
           name: "integration",
           include: ["tests/integration/**/*.test.ts"],
           environment: "node",
+          fileParallelism: false,
           testTimeout: 30_000,
         },
       },

@@ -1,0 +1,67 @@
+.controls {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 9px;
+  background: var(--surface, #fff);
+}
+
+.controls h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.reason {
+  display: grid;
+  gap: 6px;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+
+.reason textarea {
+  min-height: 74px;
+  padding: 8px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.reason textarea:focus-visible,
+.actions button:focus-visible {
+  outline: 2px solid var(--focus, #1d4ed8);
+  outline-offset: 2px;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.actions button {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #16191d);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.actions .riskButton {
+  border-color: #e9b8b3;
+  color: #b42318;
+}
+
+.readOnly {
+  color: var(--muted, #5b636e);
+  font-weight: 650;
+}

@@ -1,0 +1,41 @@
+.error {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 28px;
+  border: 1px solid #d9dde3;
+  border-radius: 10px;
+  background: #fff;
+  color: #16191d;
+}
+
+.error h1,
+.error p {
+  margin: 0;
+}
+
+.error button {
+  padding: 9px 12px;
+  border: 1px solid #d9dde3;
+  border-radius: 6px;
+  background: #fff;
+  color: #16191d;
+  cursor: pointer;
+}
+
+.error button:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.skeleton {
+  min-height: 120px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #eaedf1 25%, #f7f8fa 50%, #eaedf1 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
