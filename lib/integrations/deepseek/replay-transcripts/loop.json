@@ -1,0 +1,38 @@
+{
+  "entries": [
+    {
+      "response": {
+        "id": "loop-1",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": null,
+              "tool_calls": [
+                { "id": "call_1", "name": "read_case", "arguments": "{}" }
+              ]
+            }
+          }
+        ],
+        "usage": { "prompt_tokens": 800, "completion_tokens": 20, "total_tokens": 820 }
+      }
+    },
+    {
+      "response": {
+        "id": "loop-2",
+        "model": "deepseek-flash",
+        "choices": [
+          {
+            "message": {
+              "content": null,
+              "tool_calls": [
+                { "id": "call_2", "name": "read_case", "arguments": "{}" }
+              ]
+            }
+          }
+        ],
+        "usage": { "prompt_tokens": 810, "completion_tokens": 20, "total_tokens": 830 }
+      }
+    }
+  ]
+}

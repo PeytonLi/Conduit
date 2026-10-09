@@ -1,6 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { Client } from "pg";
+import { handleVoiceToolRequest } from "@/lib/integrations/elevenlabs/tools";
+import type {
+  ProvisionalOfferResult,
+  VoiceGrantResolution,
+  VoiceOfferContext,
+  VoiceStore,
+} from "@/lib/db/voice-store";
 
 const org = "00000000-0000-4000-8000-000000000001";
 let item: string;
@@ -55,6 +62,40 @@ async function prepare(token: string, actionId = ids.action) {
     "select public.voice_prepare_call($1, $2, $3, $4, $5, $6, $7) as r",
     [org, actionId, ids.caseId, ids.contact, hash(token), ["read_case_facts", "record_provisional_offer"], "2026-10-12T17:15:00Z"],
   );
+}
+
+function createDatabaseVoiceStore(): VoiceStore {
+  return {
+    async resolveGrant(tokenHash: string) {
+      return (await one<{ r: VoiceGrantResolution | null }>("select public.voice_resolve_grant($1) as r", [tokenHash])).r;
+    },
+    async offerContext(orgId: string, caseId: string, contactId: string) {
+      return (await one<{ r: VoiceOfferContext | null }>(
+        "select public.voice_offer_context($1, $2, $3) as r",
+        [orgId, caseId, contactId],
+      )).r;
+    },
+    async recordToolEvent(input: Parameters<VoiceStore["recordToolEvent"]>[0]) {
+      await client.query(
+        "select public.voice_record_tool_event($1, $2, $3, $4, $5, $6::jsonb, $7)",
+        [
+          input.orgId,
+          input.caseId,
+          input.actionId,
+          input.tool,
+          input.resultCode,
+          JSON.stringify(input.payload),
+          input.at.toISOString(),
+        ],
+      );
+    },
+    async recordProvisionalOffer(input: Parameters<VoiceStore["recordProvisionalOffer"]>[0]) {
+      return (await one<{ r: ProvisionalOfferResult }>(
+        "select public.voice_record_provisional_offer($1::jsonb) as r",
+        [JSON.stringify(input)],
+      )).r;
+    },
+  } as unknown as VoiceStore;
 }
 
 function callback(conversationId: string, actionHint: string | null, payloadHash = "p1") {
@@ -135,6 +176,44 @@ describe("voice SQL functions", () => {
     const task = await one("select kind, status from public.voice_owner_tasks where id = $1", [offer.r.owner_task_id]);
     expect(task).toEqual({ kind: "above_ceiling", status: "open" });
     expect(await one("select phase::text, current_plan_id from public.cases where id = $1", [ids.caseId])).toEqual({ phase: "awaiting_supplier", current_plan_id: null });
+  });
+
+  it("reads the F5-shaped policy ceiling and raises a task only for an over-ceiling offer", async () => {
+    const policyId = randomUUID();
+    await client.query(
+      `insert into public.policies (id, org_id, version, settings, reason)
+       values ($1, $2, (select coalesce(max(version), 0) + 1 from public.policies where org_id = $2), $3::jsonb, 'voice integration test')`,
+      [policyId, org, JSON.stringify({ negotiation: { ceiling_minor: "50000" } })],
+    );
+    await client.query("update public.organizations set current_policy_version_id = $1 where id = $2", [policyId, org]);
+
+    await prepare("tok-ceiling");
+    const context = await one<{ r: VoiceOfferContext }>(
+      "select public.voice_offer_context($1, $2, $3) as r",
+      [org, ids.caseId, ids.contact],
+    );
+    expect(context.r).toMatchObject({
+      negotiation_ceiling_minor: "50000",
+      timezone: "America/Los_Angeles",
+    });
+
+    const terms = {
+      quantity: 400,
+      currency: "USD",
+      unit_price: "1.30",
+      arrival_date: "2026-10-16",
+      quote_valid_until: "2026-10-20",
+      order_cutoff: "2026-10-15",
+      split_delivery: false,
+    };
+    const store = createDatabaseVoiceStore();
+    const deps = { store, now: () => new Date(at) };
+
+    expect((await handleVoiceToolRequest("record_provisional_offer", "tok-ceiling", { ...terms, freight: "50.00" }, deps)).status).toBe(200);
+    expect((await handleVoiceToolRequest("record_provisional_offer", "tok-ceiling", { ...terms, freight: "600.00" }, deps)).status).toBe(200);
+
+    const tasks = await client.query("select kind from public.voice_owner_tasks where action_id = $1", [ids.action]);
+    expect(tasks.rows).toEqual([{ kind: "above_ceiling" }]);
   });
 
   it("dedupes callbacks, links early ones by action hint, quarantines strangers (AT-40)", async () => {

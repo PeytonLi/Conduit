@@ -1,4 +1,5 @@
 import type { VoiceOfferContext } from "@/lib/db/voice-store";
+import { endOfLocalDate } from "@/lib/domain/time";
 import { parseDecimalToMinor } from "./money";
 
 export interface OfferTerms {
@@ -26,11 +27,16 @@ export interface OfferEvaluation {
   ceiling_status: CeilingStatus;
 }
 
-/** Date-only values are treated as end of that day (UTC), the conservative reading for arrival. */
-export function toInstant(value: string | undefined, endOfDay: boolean): Date | null {
+export function toInstant(value: string | undefined, timeZone: string): Date | null {
   if (!value) return null;
-  const iso = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T${endOfDay ? "23:59:59" : "00:00:00"}Z` : value;
-  const date = new Date(iso);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    try {
+      return new Date(endOfLocalDate(value, timeZone));
+    } catch {
+      return null;
+    }
+  }
+  const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -54,7 +60,7 @@ export function evaluateOffer(terms: OfferTerms, context: VoiceOfferContext): Of
   const freight = parseMinor(terms.freight);
   const fees = parseMinor(terms.fees) ?? (terms.fees === undefined ? 0n : null);
 
-  const arrival = toInstant(terms.arrival_date, true);
+  const arrival = toInstant(terms.arrival_date, context.timezone);
   const shortage = context.first_shortage_at ? new Date(context.first_shortage_at) : null;
   const meetsDeadline = arrival && shortage ? arrival.getTime() <= shortage.getTime() : null;
   const meetsQuantity = context.bridge_qty === null ? null : terms.quantity >= context.bridge_qty;
