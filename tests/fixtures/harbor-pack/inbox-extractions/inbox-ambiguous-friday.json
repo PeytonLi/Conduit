@@ -1,0 +1,28 @@
+{
+  "rfc_message_id": "<ambiguous-friday@baycarton.example.com>",
+  "recorded_model": "replay-fixture",
+  "response": {
+    "schema_version": 1,
+    "is_delay_notice": true,
+    "lines": [
+      {
+        "order_ref": null,
+        "line_ref": null,
+        "item_ref": "CARTON-302015",
+        "affected_quantity": null,
+        "quantity_scope": "all_remaining",
+        "unit": "carton",
+        "old_promise": null,
+        "new_promise": {
+          "quote": "delayed until Friday",
+          "local_date": "2026-10-16",
+          "local_time": null,
+          "promise_state": "estimated"
+        },
+        "quantity_quote": null,
+        "order_quote": null
+      }
+    ],
+    "notes_for_reviewer": "Carton order delayed until Friday; PO reference absent."
+  }
+}
