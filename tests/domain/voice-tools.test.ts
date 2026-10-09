@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateVoiceToken, hashVoiceToken, VOICE_GRANT_TTL_MS, VOICE_TOOL_NAMES } from "@/lib/integrations/elevenlabs/capability";
+import { toInstant } from "@/lib/integrations/elevenlabs/offer-evaluation";
 import { handleVoiceToolRequest } from "@/lib/integrations/elevenlabs/tools";
 import { ACTION_A, ACTION_B, CASE_A, CASE_B, CONTACT_A, CONTACT_B, createFakeVoiceStore, fakeClock, ORG_A, ORG_B } from "./voice-fakes";
 
@@ -113,6 +114,21 @@ describe("AT-16 negotiation boundary", () => {
     const res = await call("validate_offer", tokenA, { quantity: 300, arrival_date: "2026-10-25" });
     expect(res.body).toMatchObject({ ok: true, data: { meets_quantity: false, meets_deadline: false } });
     expect((res.body as unknown as { data: { missing_fields: string[] } }).data.missing_fields).toContain("unit_price");
+  });
+
+  it("uses the case-local end of day for date-only arrival comparison and persistence", async () => {
+    const { call, tokenA, fake } = await setup();
+    const arrivalBy = "2026-10-17T06:59:59.999Z";
+    fake.offerContexts.get(CASE_A)!.timezone = "America/Los_Angeles";
+    fake.offerContexts.get(CASE_A)!.first_shortage_at = "2026-10-17T03:00:00.000Z";
+
+    expect(toInstant("2026-10-16", "America/Los_Angeles")?.toISOString()).toBe(arrivalBy);
+
+    const validation = await call("validate_offer", tokenA, { ...goodOffer, arrival_date: "2026-10-16" });
+    expect(validation.body).toMatchObject({ ok: true, data: { meets_deadline: false } });
+
+    await call("record_provisional_offer", tokenA, { ...goodOffer, arrival_date: "2026-10-16" });
+    expect(fake.quotes[0].arrival_by).toBe(arrivalBy);
   });
 
   it("rejects float-like or negative money", async () => {

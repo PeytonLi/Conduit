@@ -86,8 +86,8 @@ export function createFakeVoiceStore() {
   const outcomes = new Map<string, StoredCallOutcome>();
   const outbox: { event_type: string; payload: Record<string, string> }[] = [];
   const offerContexts = new Map<string, VoiceOfferContext>([
-    [CASE_A, { org_currency: "USD", negotiation_ceiling_minor: "50000", unit: "each", bridge_qty: 400, first_shortage_at: "2026-10-20T15:00:00.000Z", original_unit_price_minor: "120" }],
-    [CASE_B, { org_currency: "USD", negotiation_ceiling_minor: "999999999", unit: "each", bridge_qty: 10, first_shortage_at: "2026-10-20T15:00:00.000Z", original_unit_price_minor: "100" }],
+    [CASE_A, { org_currency: "USD", negotiation_ceiling_minor: "50000", timezone: "America/Los_Angeles", unit: "each", bridge_qty: 400, first_shortage_at: "2026-10-20T15:00:00.000Z", original_unit_price_minor: "120" }],
+    [CASE_B, { org_currency: "USD", negotiation_ceiling_minor: "999999999", timezone: "America/Los_Angeles", unit: "each", bridge_qty: 10, first_shortage_at: "2026-10-20T15:00:00.000Z", original_unit_price_minor: "100" }],
   ]);
   const contactPermitted = new Map<string, boolean>([[CONTACT_A, true], [CONTACT_B, true]]);
   let otherCallsInFlight = 0;

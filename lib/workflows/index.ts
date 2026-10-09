@@ -1,6 +1,6 @@
 import type { InngestFunction } from "inngest";
 import { inngest } from "./client";
-import "@/lib/integrations/elevenlabs/register";
+import "@/lib/integrations/register-providers";
 import { dispatchOnActionPrepared, executeOnPlanApproved } from "./execution.inngest";
 import { monitorReceipts } from "./monitoring.inngest";
 import { outboxDrain } from "./outbox.inngest";
