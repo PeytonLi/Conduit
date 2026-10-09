@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { SupplierContactView } from "@/lib/db/queries/cases";
 import { outreachBodyLimit, validateOutreachDraft, type OutreachChannel } from "@/lib/outreach-validation";
 import { humanLabel } from "@/lib/db/queries/labels";
@@ -31,6 +31,7 @@ export function OutreachForm({
   const [message, setMessage] = useState("");
   const [replayNotice, setReplayNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const intentKey = useRef<string | null>(null);
   const limit = outreachBodyLimit(channel);
   const draftError = validateOutreachDraft({ channel, body, subject: channel === "email" ? subject : undefined });
 
@@ -48,6 +49,8 @@ export function OutreachForm({
     setMessage("");
     setReplayNotice("");
     setSubmitting(true);
+    const idempotencyKey = intentKey.current ?? crypto.randomUUID();
+    intentKey.current = idempotencyKey;
     try {
       const result = await postJson<{
         result: "prepared_action" | "draft";
@@ -56,7 +59,8 @@ export function OutreachForm({
         contact_id: selected.id,
         channel,
         message: { ...(channel === "email" && subject.trim() ? { subject: subject.trim() } : {}), body: body.trim() },
-      }, crypto.randomUUID());
+      }, idempotencyKey);
+      intentKey.current = null;
       if (result.result === "prepared_action") {
         setMessage("Request prepared");
         if (isReplay) setReplayNotice("Replay: simulated; no supplier is contacted.");
@@ -84,6 +88,7 @@ export function OutreachForm({
             setContactId(event.target.value);
             const permitted = [...new Set(next ? [next.channel, ...next.permitted_channels] : [])]
               .filter((value): value is OutreachChannel => value === "email" || value === "phone");
+            intentKey.current = null;
             setChannel(permitted[0] ?? "email");
             setSubject("");
           }}
@@ -98,19 +103,29 @@ export function OutreachForm({
       </label>
       <label className={styles.field}>
         Channel
-        <select onChange={(event) => setChannel(event.target.value as OutreachChannel)} value={channel}>
+        <select onChange={(event) => {
+          intentKey.current = null;
+          setChannel(event.target.value as OutreachChannel);
+        }} value={channel}>
           {channels.map((permitted) => <option key={permitted} value={permitted}>{humanLabel("outreachChannel", permitted)}</option>)}
         </select>
       </label>
       {channel === "email" && (
         <label className={styles.field}>
           Subject
-          <input maxLength={200} onChange={(event) => setSubject(event.target.value)} value={subject} />
+          <input maxLength={200} onChange={(event) => {
+            intentKey.current = null;
+            setSubject(event.target.value);
+          }} value={subject} />
         </label>
       )}
       <label className={styles.messageField}>
         Message
-        <textarea maxLength={limit + 1} onChange={(event) => { setError(""); setBody(event.target.value); }} value={body} />
+        <textarea maxLength={limit + 1} onChange={(event) => {
+          intentKey.current = null;
+          setError("");
+          setBody(event.target.value);
+        }} value={body} />
       </label>
       {channel === "phone" && <p aria-live="polite" className={styles.counter}>{body.length}/{limit}</p>}
       {(error || draftError) && <p className={styles.error} role="alert">{error || draftError}</p>}

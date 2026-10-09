@@ -28,7 +28,7 @@ export default async function PoliciesSettingsPage() {
               <h2 id="current-policy-heading">Current policy · version {policy.version}</h2>
               <p>{policy.reason}</p>
             </div>
-            <p>Effective {formatDateTime(policy.effective_from, "UTC") ?? "Unknown"}</p>
+            <p>Effective {formatDateTime(policy.effective_from, organization.timezone) ?? "Unknown"}</p>
           </div>
           <dl className={styles.summary}>
             <div><dt>Dispatch</dt><dd>{settings.dispatch_paused ? "Paused" : "Active"}</dd></div>

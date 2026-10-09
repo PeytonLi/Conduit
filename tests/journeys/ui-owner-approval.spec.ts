@@ -1,9 +1,22 @@
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { login, resetDemo } from "./ui-helpers";
+import { login } from "./ui-helpers";
+
+let caseId: string;
+
+test.beforeAll(() => {
+  const output = execFileSync("pnpm", [
+    "exec",
+    "tsx",
+    join(process.cwd(), "tests/journeys/demo-test-support.ts"),
+    "seed-approval",
+  ], { encoding: "utf8" });
+  caseId = (JSON.parse(output) as { case_id: string }).case_id;
+});
 
 test("AT-28/J owner reviews canonical case and approves through F5", async ({ page }) => {
   await login(page, "owner@harbor.example");
-  const caseId = await resetDemo(page);
   await page.goto("/cases");
   await expect(page.getByText("Replay").first()).toBeVisible();
   await expect(page.getByText("Replay clock: Mon, Oct 12, 8:00 AM PDT")).toBeVisible();

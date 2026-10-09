@@ -52,13 +52,6 @@ export function originFailure(request: Request): Response | null {
   } catch {
     return fail("origin_mismatch", "Request origin is not allowed", 403, false);
   }
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0].trim();
-  const requestHost = forwardedHost || request.headers.get("host");
-  if (requestHost) {
-    const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",", 1)[0].trim();
-    const requestProtocol = forwardedProtocol || new URL(request.url).protocol.slice(0, -1);
-    allowedOrigins.add(`${requestProtocol}://${requestHost}`);
-  }
 
   const appBaseUrl = process.env.APP_BASE_URL?.trim();
   if (appBaseUrl) {

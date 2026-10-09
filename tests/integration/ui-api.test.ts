@@ -328,56 +328,6 @@ describe("F6 database/API trust boundaries", () => {
       priorDatasetId = result.dataset_id;
     });
 
-    it("supersedes an active imported dataset and session when resetting the demo", async () => {
-      const { error: fixtureError } = await service.from("datasets")
-        .update({ status: "superseded" })
-        .eq("org_id", harborOrgId)
-        .eq("id", priorDatasetId);
-      if (fixtureError) throw fixtureError;
-      const { data: importedDataset, error: importedDatasetError } = await service.from("datasets")
-        .insert({
-          org_id: harborOrgId,
-          source_type: "csv",
-          source_as_of: HARBOR_PACK_FIXTURE_CLOCK,
-          content_hash: randomUUID().replaceAll("-", ""),
-          status: "active",
-        })
-        .select("id").single();
-      if (importedDatasetError) throw importedDatasetError;
-      const { data: importSession, error: importSessionError } = await service.from("import_sessions")
-        .insert({
-          org_id: harborOrgId,
-          dataset_id: importedDataset.id,
-          status: "active",
-          content_hash: randomUUID().replaceAll("-", ""),
-          source_as_of: HARBOR_PACK_FIXTURE_CLOCK,
-          created_by: ownerContext.userId,
-          idempotency_key: randomUUID(),
-          request_hash: randomUUID().replaceAll("-", ""),
-        })
-        .select("id").single();
-      if (importSessionError) throw importSessionError;
-
-      const loaded = await loadHarborPack({
-        orgId: harborOrgId,
-        fixtureId: "harbor-pack-canonical",
-        reset: true,
-      });
-      const { data: supersededDataset, error: datasetError } = await service.from("datasets")
-        .select("status").eq("org_id", harborOrgId).eq("id", importedDataset.id).single();
-      if (datasetError) throw datasetError;
-      const { data: supersededSession, error: sessionError } = await service.from("import_sessions")
-        .select("status").eq("org_id", harborOrgId).eq("id", importSession.id).single();
-      if (sessionError) throw sessionError;
-      const { data: activeDatasets, error: activeDatasetsError } = await service.from("datasets")
-        .select("id").eq("org_id", harborOrgId).eq("status", "active");
-      if (activeDatasetsError) throw activeDatasetsError;
-      expect(supersededDataset.status).toBe("superseded");
-      expect(supersededSession.status).toBe("superseded");
-      expect(activeDatasets).toEqual([{ id: loaded.dataset_id }]);
-      caseId = loaded.case_id;
-      priorDatasetId = loaded.dataset_id;
-    });
   });
 
   describe("AT-28 case facts, pending decisions, sources, and deadlines", () => {

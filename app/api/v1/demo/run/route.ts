@@ -15,7 +15,6 @@ export async function POST(request: Request): Promise<Response> {
           orgId: context.orgId,
           fixtureId: parsed.data.fixture_id,
           reset: parsed.data.reset,
-          planExpiresAt: parsed.data.plan_expires_at ? new Date(parsed.data.plan_expires_at) : undefined,
         }),
       })),
     ["owner", "operator"],

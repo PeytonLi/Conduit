@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
@@ -42,6 +43,20 @@ test("F1 imports: owner stages and activates a multipart CSV import through the 
   await page.getByRole("checkbox", {
     name: "I confirm we have permission to use the supplier contact information in these files.",
   }).check();
+  const activationResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/activate") && response.request().method() === "POST",
+  );
   await activateButton.click();
   await expect(page.getByText("Status: Active")).toBeVisible();
+  const activated = await activationResponse;
+  const activation = (await activated.json()) as { data?: { import_id?: string } };
+  expect(activation.data?.import_id).toBeTruthy();
+  execFileSync("pnpm", [
+    "exec",
+    "tsx",
+    join(process.cwd(), "tests/journeys/demo-test-support.ts"),
+    "cleanup-import",
+    activation.data!.import_id!,
+  ], { stdio: "pipe" });
+  await resetDemo(page);
 });

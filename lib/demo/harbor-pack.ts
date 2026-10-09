@@ -205,15 +205,15 @@ async function ensureDataset(
     );
     if (existing) return existing;
   } else {
-    const { error: importError } = await client.from("import_sessions")
-      .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
-      .eq("org_id", orgId)
-      .eq("status", "active");
-    failDatabase(importError, "supersede active import sessions");
     const { error } = await client.from("datasets")
       .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
       .eq("org_id", orgId)
-      .eq("status", "active");
+      .eq("source_type", "fixture")
+      .in("validation_summary->>fixture_id", [
+        "harbor-pack-canonical",
+        "harbor-pack-harmless",
+      ])
+      .neq("status", "superseded");
     failDatabase(error, "supersede fixture datasets");
   }
   return insert(client, "datasets", {

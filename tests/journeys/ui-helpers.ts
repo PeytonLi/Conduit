@@ -16,14 +16,7 @@ export async function resetDemo(page: Page): Promise<string> {
       Origin: new URL(page.url()).origin,
       "Idempotency-Key": crypto.randomUUID(),
     },
-    data: {
-      fixture_id: "harbor-pack-canonical",
-      reset: true,
-      plan_expires_at: new Date(Math.max(
-        Date.parse("2026-10-12T19:00:00Z"),
-        Date.now() + 20 * 60 * 1000,
-      )).toISOString(),
-    },
+    data: { fixture_id: "harbor-pack-canonical", reset: true },
   });
   const envelope = await response.json() as { data?: { case_id?: string } };
   expect(response.status(), JSON.stringify(envelope)).toBe(200);
