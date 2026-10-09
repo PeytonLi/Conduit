@@ -126,13 +126,9 @@ export const inboxProcessMessage = inngest.createFunction(
     concurrency: [{ key: "event.data.message_id", limit: 1 }],
   },
   async ({ event, step }) => {
-    // Event consumers reload from DB; the outbox payload is the full envelope
-    // ({org_id, ..., data:{message_id}}), so read defensively.
-    const raw = event.data as Record<string, unknown> & {
-      data?: { message_id?: string };
-    };
-    const messageId = (raw.message_id ?? raw.data?.message_id) as string;
-    const orgId = (raw.org_id as string) ?? "";
+    const raw = event.data as { message_id: string; org_id: string };
+    const messageId = raw.message_id;
+    const orgId = raw.org_id;
     const env = parseServerEnv(process.env);
     const client = createServiceClient();
     const rpc = supabaseRpcClient(client);

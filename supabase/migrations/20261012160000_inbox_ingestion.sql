@@ -258,17 +258,8 @@ begin
       v_correlation,
       'supplier.message.received',
       1,
-      jsonb_build_object(
-        'schema_version', 1,
-        'event_id', v_event_id,
-        'org_id', v_org,
-        'aggregate_id', v_message_id,
-        'occurred_at', now(),
-        'correlation_id', v_correlation,
-        'causation_id', null,
-        'name', 'supplier.message.received',
-        'data', jsonb_build_object('message_id', v_message_id)
-      )
+      -- Bare payload: toPublishedEvent adds org_id/event_id/correlation_id.
+      jsonb_build_object('message_id', v_message_id)
     );
   end if;
 
@@ -684,16 +675,10 @@ begin
       )
       values (
         v_event_id, v_org, v_case.id, v_correlation, 'case.assessment.requested', 1,
+        -- Bare payload: toPublishedEvent adds org_id/event_id/correlation_id.
         jsonb_build_object(
-          'schema_version', 1,
-          'event_id', v_event_id,
-          'org_id', v_org,
-          'aggregate_id', v_case.id,
-          'occurred_at', now(),
-          'correlation_id', v_correlation,
-          'causation_id', null,
-          'name', 'case.assessment.requested',
-          'data', jsonb_build_object('case_id', v_case.id, 'source_version', v_case.row_version)
+          'case_id', v_case.id,
+          'source_version', v_case.row_version
         )
       );
     end loop;
