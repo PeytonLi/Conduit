@@ -1,2 +1,3 @@
-// Provider adapter registration side effects belong here, including F2's Gmail registration.
+// Register provider adapters here so server routes and workflows share the same providers.
+import "@/lib/integrations/gmail/register";
 import "@/lib/integrations/elevenlabs/register";

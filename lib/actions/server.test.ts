@@ -10,18 +10,20 @@ describe("server adapter registration", () => {
     vi.unstubAllEnvs();
   });
 
-  it("registers supplier_call for sandbox while retaining its replay adapter", () => {
+  it("registers supplier email and call adapters for sandbox while retaining replay adapters", () => {
     vi.stubEnv("SUPABASE_URL", "http://127.0.0.1:54321");
     vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "publishable-placeholder");
     vi.stubEnv("SUPABASE_SECRET_KEY", "secret-placeholder");
 
     serverLedger();
 
-    const sandboxAdapter = resolveAdapterForMode("supplier_call", "sandbox");
-    const replayAdapter = resolveAdapterForMode("supplier_call", "replay");
-    expect(sandboxAdapter.kind).toBe("supplier_call");
-    expect(isReplayAdapter(sandboxAdapter)).toBe(false);
-    expect(replayAdapter.kind).toBe("supplier_call");
-    expect(isReplayAdapter(replayAdapter)).toBe(true);
+    for (const kind of ["supplier_email", "supplier_call"] as const) {
+      const sandboxAdapter = resolveAdapterForMode(kind, "sandbox");
+      const replayAdapter = resolveAdapterForMode(kind, "replay");
+      expect(sandboxAdapter.kind).toBe(kind);
+      expect(isReplayAdapter(sandboxAdapter)).toBe(false);
+      expect(replayAdapter.kind).toBe(kind);
+      expect(isReplayAdapter(replayAdapter)).toBe(true);
+    }
   });
 });
