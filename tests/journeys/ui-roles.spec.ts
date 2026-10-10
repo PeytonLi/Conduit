@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { login, resetDemo } from "./ui-helpers";
+import { login, resetDemo, signOut } from "./ui-helpers";
 
 const headers = (origin: string) => ({ Origin: new URL(origin).origin, "Idempotency-Key": crypto.randomUUID() });
 
 test("AT-14 operator sees Waiting for owner and cannot approve", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await login(page, "operator@harbor.example");
   await page.goto(`/cases/${caseId}`);
   await expect(page.getByRole("heading", { name: "Waiting for owner" })).toBeVisible();
@@ -28,7 +28,7 @@ test("AT-14 operator sees Waiting for owner and cannot approve", async ({ page }
 test("AT-14 viewer is read-only", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await login(page, "viewer@harbor.example");
   await page.goto(`/cases/${caseId}`);
   await expect(page.getByText("Read-only access.")).toBeVisible();
@@ -45,7 +45,7 @@ test("AT-14 other tenant gets not found", async ({ page }) => {
   const evidenceResponse = await page.request.get(`/api/v1/cases/${caseId}/evidence`);
   const evidenceRows = (await evidenceResponse.json()).data as { id: string }[];
   const evidenceId = evidenceRows[0].id;
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await login(page, "other-owner@other.example");
   await page.goto(`/cases/${caseId}`);
   await expect(page.getByRole("heading", { name: /not found|doesn’t exist/i })).toBeVisible();

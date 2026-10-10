@@ -6,13 +6,28 @@ test("AT-36 keyboard-only narrow owner journey", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
   await page.goto("/cases");
-  let active = "";
-  for (let index = 0; index < 60; index++) {
-    active = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("href") ?? "");
-    if (active === `/cases/${caseId}`) break;
+
+  const caseHref = `/cases/${caseId}`;
+  const caseLink = page.locator(`a[href="${caseHref}"]:visible`).first();
+  await expect(page.getByLabel("Loading cases")).toBeHidden();
+  await expect(page.getByText("Loading cases…", { exact: true })).toBeHidden();
+  await expect(page.getByRole("status").filter({ hasText: /Loading/i })).toBeHidden();
+  await expect(caseLink).toBeVisible();
+
+  let caseLinkFocused = false;
+  for (let index = 0; index < 40; index++) {
     await page.keyboard.press("Tab");
+    const activeHref = await page.evaluate(() =>
+      (document.activeElement as HTMLElement | null)?.getAttribute("href") ?? "",
+    );
+    if (activeHref === caseHref) {
+      caseLinkFocused = true;
+      break;
+    }
   }
-  expect(active).toBe(`/cases/${caseId}`);
+  expect(caseLinkFocused).toBe(true);
+  await expect(caseLink).toBeFocused();
+
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
   let invokerText = "";

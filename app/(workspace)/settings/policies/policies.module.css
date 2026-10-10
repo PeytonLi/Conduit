@@ -1,0 +1,87 @@
+.page {
+  display: grid;
+  gap: 20px;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.page > h1 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+}
+
+.current {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--border, #d9dde3);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.currentHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.currentHeader h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.currentHeader p {
+  margin: 6px 0 0;
+  color: var(--muted, #5b636e);
+}
+
+.currentHeader > p {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.summary > div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f7f9;
+}
+
+.summary dt {
+  margin-bottom: 5px;
+  color: var(--muted, #5b636e);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.empty,
+.readOnly {
+  margin: 0;
+  color: var(--muted, #5b636e);
+}
+
+@media (max-width: 600px) {
+  .current {
+    padding: 15px;
+  }
+
+  .currentHeader {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

@@ -4,10 +4,18 @@ export const DEMO_PASSWORD = "HarborPackLocalOnly!2026";
 
 export async function login(page: Page, email: string): Promise<void> {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
+  const emailField = page.getByLabel("Email");
+  await expect(emailField).toBeVisible();
+  await emailField.fill(email);
   await page.getByLabel("Password").fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/cases/);
+}
+
+export async function signOut(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByLabel("Email")).toBeVisible();
 }
 
 export async function resetDemo(page: Page): Promise<string> {

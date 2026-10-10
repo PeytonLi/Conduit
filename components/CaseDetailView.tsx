@@ -11,6 +11,7 @@ import { EvidenceDrawer } from "./EvidenceDrawer";
 import { QuoteCorrectionForm } from "./QuoteCorrectionForm";
 import { StatusBadge } from "./StatusBadge";
 import { ApprovalCard } from "./ApprovalCard";
+import { OutreachForm } from "./OutreachForm";
 import styles from "./case-detail.module.css";
 
 function severityTone(severity: string): "danger" | "warning" | "neutral" {
@@ -263,11 +264,13 @@ function ActionTimeline({
   evidence,
   detail,
   environmentMode,
+  canOutreach,
 }: {
   timeline: TimelineEntry[];
   evidence: CaseEvidence[];
   detail: CaseDetail;
   environmentMode: "live" | "sandbox" | "replay";
+  canOutreach: boolean;
 }) {
   const callActions = timeline.filter((entry) => entry.group === "call_outcome");
   const isReplay = detail.case.data_label === "Replay" ||
@@ -311,20 +314,17 @@ function ActionTimeline({
         ) : <p>No recorded actions for this case.</p>}
       </section>
       <section aria-labelledby="calls-heading" className={styles.calls}>
-        <h2 id="calls-heading">Supplier call</h2>
+        <h2 id="calls-heading">Supplier call and outreach</h2>
         {callActions.length ? (
           <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {humanLabel("timelineStatus", call.status)}</li>)}</ul>
         ) : <p>No calls for this case.</p>}
-        {callActions.length > 0 && isReplay && (
-          <>
-            <p>Replay mode: calls are simulated; no real call will be placed.</p>
-            <button disabled type="button">Start call</button>
-          </>
-        )}
-        {callActions.length > 0 && !isReplay && (
-          <button aria-describedby="call-unavailable" disabled type="button">Start call</button>
-        )}
-        {callActions.length > 0 && !isReplay && <p id="call-unavailable">Calling isn’t available in this build yet.</p>}
+        {canOutreach && detail.supplier_contacts.length > 0
+          ? <OutreachForm
+              caseId={detail.case.id}
+              contacts={detail.supplier_contacts}
+              isReplay={isReplay || environmentMode === "sandbox"}
+            />
+          : !detail.supplier_contacts.length && <p>No supplier contacts are available for this case.</p>}
       </section>
     </>
   );
@@ -410,7 +410,13 @@ export function CaseDetailView({
       </aside>
       <ImpactSummary detail={detail} evidence={evidence} />
       <SupplierOptionTable detail={detail} evidence={evidence} options={options} />
-      <ActionTimeline detail={detail} environmentMode={environmentMode} evidence={evidence} timeline={timeline} />
+      <ActionTimeline
+        canOutreach={detail.permissions.can_control}
+        detail={detail}
+        environmentMode={environmentMode}
+        evidence={evidence}
+        timeline={timeline}
+      />
       <section aria-labelledby="evidence-heading" className={styles.evidenceList}>
         <h2 id="evidence-heading">Evidence</h2>
         {evidence.length ? (

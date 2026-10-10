@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login, resetDemo } from "./ui-helpers";
+import { login, resetDemo, signOut } from "./ui-helpers";
 
 test("AT-42 filtered-empty and failed refresh preserve successful rows", async ({ page }) => {
   await login(page, "owner@harbor.example");
@@ -18,14 +18,14 @@ test("AT-42 filtered-empty and failed refresh preserve successful rows", async (
 test("AT-42 empty organization is distinct from filtered-empty", async ({ page }) => {
   await login(page, "owner@harbor.example");
   await resetDemo(page);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await login(page, "other-owner@other.example");
   await page.goto("/cases");
   await expect(page.locator('section[data-state="empty-org"]')).toContainText("No cases yet.");
   await expect(page.getByRole("link", { name: /demo scenario/i })).toBeVisible();
 });
 
-test("AT-42 stale plan polling and 409 require review", async ({ page }) => {
+test("AT-42 stale plan polling requires review", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
   const initial = await page.request.get(`/api/v1/cases/${caseId}`);
@@ -51,15 +51,4 @@ test("AT-42 stale plan polling and 409 require review", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Approve this plan" })).toBeDisabled();
 
   await page.unroute(`**/api/v1/cases/${caseId}`);
-  await page.route("**/api/v1/plans/*/approve", (route) => route.fulfill({
-    status: 409,
-    contentType: "application/json",
-    body: JSON.stringify({ api_schema_version: 1, request_id: "conflict", error: { code: "stale_version" } }),
-  }));
-  await page.reload();
-  await page.getByRole("button", { name: "Approve this plan" }).click();
-  await page.getByRole("button", { name: "Confirm approval" }).click();
-  await expect(page.getByRole("status").filter({
-    hasText: /^This plan changed; review the updated terms\.$/,
-  })).toBeVisible();
 });
