@@ -1,23 +1,17 @@
 import styles from "./status-badge.module.css";
 
-const glyphs = {
-  neutral: "●",
-  success: "✓",
-  warning: "▲",
-  danger: "✕",
-  info: "?",
-} as const;
+type Tone = "neutral" | "success" | "warning" | "danger" | "info";
 
 export function StatusBadge({
   children,
   tone = "neutral",
 }: {
   children: React.ReactNode;
-  tone?: keyof typeof glyphs;
+  tone?: Tone;
 }) {
   return (
     <span className={`${styles.badge} ${styles[tone]}`}>
-      <span aria-hidden="true">{glyphs[tone]}</span>
+      <span aria-hidden="true" className={styles.glyph} />
       <span>{children}</span>
     </span>
   );

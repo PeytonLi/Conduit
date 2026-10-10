@@ -11,7 +11,7 @@
     "evidence decision";
   align-items: start;
   gap: 20px;
-  color: var(--text, #16191d);
+  color: var(--text, var(--color-text));
 }
 
 .detail h1 {
@@ -39,9 +39,9 @@
 .evidenceList {
   min-width: 0;
   padding: 20px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 12px;
-  background: var(--surface, #fff);
+  background: var(--surface, var(--color-surface));
 }
 
 .caseHeader {
@@ -64,14 +64,14 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3);
-  border: 1px solid #f1d18a;
+  border: 1px solid var(--color-warning-200);
   border-radius: var(--radius);
-  background: #fffbeb;
+  background: var(--color-warning-50);
   color: var(--color-warning-700);
 }
 
 .eyebrow {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -86,13 +86,13 @@
 }
 
 .sourceTimes {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.83rem;
 }
 
 .impact {
   grid-area: impact;
-  border-left: 4px solid var(--accent, #1d4ed8);
+  border-left: 4px solid var(--accent, var(--color-brand-700));
 }
 
 .impact h2 {
@@ -103,7 +103,7 @@
 
 .impact p {
   margin: 0 0 12px;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 .decision {
@@ -117,9 +117,9 @@
 
 .nextAction {
   padding: 17px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 10px;
-  background: var(--surface, #fff);
+  background: var(--surface, var(--color-surface));
 }
 
 .nextAction h2 {
@@ -128,7 +128,7 @@
 
 .nextAction p:last-child {
   margin-bottom: 0;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 .impactSummary {
@@ -183,7 +183,7 @@
 .optionFacts dt,
 .costs dt,
 .timeline dt {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 .factList dd,
@@ -220,8 +220,8 @@
 
 .missingFacts {
   padding: 12px;
-  border-radius: 8px;
-  background: #f6f7f9;
+  border-radius: var(--radius);
+  background: var(--color-neutral-50);
 }
 
 .missingFacts ul {
@@ -244,7 +244,7 @@
 
 .chartSummary {
   margin: 5px 0;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.84rem;
 }
 
@@ -256,27 +256,27 @@
 }
 
 .zeroLine {
-  stroke: #9aa3af;
+  stroke: var(--color-neutral-400);
   stroke-dasharray: 5 5;
   stroke-width: 1;
 }
 
 .chartLabel {
-  fill: var(--muted, #5b636e);
+  fill: var(--muted, var(--color-muted));
   font-size: 11px;
 }
 
 .projectionLine {
   fill: none;
-  stroke: #1d4ed8;
+  stroke: var(--color-brand-700);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3;
 }
 
 .shortageMark {
-  fill: #b42318;
-  stroke: #fff;
+  fill: var(--color-danger-700);
+  stroke: var(--color-surface);
   stroke-width: 2;
 }
 
@@ -308,12 +308,12 @@
 .tableWrap th,
 .tableWrap td {
   padding: 9px 8px;
-  border-bottom: 1px solid var(--border, #d9dde3);
+  border-bottom: 1px solid var(--border, var(--color-border));
   vertical-align: top;
 }
 
 .tableWrap th {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.75rem;
 }
 
@@ -327,7 +327,7 @@
 
 .optionGroup > h3 {
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border, #d9dde3);
+  border-bottom: 1px solid var(--border, var(--color-border));
 }
 
 .optionCard {
@@ -335,9 +335,9 @@
   gap: 12px;
   margin: 12px 0;
   padding: 17px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .optionHeader {
@@ -356,7 +356,7 @@
 
 .optionHeader p {
   margin: 4px 0 0;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 .optionFacts,
@@ -366,20 +366,20 @@
 
 .costs {
   padding: 13px;
-  border-radius: 8px;
-  background: #f6f7f9;
+  border-radius: var(--radius);
+  background: var(--color-neutral-50);
 }
 
 .costs > div:last-child {
   padding-top: 8px;
-  border-top: 1px solid var(--border, #d9dde3);
+  border-top: 1px solid var(--border, var(--color-border));
   font-weight: 700;
 }
 
 .reasons {
   padding: 11px 13px;
-  border-left: 3px solid #e7d18d;
-  background: #fff9e8;
+  border-left: 3px solid var(--color-warning-200);
+  background: var(--color-warning-50);
 }
 
 .reasons ul {
@@ -389,7 +389,7 @@
 .missingOption,
 .verified {
   margin: 0;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.84rem;
 }
 
@@ -406,8 +406,8 @@
 
 .timeline > ol > li {
   padding: 13px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 8px;
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius);
 }
 
 .timelineHeading {
@@ -444,10 +444,10 @@
 
 .calls button:disabled {
   padding: 8px 10px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 6px;
-  background: #f6f7f9;
-  color: var(--muted, #5b636e);
+  background: var(--color-neutral-50);
+  color: var(--muted, var(--color-muted));
 }
 
 .evidenceList {
@@ -468,7 +468,7 @@
   align-items: center;
   gap: 10px;
   padding: 11px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 7px;
 }
 

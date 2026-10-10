@@ -1,9 +1,9 @@
 .controls {
   margin-top: 18px;
   padding: 16px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 9px;
-  background: var(--surface, #fff);
+  background: var(--surface, var(--color-surface));
 }
 
 .controls h2 {
@@ -21,7 +21,7 @@
 .reason textarea {
   min-height: 74px;
   padding: 8px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 6px;
   font: inherit;
   resize: vertical;
@@ -29,7 +29,7 @@
 
 .reason textarea:focus-visible,
 .actions button:focus-visible {
-  outline: 2px solid var(--focus, #1d4ed8);
+  outline: 2px solid var(--focus, var(--color-brand-700));
   outline-offset: 2px;
 }
 
@@ -42,10 +42,10 @@
 .actions button {
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 6px;
-  background: var(--surface, #fff);
-  color: var(--text, #16191d);
+  background: var(--surface, var(--color-surface));
+  color: var(--text, var(--color-text));
   font: inherit;
   font-weight: 650;
   cursor: pointer;
@@ -57,11 +57,11 @@
 }
 
 .actions .riskButton {
-  border-color: #e9b8b3;
-  color: #b42318;
+  border-color: var(--color-danger-200);
+  color: var(--color-danger-700);
 }
 
 .readOnly {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-weight: 650;
 }

@@ -10,6 +10,7 @@ import { humanLabel, labels } from "@/lib/ui/labels";
 import { Disclosure } from "./ui/Disclosure";
 import { LiveRegion } from "./LiveRegion";
 import { StatusBadge } from "./StatusBadge";
+import { Icon } from "./ui/Icon";
 import styles from "./case-queue.module.css";
 
 const phaseLabels = labels.phase;
@@ -216,32 +217,41 @@ export function CaseQueue({
         {[
           {
             label: "Active shortages",
+            icon: "alert" as const,
+            tone: "accent",
             value: result?.summary.active_shortages ?? 0,
             denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, phase: (Object.keys(phaseLabels) as NonNullable<CaseListQuery["phase"]>).filter((phase) => phase !== "closed"), include_closed: undefined },
           },
           {
             label: "Decisions waiting",
+            icon: "clock" as const,
+            tone: "brand",
             value: result?.summary.decisions_waiting ?? 0,
             denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, needs_my_decision: true },
           },
           {
             label: "Outcome unclear",
+            icon: "help" as const,
+            tone: "warning",
             value: result?.summary.uncertain_actions ?? 0,
             denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, uncertain_action: true },
           },
           {
             label: "Recoveries recorded",
+            icon: "checkCircle" as const,
+            tone: "success",
             value: result?.summary.recoveries_recorded ?? 0,
             denominator: `of ${result?.summary.total_cases ?? 0} ${(result?.summary.total_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, phase: ["monitoring", "closed"] as NonNullable<CaseListQuery["phase"]>, include_closed: true },
           },
-        ].map(({ label, value, denominator, filters: tileFilters }) => (
-          <article className={styles.summaryTile} key={label}>
+        ].map(({ label, icon, tone, value, denominator, filters: tileFilters }) => (
+          <article className={`${styles.summaryTile} ${value > 0 ? styles[`tile_${tone}`] : ""}`} key={label}>
             <button aria-label={`Filter by ${label}`} onClick={() => updateFilters(tileFilters)} type="button">
-              <span>{label}</span><strong>{value}</strong><small>{denominator}</small>
+              <span className={styles.tileHead}><span className={styles.tileIcon}><Icon name={icon} size={16} /></span>{label}</span>
+              <strong>{value}</strong><small>{denominator}</small>
             </button>
           </article>
         ))}
@@ -334,7 +344,7 @@ export function CaseQueue({
         <LiveRegion message={announcement} />
       </div>
       {result?.items.some((item) => item.data_stale) && (
-        <p className={styles.staleBanner} role="status">Some business data is out of date — figures may have changed.</p>
+        <p className={styles.staleBanner} role="status"><Icon name="alert" size={16} />Some business data is out of date — figures may have changed.</p>
       )}
       {refreshError && (
         <p className={styles.refreshBanner} role="status">
@@ -358,6 +368,7 @@ export function CaseQueue({
             </>
           ) : (
             <>
+              <span className={styles.emptyIcon}><Icon name="inbox" size={22} /></span>
               <h2>No supplier delays yet. Conduit opens a case when a supplier reports a delay.</h2>
               <div><Link href="/business-data">Business data</Link></div>
             </>

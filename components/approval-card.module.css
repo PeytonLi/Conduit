@@ -1,9 +1,9 @@
 .card {
   padding: 20px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 12px;
-  background: var(--surface, #fff);
-  color: var(--text, #16191d);
+  background: var(--surface, var(--color-surface));
+  color: var(--text, var(--color-text));
   box-shadow: 0 12px 30px #10182810;
 }
 
@@ -21,7 +21,7 @@
 
 .eyebrow {
   margin: 0;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -41,7 +41,7 @@
 }
 
 .terms dt {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 .terms dd {
@@ -68,17 +68,17 @@
 
 .replayNotice {
   padding: 11px;
-  border: 1px solid #e7d18d;
+  border: 1px solid var(--color-warning-200);
   border-radius: 7px;
-  background: #fff4d6;
-  color: #714900;
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
   font-size: 0.86rem;
   line-height: 1.5;
 }
 
 .permission,
 .disabledReason {
-  color: #5b636e;
+  color: var(--color-muted);
   font-weight: 650;
 }
 
@@ -88,7 +88,7 @@
   padding: 10px 14px;
   border: 0;
   border-radius: 7px;
-  background: #1d4ed8;
+  background: var(--color-brand-700);
   color: white;
   font: inherit;
   font-weight: 700;
@@ -105,10 +105,10 @@
   width: 100%;
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 6px;
-  background: var(--surface, #fff);
-  color: var(--text, #16191d);
+  background: var(--surface, var(--color-surface));
+  color: var(--text, var(--color-text));
   font: inherit;
   font-weight: 650;
   cursor: pointer;
@@ -123,7 +123,7 @@
 .reject:focus-visible,
 .confirmActions button:focus-visible,
 .result button:focus-visible {
-  outline: 2px solid var(--focus, #1d4ed8);
+  outline: 2px solid var(--focus, var(--color-brand-700));
   outline-offset: 2px;
 }
 
@@ -138,7 +138,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--accent, #1d4ed8);
+  color: var(--accent, var(--color-brand-700));
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
@@ -147,9 +147,9 @@
 .confirmDialog {
   width: min(480px, calc(100vw - 28px));
   padding: 24px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 12px;
-  color: var(--text, #16191d);
+  color: var(--text, var(--color-text));
   box-shadow: 0 20px 70px #11182740;
 }
 
@@ -167,10 +167,10 @@
 .confirmActions button {
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 6px;
-  background: var(--surface, #fff);
-  color: var(--text, #16191d);
+  background: var(--surface, var(--color-surface));
+  color: var(--text, var(--color-text));
   font: inherit;
   font-weight: 650;
   cursor: pointer;
@@ -182,9 +182,9 @@
 }
 
 .confirmActions button:last-child {
-  border-color: #1d4ed8;
-  background: #1d4ed8;
-  color: #fff;
+  border-color: var(--color-brand-700);
+  background: var(--color-brand-700);
+  color: var(--color-surface);
 }
 
 @media (max-width: 420px) {

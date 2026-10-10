@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Icon, type IconName } from "./ui/Icon";
 import styles from "./workspace-navigation.module.css";
+
+type NavItem = { href: string; label: string; icon: IconName };
 
 export function WorkspaceNavigation({
   showDemo,
@@ -16,9 +19,34 @@ export function WorkspaceNavigation({
   const [open, setOpen] = useState(false);
   const current = (href: string) =>
     pathname === href || (href === "/cases" && pathname.startsWith("/cases/"));
-  const linkClass = (href: string) =>
-    `${styles.link} ${current(href) ? styles.active : ""}`;
   const close = () => setOpen(false);
+
+  const work: NavItem[] = [
+    ...(showGetStarted ? [{ href: "/onboarding", label: "Get started", icon: "flag" as const }] : []),
+    { href: "/cases", label: "Cases", icon: "inbox" },
+    { href: "/business-data", label: "Business data", icon: "database" },
+    { href: "/suppliers", label: "Suppliers", icon: "truck" },
+    { href: "/activity", label: "Activity", icon: "activity" },
+  ];
+  const settings: NavItem[] = [
+    { href: "/settings/integrations", label: "Integrations", icon: "plug" },
+    { href: "/settings/policies", label: "Policies", icon: "shield" },
+    { href: "/settings/members", label: "Members", icon: "users" },
+    ...(showDemo ? [{ href: "/demo", label: "Demo", icon: "play" as const }] : []),
+  ];
+
+  const renderLink = ({ href, label, icon }: NavItem) => (
+    <Link
+      aria-current={current(href) ? "page" : undefined}
+      className={`${styles.link} ${current(href) ? styles.active : ""}`}
+      href={href}
+      key={href}
+      onClick={close}
+    >
+      <Icon className={styles.icon} name={icon} size={18} />
+      <span>{label}</span>
+    </Link>
+  );
 
   return (
     <>
@@ -29,6 +57,7 @@ export function WorkspaceNavigation({
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
+        <Icon name={open ? "close" : "menu"} size={18} />
         Menu
       </button>
       <nav
@@ -36,38 +65,9 @@ export function WorkspaceNavigation({
         className={`${styles.navigation} ${open ? styles.open : ""}`}
         id="primary-navigation"
       >
-        {showGetStarted && (
-          <Link aria-current={current("/onboarding") ? "page" : undefined} className={linkClass("/onboarding")} href="/onboarding" onClick={close}>
-            Get started
-          </Link>
-        )}
-        <Link aria-current={current("/cases") ? "page" : undefined} className={linkClass("/cases")} href="/cases" onClick={close}>
-          Cases
-        </Link>
-        <Link aria-current={current("/business-data") ? "page" : undefined} className={linkClass("/business-data")} href="/business-data" onClick={close}>
-          Business data
-        </Link>
-        <Link aria-current={current("/suppliers") ? "page" : undefined} className={linkClass("/suppliers")} href="/suppliers" onClick={close}>
-          Suppliers
-        </Link>
-        <Link aria-current={current("/activity") ? "page" : undefined} className={linkClass("/activity")} href="/activity" onClick={close}>
-          Activity
-        </Link>
+        {work.map(renderLink)}
         <span className={styles.sectionLabel}>Settings</span>
-        <Link aria-current={current("/settings/integrations") ? "page" : undefined} className={linkClass("/settings/integrations")} href="/settings/integrations" onClick={close}>
-          Integrations
-        </Link>
-        <Link aria-current={current("/settings/policies") ? "page" : undefined} className={linkClass("/settings/policies")} href="/settings/policies" onClick={close}>
-          Policies
-        </Link>
-        <Link aria-current={current("/settings/members") ? "page" : undefined} className={linkClass("/settings/members")} href="/settings/members" onClick={close}>
-          Members
-        </Link>
-        {showDemo && (
-          <Link aria-current={current("/demo") ? "page" : undefined} className={linkClass("/demo")} href="/demo" onClick={close}>
-            Demo
-          </Link>
-        )}
+        {settings.map(renderLink)}
       </nav>
     </>
   );

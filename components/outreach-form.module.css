@@ -26,7 +26,7 @@
   display: grid;
   min-width: 0;
   gap: 6px;
-  color: var(--text, #20251f);
+  color: var(--text, var(--color-text));
   font-size: 0.88rem;
   font-weight: 650;
 }
@@ -38,10 +38,10 @@
   min-width: 0;
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d9dde3);
+  border: 1px solid var(--border, var(--color-border));
   border-radius: 7px;
-  background: var(--surface, #fff);
-  color: var(--text, #20251f);
+  background: var(--surface, var(--color-surface));
+  color: var(--text, var(--color-text));
   font: inherit;
 }
 
@@ -54,20 +54,20 @@
 .form select:focus-visible,
 .form textarea:focus-visible,
 .submit:focus-visible {
-  outline: 2px solid var(--focus, #1d4ed8);
+  outline: 2px solid var(--focus, var(--color-brand-700));
   outline-offset: 2px;
 }
 
 .counter {
   margin: -6px 0 0;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
   font-size: 0.82rem;
   text-align: right;
 }
 
 .error {
   margin: 0;
-  color: #a21d14;
+  color: var(--color-danger-700);
 }
 
 .submit {
@@ -76,8 +76,8 @@
   padding: 9px 14px;
   border: 0;
   border-radius: 7px;
-  background: #1d4ed8;
-  color: #fff;
+  background: var(--color-brand-700);
+  color: var(--color-surface);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -98,7 +98,7 @@
 }
 
 .notice {
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 @media (max-width: 560px) {
