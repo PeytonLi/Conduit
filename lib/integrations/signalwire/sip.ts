@@ -2,12 +2,13 @@ import type { ElevenLabs } from "@elevenlabs/elevenlabs-js";
 
 /**
  * SignalWire is only the SIP carrier: ElevenLabs places the call through an imported SIP trunk.
- * Values come from the SignalWire dashboard (SIP endpoint/domain + credentials); see docs/voice-setup.md.
+ * Use a PSTN termination Domain Application, not a registered-device SIP Credential domain.
+ * Values come from the SignalWire dashboard/support; see docs/voice-setup.md.
  */
 export interface SignalWireTrunkConfig {
   /** E.164 SignalWire number used as caller ID. */
   phoneNumber: string;
-  /** SIP address/host to send outbound INVITEs to, exactly as shown in SignalWire. */
+  /** Bare termination hostname, without a SIP URI, port, or transport suffix. */
   sipAddress: string;
   username: string;
   password: string;
@@ -21,7 +22,13 @@ export function buildElevenLabsSipTrunkRequest(
   config: SignalWireTrunkConfig,
 ): ElevenLabs.CreateSipTrunkPhoneNumberRequest & { provider: "sip_trunk" } {
   if (!E164.test(config.phoneNumber)) throw new Error("SignalWire phone number must be E.164");
-  if (!config.sipAddress || /\s/.test(config.sipAddress)) throw new Error("SIP address is required");
+  if (!config.sipAddress || /[\s/:@;?#]/.test(config.sipAddress)) {
+    throw new Error("SIP address must be a bare hostname, without a URI, port, or transport suffix");
+  }
+  if (/\.sip\.(signalwire\.com|swire\.io)$/i.test(config.sipAddress)) {
+    throw new Error("SignalWire SIP Credential domains require device registration; use a PSTN termination Domain Application (.dapp.signalwire.com) with its own authentication");
+  }
+  if (!config.username.trim() || !config.password) throw new Error("SIP digest credentials are required");
   return {
     provider: "sip_trunk",
     phoneNumber: config.phoneNumber,

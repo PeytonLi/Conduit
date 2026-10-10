@@ -37,7 +37,7 @@ Conduit supplier_call action ─► ElevenLabs SIP outbound call ─► SignalWi
 | `APP_BASE_URL` | Public `https://` base URL that ElevenLabs can reach |
 | `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL` | Custom LLM (default base `https://api.deepseek.com`) |
 | `SIGNALWIRE_SPACE_URL`, `SIGNALWIRE_PROJECT_ID`, `SIGNALWIRE_API_TOKEN` | SignalWire account (dashboard work only) |
-| `SIGNALWIRE_PHONE_NUMBER`, `SIGNALWIRE_SIP_ADDRESS`, `SIGNALWIRE_SIP_USERNAME`, `SIGNALWIRE_SIP_PASSWORD` | Optional, setup script only: import the trunk number |
+| `SIGNALWIRE_PHONE_NUMBER`, `SIGNALWIRE_SIP_ADDRESS`, `SIGNALWIRE_SIP_USERNAME`, `SIGNALWIRE_SIP_PASSWORD` | Optional as a group, setup script only: create/update the trunk number |
 
 Live dispatch only happens when `APP_ENV` is `sandbox`/`live`, the action's mode is not `replay`, and all four
 `ELEVENLABS_*` values are present. Otherwise the adapter fails closed without contacting anyone.
@@ -45,12 +45,20 @@ Live dispatch only happens when `APP_ENV` is `sandbox`/`live`, the action's mode
 ## 1. SignalWire (manual)
 
 1. In the SignalWire dashboard, buy or select a phone number for outbound caller ID.
-2. Create a SIP endpoint / SIP connection that accepts outbound INVITEs from ElevenLabs and routes them to the PSTN with
-   that number as caller ID. Record the SIP address (host) exactly as SignalWire shows it, plus the SIP username and
-   password. Prefer TLS transport if your SignalWire configuration supports it.
-3. Restrict the endpoint as tightly as SignalWire allows (credentials; IP allowlist of ElevenLabs SIP ranges if offered).
-4. Verify current SignalWire documentation for codecs, transport and authentication — interoperability with ElevenLabs
-   is a plausible path, not a proven one, until the M0 checklist below passes.
+2. Create a **PSTN termination Domain Application** and attach a routing script that connects the incoming SIP
+   destination to the PSTN with that number as caller ID. Use its `.dapp.signalwire.com` hostname. A SIP Credential
+   at `<space>.sip.signalwire.com` is for registered devices; importing that host into ElevenLabs does not create a
+   termination trunk. SignalWire documents this distinction in its [PBX recipe](https://signalwire.com/developers/demos/r/connect-a-pbx-with-a-domain-application.html)
+   and [SIP credentials guide](https://signalwire.com/docs/platform/voice/sip/sip-credentials).
+3. Obtain the Domain Application's digest credentials from SignalWire Support. These are distinct from the device
+   registration password and API token. SignalWire's [outbound AI SIP guide](https://github.com/signalwire/docs/blob/main/fern/products/platform/pages/ai/guides/Integrations/vapi.mdx)
+   describes the Domain Application, routing script, and support-issued password; applying that generic SIP routing
+   pattern to ElevenLabs still needs the live proof below. Do not expose an unauthenticated PSTN relay. If using IP
+   authentication instead, obtain supported SIP source ranges from ElevenLabs; allowlisting one DNS-resolved address
+   does not cover its distributed SIP servers.
+4. Set `SIGNALWIRE_SIP_ADDRESS` to the **bare hostname**: no `sip:`, `https://`, username, port, or `;transport=tls`.
+   The script keeps TLS (5061) and applies the digest credentials. Match the routing script's destination parsing,
+   caller ID, G.711 codecs, and SRTP policy on the carrier side. Verify certificate trust for that exact hostname.
 
 ## 2. ElevenLabs (automated)
 
@@ -69,9 +77,45 @@ The script:
 - creates/updates the agent "Conduit supplier call": custom LLM `${DEEPSEEK_BASE_URL}/v1`, `chat_completions` (streamed),
   prompt `supplier-call.v1`, built-in `end_call` and `voicemail_detection`, 300 s max duration, post-call events
   `transcript` + `call_initiation_failure`, audio not sent;
-- if the `SIGNALWIRE_*` SIP variables are set, imports the number as an ElevenLabs SIP trunk number and assigns the agent.
+- if the `SIGNALWIRE_*` SIP variables are set, validates them before provider writes, imports the number if missing,
+  and updates the outbound trunk address, transport, and credentials even when the number was already imported.
+  It refuses to overwrite a number imported through another telephony provider.
 
 Set `ELEVENLABS_AGENT_ID` and `ELEVENLABS_PHONE_NUMBER_ID` from the printed IDs.
+
+Correcting local SIP settings alone does not change the live trunk. Rerun setup with `--apply` after obtaining a
+working, authenticated termination route. The phone-number ID is preserved.
+
+## Connection failure diagnosed October 9, 2026
+
+Read-only provider checks found three Conduit conversations with `status: failed`, no transcript, and:
+
+```text
+INVITE failed: sip status: 404: Domain unavailable (SIP 404)
+```
+
+The imported "Conduit SignalWire trunk" was using a `<space>.sip.signalwire.com` SIP Credential hostname, TLS,
+and `allowed` media encryption. Both that hostname and `sip.rtc.elevenlabs.io` completed verified TLS 1.3
+handshakes on port 5061 with trusted, unexpired certificates. The inspected SignalWire project had no Domain
+Applications. This evidence points to missing SIP termination/routing rather than a TLS handshake failure.
+
+The setup script also previously left an existing number's outbound configuration untouched, so rerunning it
+could not repair a wrong host or credentials. That is now regression-tested.
+
+**Remaining live step:** provision the authenticated Domain Application and PSTN route in §1, then apply the
+corrected setup and run the authorized-contact checklist. No provider configuration was changed and no calls
+were placed during this investigation. AT-15 remains unverified.
+
+A subsequent user-authorized live attempt at 4:59 PM PDT on October 9 failed with the same SIP 404. The outbound
+API returned `success: false`; conversation `conv_0401m4hhqxqtfrjrvg0fjwy9ks03` reports `failed`, zero duration,
+zero transcript turns, and no audio. This verifies the current call path still fails before connection; it does
+not validate two-way audio, tools, or application callback ingestion. See `BUILD_STATUS.md` for the test record.
+
+Rem encountered the same SIP 404 and instead used a persistent SignalWire REST + ElevenLabs WebSocket media
+bridge (`Rem/bridge/server.mjs` in the user's reference repository). That is a working precedent if direct SIP provisioning is
+unavailable, but porting it requires a separate always-running service, authenticated call dispatch, per-call
+correlation, clean call termination, and `ulaw_8000` input/output audio. Its open `/call` endpoint should not be
+copied into Conduit. MyDuo's ElevenLabs speech path uses Recall for meeting audio and does not solve SIP routing.
 
 ## 2b. ElevenLabs (manual equivalent)
 

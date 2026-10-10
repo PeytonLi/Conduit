@@ -58,6 +58,14 @@ async function main() {
   const deepseekBase = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
   const deepseekModel = requireEnv("DEEPSEEK_MODEL");
   requireEnv("DEEPSEEK_API_KEY");
+  const trunkRequest = process.env.SIGNALWIRE_PHONE_NUMBER || process.env.SIGNALWIRE_SIP_ADDRESS
+    ? buildElevenLabsSipTrunkRequest({
+        phoneNumber: requireEnv("SIGNALWIRE_PHONE_NUMBER"),
+        sipAddress: requireEnv("SIGNALWIRE_SIP_ADDRESS"),
+        username: requireEnv("SIGNALWIRE_SIP_USERNAME"),
+        password: requireEnv("SIGNALWIRE_SIP_PASSWORD"),
+      })
+    : undefined;
   if (!apply) {
     console.log(JSON.stringify({ dryRun: true, agent: AGENT_NAME, promptVersion: SUPPLIER_CALL_PROMPT_VERSION, tools: Object.keys(TOOLS), webhookUrl: `${baseUrl}/api/webhooks/elevenlabs`, llm: `${deepseekBase} (${deepseekModel})` }, null, 2));
     return;
@@ -137,20 +145,15 @@ async function main() {
   ids.agentId = agentId;
 
   // 5. Optional: import the SignalWire number as an ElevenLabs SIP trunk number and assign the agent.
-  if (process.env.SIGNALWIRE_PHONE_NUMBER && process.env.SIGNALWIRE_SIP_ADDRESS) {
+  if (trunkRequest) {
     const numbers = await client.conversationalAi.phoneNumbers.list();
-    const existing = numbers.find((n) => n.phoneNumber === process.env.SIGNALWIRE_PHONE_NUMBER);
+    const existing = numbers.find((n) => n.phoneNumber === trunkRequest.phoneNumber);
+    if (existing && existing.provider !== "sip_trunk") throw new Error("Configured phone number already belongs to a different telephony provider");
     const phoneNumberId = existing
       ? existing.phoneNumberId
-      : (await client.conversationalAi.phoneNumbers.create(
-          buildElevenLabsSipTrunkRequest({
-            phoneNumber: process.env.SIGNALWIRE_PHONE_NUMBER,
-            sipAddress: process.env.SIGNALWIRE_SIP_ADDRESS,
-            username: requireEnv("SIGNALWIRE_SIP_USERNAME"),
-            password: requireEnv("SIGNALWIRE_SIP_PASSWORD"),
-          }),
-        )).phoneNumberId;
-    await client.conversationalAi.phoneNumbers.update(phoneNumberId, { agentId });
+      : (await client.conversationalAi.phoneNumbers.create(trunkRequest)).phoneNumberId;
+    // Reapply routing and credentials so a corrected setup repairs an already imported number.
+    await client.conversationalAi.phoneNumbers.update(phoneNumberId, { agentId, outboundTrunkConfig: trunkRequest.outboundTrunkConfig });
     ids.phoneNumberId = phoneNumberId;
   }
 
