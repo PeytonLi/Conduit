@@ -12,12 +12,14 @@ export function WorkspaceShell({
   organization,
   email,
   environment,
+  onboardingComplete,
 }: {
   children: React.ReactNode;
   membership: MembershipContext;
   organization: OrganizationSummary;
   email: string | null;
   environment: string;
+  onboardingComplete: boolean;
 }) {
   return (
     <div className={styles.shell}>
@@ -25,17 +27,17 @@ export function WorkspaceShell({
       <aside className={styles.sidebar}>
         <Link className={styles.brand} href="/cases">Conduit</Link>
         <Suspense fallback={<nav aria-label="Main navigation" />}>
-          <WorkspaceNavigation showDemo={organization.environment_mode !== "live"} />
+          <WorkspaceNavigation
+            showDemo={environment === "replay" || environment === "sandbox"}
+            showGetStarted={!onboardingComplete}
+          />
         </Suspense>
       </aside>
       <div className={styles.main}>
         <header className={styles.header}>
           <div className={styles.identity}>
             <strong>{organization.name}</strong>
-            <span className={styles.environment}>{environment}</span>
-            {organization.environment_mode !== "live" && (
-              <span className={styles.demoBadge}>Demo</span>
-            )}
+            <span className={styles.environment}>{environment === "replay" ? "Replay" : environment === "sandbox" ? "Sandbox" : "Live"}</span>
           </div>
           <div className={styles.account}>
             <span>{email ?? "Signed in"} · {membership.role}</span>

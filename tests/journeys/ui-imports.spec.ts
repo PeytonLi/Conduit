@@ -9,8 +9,21 @@ test("F1 imports: owner stages and activates a multipart CSV import through the 
   await resetDemo(page);
   await page.goto("/business-data");
 
-  const sourceAsOf = new Date(Date.now() - 60_000).toISOString();
-  await page.getByLabel(/Source data as of/).fill(sourceAsOf);
+  const sourceAsOfDate = new Date(Date.now() - 60_000);
+  sourceAsOfDate.setUTCSeconds(0, 0);
+  const sourceAsOf = sourceAsOfDate.toISOString();
+  const localParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(sourceAsOf)).map(({ type, value }) => [type, value]));
+  await page.getByLabel(/Source data as of/).fill(
+    `${localParts.year}-${localParts.month}-${localParts.day}T${localParts.hour}:${localParts.minute}`,
+  );
   for (const [label, file] of [
     ["Suppliers CSV", "suppliers.csv"],
     ["Items CSV", "items.csv"],
@@ -35,7 +48,7 @@ test("F1 imports: owner stages and activates a multipart CSV import through the 
   await page.getByRole("button", { name: "Preview import" }).click();
   const staged = await stageResponse;
   expect(staged.status()).toBe(201);
-  await expect(page.getByText("Status: Staged")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Status: Staged" })).toBeVisible();
   await expect(page.getByText(/suppliers.csv: \d+ rows/)).toBeVisible();
 
   const activateButton = page.getByRole("button", { name: "Activate import" });

@@ -20,10 +20,10 @@ export function formatDateTimeRange(
   timeZone: string,
 ): string | null {
   const formattedStart = formatDateTime(start, timeZone);
-  if (!formattedStart || !end) return formattedStart;
   const formattedEnd = formatDateTime(end, timeZone);
+  if (!formattedStart) return formattedEnd;
   if (!formattedEnd) return formattedStart;
-  return new Date(start!).getTime() === new Date(end).getTime()
+  return start && end && new Date(start).getTime() === new Date(end).getTime()
     ? formattedStart
     : `${formattedStart}–${formattedEnd}`;
 }

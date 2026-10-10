@@ -2,6 +2,10 @@
 
 import { useRef, useState } from "react";
 import { postJson, workspaceErrorMessage } from "./client-api";
+import { Button } from "./ui/Button";
+import { Card } from "./ui/Card";
+import { CheckboxField, SelectField } from "./ui/Field";
+import styles from "./demo-run.module.css";
 
 export function DemoRun({ disabled }: { disabled: boolean }) {
   const [fixture, setFixture] = useState("harbor-pack-canonical");
@@ -31,17 +35,16 @@ export function DemoRun({ disabled }: { disabled: boolean }) {
   }
 
   return (
-    <section>
-      <label>Fixture
-        <select disabled={disabled || busy} onChange={(event) => setFixture(event.target.value)} value={fixture}>
+    <Card className={styles.card}>
+      <h2>Replay scenario</h2>
+      <SelectField disabled={disabled || busy} label="Scenario" onChange={(event) => setFixture(event.target.value)} value={fixture}>
           <option value="harbor-pack-canonical">Harbor Pack Replay</option>
           <option value="harbor-pack-harmless">Harmless scenario</option>
-        </select>
-      </label>
-      <label><input checked={reset} disabled={disabled || busy} onChange={(event) => setReset(event.target.checked)} type="checkbox" /> Reset existing demo data first</label>
-      <p>Replay only: scenarios are simulated and do not contact suppliers or external systems.</p>
-      <button disabled={disabled || busy} onClick={() => void run()} type="button">{busy ? "Loading scenario…" : "Run demo scenario"}</button>
+      </SelectField>
+      <CheckboxField checked={reset} disabled={disabled || busy} label="Reset existing demo data first" onChange={(event) => setReset(event.target.checked)} />
+      <p className={styles.note}>Replay-only: scenarios are simulated and do not contact suppliers or external systems.</p>
+      <Button disabled={disabled || busy} onClick={() => void run()}>{busy ? "Loading scenario…" : "Run demo scenario"}</Button>
       {message && <p role="status">{message}</p>}
-    </section>
+    </Card>
   );
 }

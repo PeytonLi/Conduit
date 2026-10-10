@@ -1,22 +1,24 @@
 import { requireMembership } from "@/lib/auth";
-import { humanLabel } from "@/lib/db/queries/labels";
 import { listMemberships } from "@/lib/db/queries/memberships";
 import { MembershipControls } from "@/components/MembershipControls";
+import { DataTable } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import styles from "./members.module.css";
 
 export default async function MembersSettingsPage() {
   const membership = await requireMembership();
   const members = await listMemberships(membership);
   return (
-    <main>
-      <h1>Members</h1>
-      {members.length ? <table>
-        <caption>Organization members</caption>
-        <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+    <main className={styles.page}>
+      <PageHeader description="Manage organization roles and access." title="Members" />
+      {members.length ? <DataTable caption="Organization members" className={styles.table}>
+        <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Active</th></tr></thead>
         <tbody>{members.map((member) => <tr key={member.id}>
-          <td>{member.email ?? "Unknown"}{member.is_self ? " (you)" : ""}</td><td>{humanLabel("membershipRole", member.role)}</td><td>{member.active ? "Active" : "Inactive"}</td>
-          <td>{membership.role === "owner" ? <MembershipControls member={member} /> : "Read-only"}</td>
+          <td>{member.email ?? "Unknown"}{member.is_self ? " (you)" : ""}</td>
+          <MembershipControls editable={membership.role === "owner"} member={member} />
         </tr>)}</tbody>
-      </table> : <p>No organization members are available.</p>}
+      </DataTable> : <EmptyState message="No organization members are available." />}
     </main>
   );
 }

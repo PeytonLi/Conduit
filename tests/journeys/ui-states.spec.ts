@@ -21,8 +21,10 @@ test("AT-42 empty organization is distinct from filtered-empty", async ({ page }
   await signOut(page);
   await login(page, "other-owner@other.example");
   await page.goto("/cases");
-  await expect(page.locator('section[data-state="empty-org"]')).toContainText("No cases yet.");
-  await expect(page.getByRole("link", { name: /demo scenario/i })).toBeVisible();
+  await expect(page.locator('section[data-state="empty-org"]')).toContainText(
+    "No supplier delays yet. Conduit opens a case when a supplier reports a delay.",
+  );
+  await expect(page.locator("#main-content").getByRole("link", { name: "Business data" })).toBeVisible();
 });
 
 test("AT-42 stale plan polling requires review", async ({ page }) => {

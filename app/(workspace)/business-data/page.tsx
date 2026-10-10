@@ -3,14 +3,17 @@ import { ImportPreview } from "@/components/ImportPreview";
 import { getBusinessData } from "@/lib/db/queries/business-data";
 import { formatDateTime, formatQuantity } from "@/lib/db/queries/format";
 import { humanLabel } from "@/lib/db/queries/labels";
+import { DataTable } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import styles from "./business-data.module.css";
 
 export default async function BusinessDataPage() {
   const membership = await requireMembership();
   const data = await getBusinessData(membership);
   return (
     <main>
-      <h1>Business data</h1>
-      <p>Current source datasets and the inventory, demand, and receipts used in case assessments.</p>
+      <PageHeader description="Manage the source data behind inventory, demand, and recovery decisions." title="Business data" />
       <section aria-labelledby="datasets-heading">
         <h2 id="datasets-heading">Active datasets</h2>
         {data.datasets.length ? (
@@ -22,24 +25,22 @@ export default async function BusinessDataPage() {
               {dataset.status !== "active" && ` · ${humanLabel("datasetStatus", dataset.status)}`}
             </li>
           ))}</ul>
-        ) : <p>No active datasets. Import a business data file to get started.</p>}
+        ) : <EmptyState message="Import a business data file to get started." />}
       </section>
       <ImportPreview role={membership.role} />
       <section aria-labelledby="inventory-heading">
         <h2 id="inventory-heading">Inventory</h2>
-        <div style={{ overflowX: "auto" }}><table>
-          <caption>Inventory snapshots</caption>
+        {data.inventory.length ? <DataTable caption="Inventory snapshots" className={styles.table}>
           <thead><tr><th scope="col">Item</th><th scope="col">Location</th><th scope="col">Physical</th><th scope="col">Unusable</th><th scope="col">Allocated</th><th scope="col">Usable</th><th scope="col">Source as of</th></tr></thead>
           <tbody>{data.inventory.map((row) => <tr key={row.id}><td>{row.sku} · {row.description}</td><td>{row.location}</td><td>{formatQuantity(row.physical_qty, row.unit)}</td><td>{formatQuantity(row.unusable_qty, row.unit)}</td><td>{formatQuantity(row.outside_allocations_qty, row.unit)}</td><td>{formatQuantity(row.usable_qty, row.unit)}</td><td>{formatDateTime(row.source_as_of, "UTC")}</td></tr>)}</tbody>
-        </table></div>
+        </DataTable> : <EmptyState message="No inventory snapshots are available yet." />}
       </section>
       <section aria-labelledby="demand-heading">
         <h2 id="demand-heading">Demand</h2>
-        <div style={{ overflowX: "auto" }}><table>
-          <caption>Open demand requirements</caption>
+        {data.demand.length ? <DataTable caption="Open demand requirements" className={styles.table}>
           <thead><tr><th scope="col">Item</th><th scope="col">Location</th><th scope="col">Remaining</th><th scope="col">Required</th><th scope="col">Certainty</th><th scope="col">Status</th></tr></thead>
           <tbody>{data.demand.map((row) => <tr key={row.id}><td>{row.sku}</td><td>{row.location}</td><td>{formatQuantity(row.remaining_qty, row.unit)}</td><td>{formatDateTime(row.required_at, "UTC")}</td><td>{humanLabel("demandCertainty", row.certainty)}</td><td>{humanLabel("demandStatus", row.status)}</td></tr>)}</tbody>
-        </table></div>
+        </DataTable> : <EmptyState message="No open demand requirements are available yet." />}
       </section>
       <section aria-labelledby="po-heading">
         <h2 id="po-heading">Purchase orders and receipts</h2>
@@ -51,7 +52,7 @@ export default async function BusinessDataPage() {
               {line.receipt_schedules.map((receipt, index) => <span key={index}> · Expected {formatQuantity(receipt.quantity_remaining, line.unit)} by {formatDateTime(receipt.earliest_at, "UTC") ?? "Unknown"}</span>)}
             </li>)}</ul>
           </article>
-        )) : <p>No purchase order data is available.</p>}
+        )) : <EmptyState message="No purchase order or receipt data is available yet." />}
       </section>
     </main>
   );

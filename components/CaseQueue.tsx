@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseListQuery } from "@/lib/db/queries/contracts";
 import { formatDateTime, formatQuantity } from "@/lib/db/queries/format";
 import type { CaseListResult, CaseSummary } from "@/lib/db/queries/cases";
-import { humanLabel, labels } from "@/lib/db/queries/labels";
+import { humanLabel, labels } from "@/lib/ui/labels";
+import { Disclosure } from "./ui/Disclosure";
 import { LiveRegion } from "./LiveRegion";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./case-queue.module.css";
@@ -89,6 +90,11 @@ export function CaseQueue({
   const isFiltered = hasFilters(filters);
   const caseRows = useMemo(() => result?.items ?? [], [result]);
   const replayCase = caseRows.find((item) => item.data_label === "Replay");
+  const activeFilterCount = Number(Boolean(filters.severity?.length)) +
+    Number(Boolean(filters.assignee)) + Number(Boolean(filters.supplier)) +
+    Number(Boolean(filters.item)) + Number(Boolean(filters.data_stale)) +
+    Number(Boolean(filters.uncertain_action)) + Number(Boolean(filters.closed_outcome)) +
+    Number(Boolean(filters.include_closed));
 
   async function load(nextFilters: FilterState, announce: boolean, append = false) {
     const requestId = ++requestNumber.current;
@@ -143,28 +149,21 @@ export function CaseQueue({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchDraft]);
 
-  function togglePhase(phase: NonNullable<CaseListQuery["phase"]>[number], checked: boolean) {
-    const current = filters.phase ?? [];
-    const next = checked ? [...new Set([...current, phase])] : current.filter((value) => value !== phase);
-    updateFilters({ ...filters, phase: next.length ? next : undefined });
-  }
-
   function clearFilters() {
     setSearchDraft("");
     updateFilters({});
   }
 
-  function renderCaseBadges(item: CaseSummary, includeDataLabel = false) {
+  function renderCaseBadges(item: CaseSummary, includePhase = true) {
     return (
       <div className={styles.badges}>
-        <StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge>
+        {includePhase && <StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge>}
         {item.run_control !== "active" && (
           <StatusBadge tone={item.run_control === "blocked" ? "warning" : "neutral"}>
             {humanLabel("runControl", item.run_control)}{item.block_reason ? `: ${humanLabel("blockReason", item.block_reason)}` : ""}
           </StatusBadge>
         )}
         <StatusBadge tone={toneForSeverity(item.severity)}>{humanLabel("severity", item.severity)}</StatusBadge>
-        {includeDataLabel && <StatusBadge>{humanLabel("dataLabel", item.data_label)}</StatusBadge>}
         {item.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}
         {item.has_uncertain_action && <StatusBadge tone="warning">Outcome unknown</StatusBadge>}
       </div>
@@ -182,14 +181,20 @@ export function CaseQueue({
   function renderTableRow(item: CaseSummary) {
     return (
       <tr key={item.id}>
-        <td>{renderCaseTitle(item)}<span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>{renderCaseBadges(item)}</td>
+        <td>
+          {renderCaseTitle(item)}
+          <span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>
+          <div className={styles.badges}>
+            <StatusBadge tone={toneForSeverity(item.severity)}>{humanLabel("severity", item.severity)}</StatusBadge>
+          </div>
+        </td>
         <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</td>
         <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</td>
         <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Unknown"}</td>
         <td><StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge></td>
         <td>{item.next_action.label}</td>
         <td>{item.assignee?.email ?? "Unassigned"}</td>
-        <td>{humanLabel("dataLabel", item.data_label)}{item.data_stale && <span className={styles.staleText}> · Data stale</span>}</td>
+        <td>{item.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}</td>
       </tr>
     );
   }
@@ -209,25 +214,47 @@ export function CaseQueue({
       )}
       <section aria-label="Case summary" className={styles.summaryGrid}>
         {[
-          ["Active shortages", result?.summary.active_shortages ?? 0, `of ${result?.summary.active_cases ?? 0} active cases`],
-          ["Decisions waiting", result?.summary.decisions_waiting ?? 0, `of ${result?.summary.active_cases ?? 0} active cases`],
-          ["Uncertain actions", result?.summary.uncertain_actions ?? 0, `of ${result?.summary.active_cases ?? 0} active cases`],
-          ["Recoveries recorded", result?.summary.recoveries_recorded ?? 0, `of ${result?.summary.total_cases ?? 0} cases`],
-        ].map(([label, value, denominator]) => (
+          {
+            label: "Active shortages",
+            value: result?.summary.active_shortages ?? 0,
+            denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
+            filters: { ...filters, phase: (Object.keys(phaseLabels) as NonNullable<CaseListQuery["phase"]>).filter((phase) => phase !== "closed"), include_closed: undefined },
+          },
+          {
+            label: "Decisions waiting",
+            value: result?.summary.decisions_waiting ?? 0,
+            denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
+            filters: { ...filters, needs_my_decision: true },
+          },
+          {
+            label: "Outcome unclear",
+            value: result?.summary.uncertain_actions ?? 0,
+            denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
+            filters: { ...filters, uncertain_action: true },
+          },
+          {
+            label: "Recoveries recorded",
+            value: result?.summary.recoveries_recorded ?? 0,
+            denominator: `of ${result?.summary.total_cases ?? 0} ${(result?.summary.total_cases ?? 0) === 1 ? "case" : "cases"}`,
+            filters: { ...filters, phase: ["monitoring", "closed"] as NonNullable<CaseListQuery["phase"]>, include_closed: true },
+          },
+        ].map(({ label, value, denominator, filters: tileFilters }) => (
           <article className={styles.summaryTile} key={label}>
-            <span>{label}</span><strong>{value}</strong><small>{denominator}</small>
+            <button aria-label={`Filter by ${label}`} onClick={() => updateFilters(tileFilters)} type="button">
+              <span>{label}</span><strong>{value}</strong><small>{denominator}</small>
+            </button>
           </article>
         ))}
       </section>
 
+      <Disclosure className={styles.filterDisclosure} responsiveAtWidth={639} summary="Filters">
       <form
         className={styles.filters}
         onSubmit={(event) => {
           event.preventDefault();
           updateFilters({ ...filters, q: searchDraft.trim() || undefined });
         }}
-        role="search"
-      >
+        role="search">
         <label className={styles.searchLabel}>
           Search by PO, SKU, supplier or case ID
           <input
@@ -236,79 +263,71 @@ export function CaseQueue({
             value={searchDraft}
           />
         </label>
-        <fieldset className={styles.phaseFilters}>
-          <legend>Phase</legend>
-          {(Object.entries(phaseLabels) as [keyof typeof phaseLabels, string][]).map(([phase, label]) => (
-            <label key={phase}>
-              <input
-                checked={(filters.phase ?? []).includes(phase)}
-                onChange={(event) => togglePhase(phase, event.target.checked)}
-                type="checkbox"
-              />
-              {label} ({result?.counts.by_phase[phase as keyof CaseListResult["counts"]["by_phase"]] ?? 0})
-            </label>
-          ))}
-        </fieldset>
-        <label>
-          Severity
+        <label className={styles.mainFilter}>
+          Phase
           <select
-            onChange={(event) => {
-              const severity = event.target.value as keyof typeof severityLabels | "";
-              updateFilters({ ...filters, severity: severity ? [severity] : undefined });
-            }}
-            value={filters.severity?.[0] ?? ""}
+            onChange={(event) => updateFilters({ ...filters, phase: event.target.value ? [event.target.value as NonNullable<CaseListQuery["phase"]>[number]] : undefined })}
+            value={filters.phase?.length === 1 ? filters.phase[0] : ""}
           >
-            <option value="">Any severity</option>
-            {(Object.entries(severityLabels) as [keyof typeof severityLabels, string][]).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            <option value="">Any phase</option>
+            {(Object.entries(phaseLabels) as [keyof typeof phaseLabels, string][]).map(([phase, label]) => (
+              <option key={phase} value={phase}>{label} ({result?.counts.by_phase[phase as keyof CaseListResult["counts"]["by_phase"]] ?? 0})</option>
+            ))}
           </select>
         </label>
-        <label>
-          Assignee
-          <select
-            onChange={(event) => updateFilters({ ...filters, assignee: event.target.value || undefined })}
-            value={filters.assignee ?? ""}
-          >
-            <option value="">Anyone</option>
-            <option value="me">Me</option>
-            <option value="unassigned">Unassigned</option>
-            {[...new Map(caseRows.flatMap((item) => item.assignee ? [[item.assignee.user_id, item.assignee.email ?? item.assignee.user_id] as const] : [])).entries()]
-              .filter(([id]) => id !== userId)
-              .map(([id, email]) => <option key={id} value={id}>{email}</option>)}
-          </select>
+        <label className={styles.decisionToggle}>
+          <input checked={Boolean(filters.needs_my_decision)} onChange={(event) => updateFilters({ ...filters, needs_my_decision: event.target.checked || undefined })} type="checkbox" />
+          Needs my decision
         </label>
-        <label>
-          Supplier
-          <select
-            onChange={(event) => updateFilters({ ...filters, supplier: event.target.value || undefined })}
-            value={filters.supplier ?? ""}
-          >
-            <option value="">Any supplier</option>
-            {[...new Map(caseRows.flatMap((item) => item.suppliers.map((supplier) => [supplier.id, supplier.name] as const))).entries()]
-              .map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </label>
-        <label>
-          Item
-          <select onChange={(event) => updateFilters({ ...filters, item: event.target.value || undefined })} value={filters.item ?? ""}>
-            <option value="">Any item</option>
-            {[...new Map(caseRows.map((item) => [item.item.id, item.item.sku] as const)).entries()]
-              .map(([id, sku]) => <option key={id} value={id}>{sku}</option>)}
-          </select>
-        </label>
-        <div className={styles.checkFilters}>
-          <label><input checked={Boolean(filters.needs_my_decision)} onChange={(event) => updateFilters({ ...filters, needs_my_decision: event.target.checked || undefined })} type="checkbox" /> Needs my decision</label>
-          <label><input checked={Boolean(filters.data_stale)} onChange={(event) => updateFilters({ ...filters, data_stale: event.target.checked || undefined })} type="checkbox" /> Data stale</label>
-          <label><input checked={Boolean(filters.uncertain_action)} onChange={(event) => updateFilters({ ...filters, uncertain_action: event.target.checked || undefined })} type="checkbox" /> Uncertain action</label>
+        <div className={styles.moreFilters}>
+          <Disclosure count={activeFilterCount || undefined} summary="More filters">
+            <div className={styles.secondaryFilters}>
+              <label>
+                Severity
+                <select onChange={(event) => { const severity = event.target.value as keyof typeof severityLabels | ""; updateFilters({ ...filters, severity: severity ? [severity] : undefined }); }} value={filters.severity?.[0] ?? ""}>
+                  <option value="">Any severity</option>
+                  {(Object.entries(severityLabels) as [keyof typeof severityLabels, string][]).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                Assignee
+                <select onChange={(event) => updateFilters({ ...filters, assignee: event.target.value || undefined })} value={filters.assignee ?? ""}>
+                  <option value="">Anyone</option><option value="me">Me</option><option value="unassigned">Unassigned</option>
+                  {[...new Map(caseRows.flatMap((item) => item.assignee ? [[item.assignee.user_id, item.assignee.email ?? item.assignee.user_id] as const] : [])).entries()]
+                    .filter(([id]) => id !== userId).map(([id, email]) => <option key={id} value={id}>{email}</option>)}
+                </select>
+              </label>
+              <label>
+                Supplier
+                <select onChange={(event) => updateFilters({ ...filters, supplier: event.target.value || undefined })} value={filters.supplier ?? ""}>
+                  <option value="">Any supplier</option>
+                  {[...new Map(caseRows.flatMap((item) => item.suppliers.map((supplier) => [supplier.id, supplier.name] as const))).entries()]
+                    .map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </label>
+              <label>
+                Item
+                <select onChange={(event) => updateFilters({ ...filters, item: event.target.value || undefined })} value={filters.item ?? ""}>
+                  <option value="">Any item</option>
+                  {[...new Map(caseRows.map((item) => [item.item.id, item.item.sku] as const)).entries()].map(([id, sku]) => <option key={id} value={id}>{sku}</option>)}
+                </select>
+              </label>
+              <label className={styles.secondaryToggle}><input checked={Boolean(filters.data_stale)} onChange={(event) => updateFilters({ ...filters, data_stale: event.target.checked || undefined })} type="checkbox" />Data stale</label>
+              <label className={styles.secondaryToggle}><input checked={Boolean(filters.uncertain_action)} onChange={(event) => updateFilters({ ...filters, uncertain_action: event.target.checked || undefined })} type="checkbox" />Uncertain action</label>
+              <label>
+                Closed outcome
+                <select onChange={(event) => updateFilters({ ...filters, closed_outcome: event.target.value as FilterState["closed_outcome"] || undefined })} value={filters.closed_outcome ?? ""}>
+                  <option value="">Any outcome</option>
+                  {["delivered", "no_impact", "accepted_risk", "cancelled", "unresolved"].map((outcome) => <option key={outcome} value={outcome}>{humanLabel("caseOutcome", outcome)}</option>)}
+                </select>
+              </label>
+              <label className={styles.secondaryToggle}><input checked={Boolean(filters.include_closed)} onChange={(event) => updateFilters({ ...filters, include_closed: event.target.checked || undefined })} type="checkbox" />Include closed cases</label>
+            </div>
+          </Disclosure>
         </div>
-        <label>
-          Closed outcome
-          <select onChange={(event) => updateFilters({ ...filters, closed_outcome: event.target.value as FilterState["closed_outcome"] || undefined })} value={filters.closed_outcome ?? ""}>
-            <option value="">Any outcome</option>
-            {["delivered", "no_impact", "accepted_risk", "cancelled", "unresolved"].map((outcome) => <option key={outcome} value={outcome}>{humanLabel("caseOutcome", outcome)}</option>)}
-          </select>
-        </label>
-        <button className={styles.clearButton} onClick={clearFilters} type="button">Clear filters</button>
+        {isFiltered && <button className={styles.clearButton} onClick={clearFilters} type="button">Clear filters</button>}
       </form>
+      </Disclosure>
 
       <div className={styles.resultsHead}>
         <p>{result ? matchingLabel : "Loading cases…"}</p>
@@ -339,9 +358,8 @@ export function CaseQueue({
             </>
           ) : (
             <>
-              <h2>No cases yet.</h2>
-              <p>Cases appear when a supplier delay is detected or you run a demo scenario.</p>
-              <div><Link href="/demo">Run a demo scenario</Link><Link href="/business-data">Review business data</Link></div>
+              <h2>No supplier delays yet. Conduit opens a case when a supplier reports a delay.</h2>
+              <div><Link href="/business-data">Business data</Link></div>
             </>
           )}
         </section>
@@ -360,7 +378,7 @@ export function CaseQueue({
                 <article className={styles.caseCard}>
                   {renderCaseTitle(item)}
                   <span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>
-                  {renderCaseBadges(item, true)}
+                  {renderCaseBadges(item)}
                   <dl>
                     <div><dt>Supplier</dt><dd>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</dd></div>
                     <div><dt>First shortage</dt><dd>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</dd></div>

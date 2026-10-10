@@ -5,6 +5,7 @@ test("AT-17/J owner saves a policy version and viewer remains read-only", async 
   await login(page, "owner@harbor.example");
   await resetDemo(page);
   await page.goto("/settings/policies");
+  await page.getByRole("button", { name: "Edit policy" }).click();
   await page.getByLabel("Call enabled").check();
   await page.getByLabel("Reason").fill("Enable approved supplier calls");
   await page.getByRole("button", { name: "Save policy" }).click();
@@ -19,6 +20,7 @@ test("AT-17/J owner saves a policy version and viewer remains read-only", async 
   await signOut(page);
   await login(page, "owner@harbor.example");
   await page.goto("/settings/policies");
+  await page.getByRole("button", { name: "Edit policy" }).click();
   await page.getByLabel("Call enabled").uncheck();
   await page.getByLabel("Reason").fill("Restore the Harbor Pack default call policy");
   await page.getByRole("button", { name: "Save policy" }).click();

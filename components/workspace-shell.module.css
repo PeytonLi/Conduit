@@ -1,15 +1,11 @@
 .shell {
-  --bg: #f6f7f9;
-  --surface: #fff;
-  --text: #16191d;
-  --muted: #5b636e;
-  --border: #d9dde3;
-  --accent: #1d4ed8;
-  --danger: #b42318;
-  --warning: #8a5a00;
-  --warning-surface: #fff4d6;
-  --success: #0f6b3a;
-  --focus: #1d4ed8;
+  --bg: var(--color-canvas);
+  --surface: var(--color-surface);
+  --text: var(--color-text);
+  --muted: var(--color-muted);
+  --border: var(--color-border);
+  --accent: var(--color-brand-700);
+  --focus: var(--color-focus);
   display: grid;
   min-height: 100vh;
   grid-template-columns: 240px minmax(0, 1fr);
@@ -22,7 +18,7 @@
 .shell input:focus-visible,
 .shell select:focus-visible,
 .shell textarea:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -33,7 +29,7 @@
   left: 8px;
   padding: 10px 14px;
   transform: translateY(-150%);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--accent);
 }
@@ -86,18 +82,12 @@
 }
 
 .environment {
-  color: var(--muted);
-  font-size: 0.83rem;
-  text-transform: capitalize;
-}
-
-.demoBadge {
-  padding: 3px 8px;
-  border: 1px solid #e6c979;
+  padding: 4px 10px;
+  border: 1px solid var(--color-brand-100);
   border-radius: 999px;
-  background: var(--warning-surface);
-  color: var(--warning);
-  font-size: 0.75rem;
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -109,7 +99,7 @@
 .signOut {
   padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;

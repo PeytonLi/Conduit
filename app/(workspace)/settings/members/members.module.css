@@ -1,0 +1,16 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.page h1 {
+  margin: 0;
+}
+
+.table {
+  margin-top: var(--space-2);
+}
+
+.table td {
+  vertical-align: top;
+}

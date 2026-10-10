@@ -1,68 +1,88 @@
 .loginPage {
-  --bg: #f6f7f9;
-  --surface: #fff;
-  --text: #16191d;
-  --muted: #5b636e;
-  --border: #d9dde3;
-  --accent: #1d4ed8;
-  --danger: #b42318;
-  --warning: #8a5a00;
-  --warning-surface: #fff4d6;
-  --success: #0f6b3a;
-  --focus: #1d4ed8;
   display: grid;
   min-height: 100vh;
   place-items: center;
-  padding: 24px;
-  background: var(--bg);
-  color: var(--text);
+  padding: var(--space-6);
+  background:
+    radial-gradient(circle at 12% 16%, rgb(219 234 254 / 72%), transparent 32rem),
+    var(--color-canvas);
+  color: var(--color-text);
 }
 
 .loginCard {
   width: min(100%, 420px);
-  padding: 36px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 18px 50px rgb(15 23 42 / 8%);
 }
 
 .loginCard form,
 .loginCard label {
   display: grid;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .loginCard form {
-  gap: 18px;
-  margin-top: 24px;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.loginCard h1 {
+  margin: 0;
+  font-size: clamp(var(--text-2xl), 6vw, var(--text-3xl));
+  letter-spacing: -0.04em;
+}
+
+.loginCard > p:not(.eyebrow) {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
 }
 
 .loginCard input {
-  min-height: 42px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  min-height: 44px;
+  padding: 9px var(--space-3);
+  border: 1px solid var(--color-neutral-300);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .loginCard button {
   min-height: 44px;
   border: 0;
-  border-radius: 6px;
-  background: var(--accent);
-  color: white;
+  border-radius: var(--radius);
+  background: var(--color-brand-700);
+  color: var(--color-neutral-0);
+  font: inherit;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .eyebrow {
-  color: var(--muted);
-  font-size: 0.75rem;
+  margin: 0 0 var(--space-2);
+  color: var(--color-brand-700);
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .loginCard a:focus-visible,
 .loginCard button:focus-visible,
 .loginCard input:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 420px) {
+  .loginPage {
+    padding: var(--space-4);
+  }
+
+  .loginCard {
+    padding: var(--space-5);
+  }
 }

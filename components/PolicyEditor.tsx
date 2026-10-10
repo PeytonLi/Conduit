@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "./ui/Button";
 import { policySettingsSchema, type PolicySettings } from "@/lib/policies/schema";
 import { parsePolicyMoneyMinor } from "@/lib/policy-money";
 import { postJson, WorkspaceApiError, workspaceErrorMessage } from "./client-api";
@@ -55,6 +56,7 @@ export function PolicyEditor({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   async function save() {
     setError("");
@@ -103,7 +105,15 @@ export function PolicyEditor({
   }
 
   return (
-    <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void save(); }}>
+    <section className={styles.editor}>
+      <Button
+        aria-expanded={editing}
+        onClick={() => setEditing((open) => !open)}
+        variant="secondary"
+      >
+        {editing ? "Cancel editing" : "Edit policy"}
+      </Button>
+      {editing && <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <fieldset className={styles.group}>
         <legend>Dispatch</legend>
         <label className={styles.checkField}><input checked={settings.dispatch_paused} onChange={(event) => setSettings({ ...settings, dispatch_paused: event.target.checked })} type="checkbox" /> Pause dispatch</label>
@@ -143,12 +153,12 @@ export function PolicyEditor({
         <legend>Commitment and approval</legend>
         <p className={styles.note}>Commitment authority: owner</p>
         <label className={styles.field}>Negotiation ceiling ({currency})<input inputMode="decimal" onChange={(event) => setCeiling(event.target.value)} value={ceiling} /></label>
-        <label className={styles.field}>Approval validity (seconds)<input type="number" min={60} max={1800} value={settings.approval.validity_seconds} onChange={(event) => numberField(settings, "approval", "validity_seconds", Number(event.target.value), setSettings)} /></label>
+        <label className={styles.field}>Approval validity (minutes)<input type="number" min={1} max={30} value={settings.approval.validity_seconds / 60} onChange={(event) => numberField(settings, "approval", "validity_seconds", Number(event.target.value) * 60, setSettings)} /></label>
       </fieldset>
       <fieldset className={styles.group}>
-        <legend>Freshness (seconds)</legend>
-        <label className={styles.field}>Live business data<input type="number" min={60} max={86400} value={settings.freshness.live_business_data_seconds} onChange={(event) => numberField(settings, "freshness", "live_business_data_seconds", Number(event.target.value), setSettings)} /></label>
-        <label className={styles.field}>Availability recheck<input type="number" min={60} max={86400} value={settings.freshness.availability_recheck_seconds} onChange={(event) => numberField(settings, "freshness", "availability_recheck_seconds", Number(event.target.value), setSettings)} /></label>
+        <legend>Freshness (minutes)</legend>
+        <label className={styles.field}>Live business data<input type="number" min={1} max={1440} value={settings.freshness.live_business_data_seconds / 60} onChange={(event) => numberField(settings, "freshness", "live_business_data_seconds", Number(event.target.value) * 60, setSettings)} /></label>
+        <label className={styles.field}>Availability recheck<input type="number" min={1} max={1440} value={settings.freshness.availability_recheck_seconds / 60} onChange={(event) => numberField(settings, "freshness", "availability_recheck_seconds", Number(event.target.value) * 60, setSettings)} /></label>
       </fieldset>
       <fieldset className={styles.group}>
         <legend>Budgets</legend>
@@ -161,6 +171,7 @@ export function PolicyEditor({
       {message && <p className={styles.result}>{message}</p>}
       <LiveRegion message={message} />
       <button className={styles.submit} disabled={saving} type="submit">{saving ? "Saving…" : "Save policy"}</button>
-    </form>
+      </form>}
+    </section>
   );
 }
