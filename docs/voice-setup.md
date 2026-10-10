@@ -10,8 +10,9 @@ Conduit supplier_call action ─► ElevenLabs SIP outbound call ─► SignalWi
           └──────────── signed post-call webhook (/api/webhooks/elevenlabs) ◄┘
 ```
 
-> Status: implemented and replay-tested. **Live proof (AT-15) is not done**: it needs real credentials and an
-> explicitly authorized test number. Never call a real supplier for testing.
+> Status: implemented and replay-tested. **Live proof (AT-15) passed via `media_bridge` on 2026-10-10 (see
+> `BUILD_STATUS.md`). Native `sip_trunk` remains unproven after SignalWire SIP 404.** Never call a real supplier for
+> testing.
 
 ## Components
 
@@ -187,10 +188,10 @@ For a media-bridge live test, keep the SIP setup as-is but configure the bridge
 URL/secret, confirm the bridge `/health` endpoint, verify the authorized
 destination allowlist, and confirm both ElevenLabs audio formats are
 `ulaw_8000`. The remaining case, grant, callback, no-answer, and reconciliation
-checks are unchanged. Do not mark AT-15 verified until the full authorized
-checklist passes.
+checks were exercised in the October 10 authorized test; see `BUILD_STATUS.md`.
+This verifies the media-bridge transport only, not native `sip_trunk`.
 
-## M0 feasibility checklist (PRD ch.05 §5)
+## M0 feasibility checklist (PRD ch.05 §5) — native `sip_trunk`
 
 Run only against an **explicitly authorized test contact**. Record evidence (IDs, timestamps, screenshots) in
 `BUILD_STATUS.md`.
@@ -207,4 +208,6 @@ Run only against an **explicitly authorized test contact**. Record evidence (IDs
        `supplier.call.finished` outbox row).
 7. [ ] Exercise no-answer and call-start failure paths (`no_answer` / `busy` / `initiation_failed` outcomes).
 
-Until all seven pass, AT-15 remains **unverified** and live voice must stay disabled.
+These checks track native `sip_trunk` feasibility. AT-15 is verified for
+`media_bridge` only; native SIP remains unverified until its routing and call
+checks pass.

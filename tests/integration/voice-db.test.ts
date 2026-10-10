@@ -117,6 +117,31 @@ function callback(conversationId: string, actionHint: string | null, payloadHash
   ]);
 }
 
+function bridgeStatusCallback(callSid: string) {
+  return one<{ r: { status: string; receipt_id?: string } }>("select public.voice_record_callback($1::jsonb) as r", [
+    JSON.stringify({
+      provider: "voice_bridge",
+      external_event_key: `call_status:${callSid}`,
+      conversation_id: callSid,
+      event_type: "call_status",
+      payload_hash: hash(callSid),
+      payload: { type: "call_status", call_sid: callSid, call_status: "no-answer" },
+      received_at: at,
+      action_hint: ids.action,
+      outcome: {
+        outcome: "no_answer",
+        provider_status: "no-answer",
+        transport_completed: false,
+        procurement_result: "not_reached",
+        detail: { failure_reason: "no-answer", sip_status_code: null },
+      },
+      excerpt: null,
+      provider_call_id: callSid,
+      duration_seconds: null,
+    }),
+  ]);
+}
+
 describe("voice SQL functions", () => {
   beforeAll(async () => {
     await client.connect();
@@ -235,6 +260,31 @@ describe("voice SQL functions", () => {
     expect((await callback("conv_stranger", null)).r.status).toBe("quarantined");
     expect((await one<{ n: string }>("select count(*) n from public.cases")).n).toBe(casesBefore);
     expect(await one("select delivery_count from private.voice_callback_quarantine where conversation_id = 'conv_stranger'")).toEqual({ delivery_count: 2 });
+  });
+
+  it("records a bridge no-answer callback by action hint without treating the call SID as a conversation", async () => {
+    await prepare("tok-1");
+    const callSid = `CA-${randomUUID()}`;
+    const first = await bridgeStatusCallback(callSid);
+    expect(first.r.status).toBe("recorded");
+
+    expect(await one(
+      "select outcome, conversation_id, provider_status, transport_completed, procurement_result from public.voice_call_outcomes where action_id = $1",
+      [ids.action],
+    )).toEqual({
+      outcome: "no_answer",
+      conversation_id: callSid,
+      provider_status: "no-answer",
+      transport_completed: false,
+      procurement_result: "not_reached",
+    });
+    expect(await one(
+      "select provider_conversation_id, provider_call_id from public.call_sessions where action_id = $1",
+      [ids.action],
+    )).toEqual({ provider_conversation_id: null, provider_call_id: callSid });
+
+    const redelivery = await bridgeStatusCallback(callSid);
+    expect(redelivery.r).toMatchObject({ status: "duplicate", receipt_id: first.r.receipt_id });
   });
 
   it("flags overdue calls for reconciliation once, without redialing", async () => {
