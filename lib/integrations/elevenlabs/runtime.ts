@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/db/service";
 import type { VoiceStore } from "@/lib/db/voice-store";
 import { createSupabaseVoiceStore } from "@/lib/db/voice-store-supabase";
 import { capabilities, parseServerEnv } from "@/lib/env";
+import { createBridgeVoiceClient } from "./bridge-client";
 import { createElevenLabsVoiceClient, type VoiceProviderClient } from "./client";
 
 let store: VoiceStore | undefined;
@@ -20,6 +21,14 @@ export function getVoiceEnv() {
 export function getVoiceProvider(): VoiceProviderClient | null {
   const env = getVoiceEnv();
   if (env.APP_ENV === "replay" || !capabilities(env).voice.ready) return null;
+  if (env.VOICE_TRANSPORT === "media_bridge") {
+    return createBridgeVoiceClient({
+      bridgeUrl: env.VOICE_BRIDGE_URL!,
+      secret: env.VOICE_BRIDGE_SECRET!,
+      apiKey: env.ELEVENLABS_API_KEY!,
+      agentId: env.ELEVENLABS_AGENT_ID!,
+    });
+  }
   return createElevenLabsVoiceClient({
     apiKey: env.ELEVENLABS_API_KEY!,
     agentId: env.ELEVENLABS_AGENT_ID!,

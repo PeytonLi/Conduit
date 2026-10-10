@@ -3,7 +3,7 @@ import { ElevenLabsError } from "@elevenlabs/elevenlabs-js";
 import type { ActionRecord } from "@/lib/actions/types";
 import { createSupplierCallAdapter } from "@/lib/integrations/elevenlabs/adapter";
 import { hashVoiceToken, VOICE_TOKEN_DYNAMIC_VARIABLE } from "@/lib/integrations/elevenlabs/capability";
-import type { VoiceProviderClient } from "@/lib/integrations/elevenlabs/client";
+import { ProviderHttpError, type VoiceProviderClient } from "@/lib/integrations/elevenlabs/client";
 import { ACTION_A, CASE_A, CONTACT_A, createFakeVoiceStore, fakeClock, ORG_A } from "./voice-fakes";
 
 function action(mode: ActionRecord["mode"] = "sandbox", overrides: Partial<ActionRecord> = {}): ActionRecord {
@@ -24,6 +24,7 @@ function action(mode: ActionRecord["mode"] = "sandbox", overrides: Partial<Actio
 
 function provider(overrides: Partial<VoiceProviderClient> = {}): VoiceProviderClient & { startOutboundCall: ReturnType<typeof vi.fn> } {
   return {
+    transport: "sip_trunk",
     startOutboundCall: vi.fn(async () => ({ success: true, message: "ok", conversationId: "conv_1", sipCallId: "sip_1" })),
     getConversation: vi.fn(async () => null),
     findConversationByActionId: vi.fn(async () => null),
@@ -106,6 +107,71 @@ describe("supplier_call dispatch", () => {
     const { adapter, fake } = adapterWith(p);
     expect((await adapter.dispatch(action())).outcome).toBe("failed");
     expect(fake.grants[0].revoked_at).not.toBeNull();
+  });
+
+  it("submits a media-bridge call using its SignalWire SID", async () => {
+    const p = provider({
+      transport: "media_bridge",
+      startOutboundCall: vi.fn(async () => ({ success: true, message: "ok", sipCallId: "CA_bridge" })),
+    });
+    const { adapter, fake } = adapterWith(p);
+    const order: string[] = [];
+    const prepareCall = fake.store.prepareCall.bind(fake.store);
+    fake.store.prepareCall = async (input) => {
+      order.push("prepare");
+      return prepareCall(input);
+    };
+    p.startOutboundCall.mockImplementation(async () => {
+      order.push("dispatch");
+      return { success: true, message: "ok", sipCallId: "CA_bridge" };
+    });
+    const result = await adapter.dispatch(action());
+    expect(result).toMatchObject({ outcome: "submitted", providerRef: "CA_bridge" });
+    expect(order).toEqual(["prepare", "dispatch"]);
+    expect((await adapter.dispatch(action())).outcome).toBe("unknown");
+    expect(p.startOutboundCall).toHaveBeenCalledOnce();
+    expect(fake.sessions.get(ACTION_A)).toMatchObject({ conversation_id: null, sip_call_id: "CA_bridge" });
+  });
+
+  it("treats bridge timeouts and 5xx as ambiguous and bridge 4xx as rejected", async () => {
+    const ambiguous = provider({
+      transport: "media_bridge",
+      startOutboundCall: vi.fn(async () => { throw new Error("timeout"); }),
+    });
+    const { adapter } = adapterWith(ambiguous);
+    expect((await adapter.dispatch(action())).outcome).toBe("unknown");
+    expect((await adapter.dispatch(action())).outcome).toBe("unknown");
+    expect(ambiguous.startOutboundCall).toHaveBeenCalledOnce();
+
+    const rejected = provider({
+      transport: "media_bridge",
+      startOutboundCall: vi.fn(async () => { throw new ProviderHttpError("rejected", 422); }),
+    });
+    expect((await adapterWith(rejected).adapter.dispatch(action())).outcome).toBe("failed");
+  });
+
+  it("does not treat a media-bridge SID as an ElevenLabs conversation ID", async () => {
+    const p = provider({
+      transport: "media_bridge",
+      startOutboundCall: vi.fn(async () => ({ success: true, message: "ok", sipCallId: "CA_bridge" })),
+      getConversation: vi.fn(async () => {
+        throw new Error("bridge SID must not be looked up");
+      }),
+      findConversationByActionId: vi.fn(async () => ({
+        conversationId: "conv_bridge_late",
+        status: "done",
+        terminationReason: null,
+        callDurationSecs: 14,
+        actionId: ACTION_A,
+        sipCallId: "CA_bridge",
+      })),
+    });
+    const { adapter } = adapterWith(p);
+    const first = await adapter.dispatch(action());
+    expect(first.providerRef).toBe("CA_bridge");
+    const result = await adapter.findResult(action("sandbox", { providerRef: "CA_bridge" }));
+    expect(result).toMatchObject({ outcome: "confirmed", providerRef: "conv_bridge_late" });
+    expect(p.getConversation).not.toHaveBeenCalled();
   });
 });
 

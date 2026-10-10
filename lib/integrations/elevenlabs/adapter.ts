@@ -108,10 +108,24 @@ export function createSupplierCallAdapter(deps: SupplierCallAdapterDeps): Provid
       return failed("Voice provider did not start the call.");
     }
     const conversationId = response.conversationId ?? null;
+    const isBridge = deps.provider!.transport === "media_bridge";
+    if (isBridge && !response.sipCallId) {
+      return unknown("Voice bridge started without a call SID; reconciling.");
+    }
     try {
       await deps.store.markCallStarted(action.orgId, action.id, conversationId, response.sipCallId ?? null, deps.now());
     } catch {
-      return unknown("Call started but its identifiers could not be saved; reconciling.", conversationId ?? undefined);
+      return unknown(
+        "Call started but its identifiers could not be saved; reconciling.",
+        conversationId ?? response.sipCallId ?? undefined,
+      );
+    }
+    if (isBridge) {
+      return {
+        outcome: "submitted",
+        providerRef: response.sipCallId,
+        safeSummary: "Supplier call started through the media bridge.",
+      };
     }
     if (!conversationId) {
       return unknown("Call started without a conversation ID; reconciling.");
@@ -133,7 +147,8 @@ export function createSupplierCallAdapter(deps: SupplierCallAdapterDeps): Provid
 
     const session = await deps.store.callSession(action.orgId, action.id);
     if (!session) return { outcome: "failed", safeSummary: "No call attempt exists for this action." };
-    const conversationId = session.conversation_id ?? action.providerRef;
+    const conversationId =
+      session.conversation_id ?? (deps.provider.transport === "sip_trunk" ? action.providerRef : null);
     const sinceUnix = Math.floor(new Date(session.created_at).getTime() / 1000) - 60;
     const snapshot = conversationId
       ? await deps.provider.getConversation(conversationId)

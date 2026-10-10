@@ -1,0 +1,17 @@
+{
+  "name": "@conduit/voice-bridge",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@fastify/formbody": "^8.0.2",
+    "@fastify/websocket": "^11.0.2",
+    "fastify": "^5.2.1",
+    "ws": "^8.18.0"
+  }
+}

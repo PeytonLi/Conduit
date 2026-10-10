@@ -73,3 +73,19 @@ it("rejects the wrong SIP domain before writing any provider configuration", asy
   expect(api.conversationalAi.secrets.list).not.toHaveBeenCalled();
   expect(api.conversationalAi.phoneNumbers.update).not.toHaveBeenCalled();
 });
+
+it("configures ulaw audio and skips phone-number import in media-bridge mode", async () => {
+  vi.stubEnv("VOICE_TRANSPORT", "media_bridge");
+  await import("@/scripts/voice/setup-agent");
+
+  await vi.waitFor(() => expect(api.conversationalAi.agents.update).toHaveBeenCalled());
+  const updateCalls = api.conversationalAi.agents.update.mock.calls as unknown as [
+    string,
+    { conversationConfig: { asr: { userInputAudioFormat: string }; tts: { agentOutputAudioFormat: string } } },
+  ][];
+  const [, config] = updateCalls[0]!;
+  expect(config.conversationConfig.asr.userInputAudioFormat).toBe("ulaw_8000");
+  expect(config.conversationConfig.tts.agentOutputAudioFormat).toBe("ulaw_8000");
+  expect(api.conversationalAi.phoneNumbers.list).not.toHaveBeenCalled();
+  expect(api.conversationalAi.phoneNumbers.update).not.toHaveBeenCalled();
+});
