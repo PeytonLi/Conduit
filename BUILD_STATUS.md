@@ -1,6 +1,6 @@
 # Conduit — Build status
 
-Last updated: October 9, 2026
+Last updated: October 10, 2026
 Specification baseline: PRD v1.0
 Current phase: Phase 1 foundation implemented and locally verified; provider feasibility remains open
 
@@ -62,6 +62,12 @@ If provider credentials remain unavailable, continue deterministic inventory and
 - Independently fetched that conversation: `status: failed`, duration 0 seconds, transcript 0 turns, no user audio, no response audio, and `call_initialization_error` code 404. The live address remains the registered-device `.sip.signalwire.com` host, TLS, media encryption `allowed`, with credentials present.
 - End-to-end result: **failed at SIP call initialization**. No phone connection occurred. Two-way audio, scoped tools, signed callback ingestion, and the app's action/database workflow were not verified; this was a direct provider call-path probe because Conduit's application environment is not available in this checkout.
 - No automatic retry, provider-configuration changes, or uncertain call outcome. The setup PR does not provision the missing carrier termination route. AT-15 remains open.
+
+### Authorized media-bridge live call tests — October 10, 2026
+
+- **Call 1** (action `4863e7d8…`, conversation `conv_3501m4ksf999efp96xk72qxxwdwk`): connected through the bridge and gave the AI disclosure at 0 seconds. The supplier's “Hello.” was transcribed, but the supplier heard no agent audio. The bridge parsed the wrong ElevenLabs audio shape and routed pong responses incorrectly; commit `e0ad6a1` fixed top-level `audio_event.audio_base_64` handling and routes pongs to ElevenLabs. Outcome: `answered_no_solution` / `no_offer`; no tools; no redial.
+- **Call 2** (21:06Z, action `fc808e23…`, SignalWire SID `c6abb07c…`, conversation `conv_0101m4kt7cp9fbj9aft34q9yt2av`): two-way audio verified. First agent audio arrived 0.45 seconds after the agent WebSocket opened; 6,001 carrier-to-agent and 167 agent-to-carrier audio chunks were recorded, with one interruption clearing carrier audio. The agent disclosed that it was an AI, confirmed the contact, and stated PO-1042, the SKU, and the need for 600 units. The supplier offered 200 units arriving Monday. The carrier side ended the call at approximately 140 seconds, before price was gathered. No Conduit tools were called because the prompt used bare tool names while the agent registered `conduit_`-prefixed names; prompt v2 aligns these names, pending provider update. Action state: `confirmed`. The signed post-call webhook stored `answered_no_solution` / `no_offer`; the status callback completed; no redial.
+- **AT-15 remains UNVERIFIED.** Remaining evidence: a scoped tool call, a recorded provisional offer, and a clean agent-initiated end.
 
 ## Specification checks completed
 

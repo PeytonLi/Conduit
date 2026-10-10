@@ -6,6 +6,7 @@ import { parseDecimalToMinor } from "@/lib/integrations/elevenlabs/money";
 import { normalizeTranscription } from "@/lib/integrations/elevenlabs/outcomes";
 import { SUPPLIER_CALL_PROMPT, SUPPLIER_CALL_PROMPT_VERSION } from "@/lib/integrations/elevenlabs/prompt";
 import { supplierCallPayloadSchema } from "@/lib/integrations/elevenlabs/payload";
+import { voiceToolArgumentSchemas } from "@/lib/integrations/elevenlabs/tools";
 import { ACTION_A, CONTACT_A, createFakeVoiceStore, ORG_A } from "./voice-fakes";
 
 describe("call brief", () => {
@@ -66,10 +67,25 @@ describe("call brief", () => {
   });
 
   it("versioned prompt forbids revealing willingness to pay and requires disclosure", () => {
-    expect(SUPPLIER_CALL_PROMPT_VERSION).toBe("supplier-call.v1");
+    expect(SUPPLIER_CALL_PROMPT_VERSION).toBe("supplier-call.v2");
     expect(SUPPLIER_CALL_PROMPT).toMatch(/Never state, hint at or confirm any budget/);
     expect(SUPPLIER_CALL_PROMPT).toMatch(/AI assistant/);
     expect(SUPPLIER_CALL_PROMPT).not.toMatch(/secret__/);
+  });
+
+  it("uses every registered Conduit tool name with the conduit_ prefix", () => {
+    const toolNames = Object.keys(voiceToolArgumentSchemas);
+    const promptToolNames = [
+      ...new Set(Array.from(SUPPLIER_CALL_PROMPT.matchAll(/\bconduit_(\w+)\b/g), (match) => match[1])),
+    ];
+    expect(promptToolNames.sort()).toEqual([...toolNames].sort());
+
+    for (const toolName of toolNames) {
+      expect(SUPPLIER_CALL_PROMPT).toContain(`conduit_${toolName}`);
+      if (toolName !== "end_call") {
+        expect(SUPPLIER_CALL_PROMPT).not.toMatch(new RegExp(`(?<!conduit_)\\b${toolName}\\b`));
+      }
+    }
   });
 });
 
