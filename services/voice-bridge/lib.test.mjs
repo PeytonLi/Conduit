@@ -3,13 +3,13 @@ import test from "node:test";
 import {
   buildTwiML,
   createSession,
-  elevenLabsToSignalWire,
   hasSupportedAudioFormats,
   isDestinationAllowed,
   parseAllowedTo,
   signalWireMediaToElevenLabs,
   signPayload,
   shouldSendStatus,
+  translateAgentMessage,
   validateCallRequest,
   validateStartEvent,
   verifySignature,
@@ -64,11 +64,20 @@ test("TwiML escapes capability values and start binding is single-use", () => {
 
 test("message translation, format checks, allowlists, and status decisions", () => {
   assert.deepEqual(signalWireMediaToElevenLabs({ event: "media", media: { payload: "AAAA" } }), { user_audio_chunk: "AAAA" });
-  assert.deepEqual(elevenLabsToSignalWire({ type: "audio", audio: { audio_event: { audio_base_64: "BBBB" } } }, "M1"), {
-    event: "media", streamSid: "M1", media: { payload: "BBBB" },
+  assert.deepEqual(translateAgentMessage({ type: "audio", audio_event: { audio_base_64: "BBBB", event_id: 1 } }, "M1"), {
+    toCarrier: { event: "media", streamSid: "M1", media: { payload: "BBBB" } },
   });
-  assert.deepEqual(elevenLabsToSignalWire({ type: "interruption" }, "M1"), { event: "clear", streamSid: "M1" });
-  assert.deepEqual(elevenLabsToSignalWire({ type: "ping", event_id: 3 }, "M1"), { type: "pong", event_id: 3 });
+  assert.deepEqual(translateAgentMessage({ type: "audio", audio: { chunk: "CCCC" } }, "M1"), {
+    toCarrier: { event: "media", streamSid: "M1", media: { payload: "CCCC" } },
+  });
+  assert.equal(translateAgentMessage({ type: "audio", audio: { audio_event: { audio_base_64: "wrong shape" } } }, "M1"), null);
+  assert.equal(translateAgentMessage({ type: "audio", audio_event: { audio_base_64: "BBBB" } }, null), null);
+  assert.deepEqual(translateAgentMessage({ type: "interruption", interruption_event: { event_id: 4 } }, "M1"), {
+    toCarrier: { event: "clear", streamSid: "M1" },
+  });
+  assert.deepEqual(translateAgentMessage({ type: "ping", ping_event: { event_id: 3, ping_ms: 12 } }, "M1"), {
+    toAgent: { type: "pong", event_id: 3 },
+  });
   assert.equal(hasSupportedAudioFormats({ userInputAudioFormat: "ulaw_8000", agentOutputAudioFormat: "ulaw_8000" }), true);
   assert.equal(hasSupportedAudioFormats({ userInputAudioFormat: "pcm_16000", agentOutputAudioFormat: "ulaw_8000" }), false);
   assert.equal(isDestinationAllowed("+15555550100", new Set(["+15555550100"])), true);

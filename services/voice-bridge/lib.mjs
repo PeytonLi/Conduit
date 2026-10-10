@@ -88,12 +88,18 @@ export function createSession({ actionId, dynamicVariables, nowMs = Date.now() }
     mediaKey: randomBytes(32).toString("base64url"),
     actionId,
     dynamicVariables,
+    createdAtMs: nowMs,
     expiresAt: nowMs + SESSION_TTL_MS,
     state: "dialing",
     callSid: null,
     conversationId: null,
     streamActive: false,
     terminal: false,
+    carrierAudioChunks: 0,
+    agentAudioChunks: 0,
+    interruptionCount: 0,
+    endedFirst: null,
+    cleanupLogged: false,
   };
 }
 
@@ -140,12 +146,22 @@ export function signalWireMediaToElevenLabs(message) {
   return { user_audio_chunk: message.media.payload };
 }
 
-export function elevenLabsToSignalWire(message, streamSid) {
-  if (message?.type === "audio" && typeof message.audio?.audio_event?.audio_base_64 === "string") {
-    return { event: "media", streamSid, media: { payload: message.audio.audio_event.audio_base_64 } };
+export function translateAgentMessage(message, streamSid) {
+  if (message?.type === "audio" && typeof streamSid === "string" && streamSid) {
+    const payload = message.audio_event?.audio_base_64 ?? message.audio?.chunk;
+    if (typeof payload === "string") {
+      return { toCarrier: { event: "media", streamSid, media: { payload } } };
+    }
   }
-  if (message?.type === "interruption") return { event: "clear", streamSid };
-  if (message?.type === "ping") return { type: "pong", event_id: message.event_id };
+  if (message?.type === "interruption" && typeof streamSid === "string" && streamSid) {
+    return { toCarrier: { event: "clear", streamSid } };
+  }
+  if (message?.type === "ping") {
+    const eventId = message.ping_event?.event_id;
+    if (typeof eventId === "string" || typeof eventId === "number") {
+      return { toAgent: { type: "pong", event_id: eventId } };
+    }
+  }
   return null;
 }
 

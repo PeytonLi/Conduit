@@ -35,7 +35,10 @@ export function validateStartEvent(
 ): { ok: true } | { ok: false; code: string };
 export function buildTwiML(publicUrl: string, session: ReturnType<typeof createSession>): string;
 export function signalWireMediaToElevenLabs(message: unknown): { user_audio_chunk: string } | null;
-export function elevenLabsToSignalWire(message: unknown, streamSid: string): Record<string, unknown> | null;
+export function translateAgentMessage(message: unknown, streamSid: string | null): {
+  toCarrier?: Record<string, unknown>;
+  toAgent?: Record<string, unknown>;
+} | null;
 export function conversationMetadata(message: unknown): {
   conversationId: string | null;
   userInputAudioFormat: string | null;

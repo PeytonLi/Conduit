@@ -3,11 +3,11 @@ import {
   buildTwiML,
   createSession,
   conversationMetadata,
-  elevenLabsToSignalWire,
   hasSupportedAudioFormats,
   isDestinationAllowed,
   parseAllowedTo,
   shouldSendStatus,
+  translateAgentMessage,
   signalWireMediaToElevenLabs,
   signPayload,
   validateCallRequest,
@@ -62,11 +62,20 @@ describe("pure voice bridge library", () => {
 
   it("translates audio and status decisions", () => {
     expect(signalWireMediaToElevenLabs({ event: "media", media: { payload: "audio" } })).toEqual({ user_audio_chunk: "audio" });
-    expect(elevenLabsToSignalWire({ type: "audio", audio: { audio_event: { audio_base_64: "audio" } } }, "M1")).toEqual({
-      event: "media", streamSid: "M1", media: { payload: "audio" },
+    expect(translateAgentMessage({ type: "audio", audio_event: { audio_base_64: "audio", event_id: 1 } }, "M1")).toEqual({
+      toCarrier: { event: "media", streamSid: "M1", media: { payload: "audio" } },
     });
-    expect(elevenLabsToSignalWire({ type: "interruption" }, "M1")).toEqual({ event: "clear", streamSid: "M1" });
-    expect(elevenLabsToSignalWire({ type: "ping", event_id: "p1" }, "M1")).toEqual({ type: "pong", event_id: "p1" });
+    expect(translateAgentMessage({ type: "audio", audio: { chunk: "fallback" } }, "M1")).toEqual({
+      toCarrier: { event: "media", streamSid: "M1", media: { payload: "fallback" } },
+    });
+    expect(translateAgentMessage({ type: "audio", audio: { audio_event: { audio_base_64: "wrong" } } }, "M1")).toBeNull();
+    expect(translateAgentMessage({ type: "audio", audio_event: { audio_base_64: "audio" } }, null)).toBeNull();
+    expect(translateAgentMessage({ type: "interruption", interruption_event: {} }, "M1")).toEqual({
+      toCarrier: { event: "clear", streamSid: "M1" },
+    });
+    expect(translateAgentMessage({ type: "ping", ping_event: { event_id: "p1", ping_ms: 12 } }, "M1")).toEqual({
+      toAgent: { type: "pong", event_id: "p1" },
+    });
     const metadata = conversationMetadata({
       type: "conversation_initiation_metadata",
       conversation_initiation_metadata_event: {

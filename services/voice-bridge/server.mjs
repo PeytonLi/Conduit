@@ -3,12 +3,12 @@ import formbody from "@fastify/formbody";
 import websocket from "@fastify/websocket";
 import WebSocket from "ws";
 import {
+  TERMINAL_CALL_STATUSES,
   buildStatusEvent,
   buildTwiML,
   constantTimeStringEqual,
   conversationMetadata,
   createSession,
-  elevenLabsToSignalWire,
   hangupTwiML,
   hasSupportedAudioFormats,
   isDestinationAllowed,
@@ -16,6 +16,7 @@ import {
   shouldSendStatus,
   signalWireMediaToElevenLabs,
   signPayload,
+  translateAgentMessage,
   validateCallRequest,
   validateStartEvent,
   verifySignature,
@@ -24,6 +25,7 @@ import {
 const DEFAULT_PORT = 8080;
 const MAX_CALL_MS = 330_000;
 const SESSION_GRACE_MS = 60_000;
+const SAFE_AUDIO_FORMATS = new Set(["ulaw_8000", "pcm_16000"]);
 
 function parseHttpsUrl(name, value) {
   if (!value) throw new Error(`Missing or invalid ${name}`);
@@ -66,10 +68,32 @@ export function loadConfig(env = process.env) {
   };
 }
 
-function providerError(statusCode) {
+function providerError(statusCode, signalwireHttpStatus = statusCode) {
   const error = new Error("SignalWire request failed");
   error.statusCode = statusCode;
+  error.signalwireHttpStatus = signalwireHttpStatus;
   return error;
+}
+
+function safeCallSid(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value) ? value : null;
+}
+
+function safeCloseReason(session, value, secrets = []) {
+  let reason = Buffer.isBuffer(value) ? value.toString("utf8") : String(value ?? "");
+  for (const sensitive of [
+    ...Object.values(session?.dynamicVariables ?? {}),
+    session?.mediaKey,
+    ...secrets,
+  ]) {
+    const text = sensitive == null ? "" : String(sensitive);
+    if (text) reason = reason.replaceAll(text, "[redacted]");
+  }
+  return reason
+    .replace(/(?:https?|wss?):\/\/[^\s"'<>]+/gi, "[url]")
+    .replace(/\+[1-9][0-9]{7,14}/g, "[phone]")
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[redacted]")
+    .slice(0, 100);
 }
 
 export function createBridge(config, deps = {}) {
@@ -77,11 +101,35 @@ export function createBridge(config, deps = {}) {
   const sessions = new Map();
   const sessionsByAction = new Map();
   const inFlight = new Map();
+  const logger = deps.log ?? ((line) => console.log(line));
   const fetchImpl = deps.fetch ?? globalThis.fetch;
   const WebSocketImpl = deps.WebSocket ?? WebSocket;
   const sleep = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const now = deps.now ?? (() => Date.now());
+  const sessionGraceMs = deps.sessionGraceMs ?? SESSION_GRACE_MS;
+  const maxCallMs = deps.maxCallMs ?? MAX_CALL_MS;
   let sweepTimer;
+
+  function logEvent(session, event, fields = {}, context = {}) {
+    logger(JSON.stringify({
+      event,
+      session: (session?.id ?? context.sessionId ?? "").slice(0, 8) || null,
+      call_sid: safeCallSid(session?.callSid ?? context.callSid),
+      t_ms: session ? Math.max(0, now() - session.createdAtMs) : null,
+      ...fields,
+    }));
+  }
+
+  function logCleanup(session) {
+    if (session.cleanupLogged) return;
+    session.cleanupLogged = true;
+    logEvent(session, "session_cleanup", {
+      ended_first: session.endedFirst ?? "unknown",
+      carrier_audio_chunks: session.carrierAudioChunks,
+      agent_audio_chunks: session.agentAudioChunks,
+      interruption_count: session.interruptionCount,
+    });
+  }
 
   async function signalwire(path, form) {
     const response = await fetchImpl(`https://${config.signalwireSpace}${path}`, {
@@ -94,41 +142,54 @@ export function createBridge(config, deps = {}) {
       signal: AbortSignal.timeout(10_000),
     });
     const text = await response.text();
-    if (!response.ok) throw providerError(response.status);
+    if (!response.ok) throw providerError(response.status, response.status);
     try {
-      return JSON.parse(text);
+      return { status: response.status, data: JSON.parse(text) };
     } catch {
-      throw providerError(502);
+      throw providerError(502, response.status);
     }
   }
 
-  async function hangup(session) {
-    if (!session.callSid || session.hangupAttempted) return;
+  async function hangup(session, reason) {
+    if (!session.callSid || session.hangupAttempted) return null;
     session.hangupAttempted = true;
+    let status = null;
     try {
-      await signalwire(
+      const response = await signalwire(
         `/api/laml/2010-04-01/Accounts/${encodeURIComponent(config.signalwireProjectId)}/Calls/${encodeURIComponent(session.callSid)}.json`,
         { Status: "completed" },
       );
-    } catch {
+      status = response.status;
+    } catch (error) {
       // The carrier callback remains the source of truth if hangup is ambiguous.
+      status = Number.isFinite(error?.signalwireHttpStatus)
+        ? error.signalwireHttpStatus
+        : null;
     }
+    logEvent(session, "hangup_requested", { reason, rest_status: status });
+    return status;
   }
 
   function scheduleDelete(session) {
     if (session.deleteTimer) return;
     session.deleteTimer = setTimeout(() => {
+      logCleanup(session);
       sessions.delete(session.id);
       sessionsByAction.delete(session.actionId);
-    }, SESSION_GRACE_MS);
+    }, sessionGraceMs);
     session.deleteTimer.unref?.();
   }
 
   async function sendStatus(session, callStatus, fields) {
-    if (!shouldSendStatus({ conversationId: session.conversationId, callStatus })) return;
+    if (!shouldSendStatus({ conversationId: session.conversationId, callStatus })) {
+      logEvent(session, "status_forward", { result: "skipped", http_status: null });
+      return;
+    }
     const rawBody = JSON.stringify(buildStatusEvent(session, callStatus, fields));
     const signature = signPayload(rawBody, config.bridgeSecret);
     const url = `${config.conduitUrl}/api/webhooks/voice-bridge`;
+    let status = null;
+    let sent = false;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const response = await fetchImpl(url, {
@@ -137,17 +198,23 @@ export function createBridge(config, deps = {}) {
           body: rawBody,
           signal: AbortSignal.timeout(10_000),
         });
-        if (response.ok) return;
+        status = response.status;
+        if (response.ok) {
+          sent = true;
+          break;
+        }
       } catch {
         // Retry with the same signed bytes and event key.
+        status = null;
       }
       if (attempt < 2) await sleep(100 * 2 ** attempt);
     }
+    logEvent(session, "status_forward", { result: sent ? "sent" : "failed", http_status: status });
   }
 
   async function dial(session, to) {
     try {
-      const result = await signalwire(
+      const response = await signalwire(
         `/api/laml/2010-04-01/Accounts/${encodeURIComponent(config.signalwireProjectId)}/Calls.json`,
         {
           From: config.signalwirePhoneNumber,
@@ -160,13 +227,20 @@ export function createBridge(config, deps = {}) {
           Timeout: "45",
         },
       );
-      const callSid = result?.sid ?? result?.call_sid;
-      if (typeof callSid !== "string" || !callSid) throw providerError(502);
+      const callSid = response.data?.sid ?? response.data?.call_sid;
+      if (typeof callSid !== "string" || !callSid) throw providerError(502, response.status);
       session.callSid = callSid;
       session.state = "active";
+      logEvent(session, "call_created", { signalwire_http_status: response.status, result: "created" });
       return { status: 200, body: { call_sid: callSid } };
     } catch (error) {
       const code = Number(error?.statusCode);
+      logEvent(session, "call_created", {
+        signalwire_http_status: Number.isFinite(error?.signalwireHttpStatus)
+          ? error.signalwireHttpStatus
+          : null,
+        result: code >= 400 && code < 500 ? "rejected" : "ambiguous",
+      });
       if (code >= 400 && code < 500) {
         session.state = "rejected";
         return { status: 422, body: { error: "carrier_rejected" } };
@@ -224,11 +298,26 @@ export function createBridge(config, deps = {}) {
     const callbackCallSid = request.body?.CallSid;
     if (!session.callSid && typeof callbackCallSid === "string") session.callSid = callbackCallSid;
     if (!session.callSid || (callbackCallSid && callbackCallSid !== session.callSid)) return reply.code(204).send();
-    const status = String(request.body?.CallStatus ?? "").toLowerCase();
-    if (status && ["completed", "failed", "busy", "no-answer", "canceled"].includes(status)) {
+    const requestedStatus = String(request.body?.CallStatus ?? "").toLowerCase();
+    const status = TERMINAL_CALL_STATUSES.has(requestedStatus) ? requestedStatus : "unknown";
+    const rawSipResponseCode = request.body?.SipResponseCode;
+    const sipResponseCode =
+      rawSipResponseCode !== undefined &&
+      rawSipResponseCode !== "" &&
+      Number.isFinite(Number(rawSipResponseCode))
+        ? Number(rawSipResponseCode) >= 100 && Number(rawSipResponseCode) <= 699
+          ? Number(rawSipResponseCode)
+          : null
+        : null;
+    logEvent(session, "status_callback", {
+      call_status: status,
+      sip_response_code: sipResponseCode,
+    });
+    if (status !== "unknown") {
       session.state = "terminal";
+      session.endedFirst ??= "carrier";
       await sendStatus(session, status, {
-        sipResponseCode: Number.isFinite(Number(request.body?.SipResponseCode)) ? Number(request.body.SipResponseCode) : undefined,
+        sipResponseCode: sipResponseCode ?? undefined,
         reason: request.body?.ErrorMessage || request.body?.CallStatus,
       });
       scheduleDelete(session);
@@ -248,14 +337,29 @@ export function createBridge(config, deps = {}) {
     let hardCap;
     const queue = [];
     const startedAt = now();
+    let carrierCloseLogged = false;
 
-    const finish = async ({ hangupCarrier = false } = {}) => {
+    logEvent(null, "media_connected");
+
+    const logCarrierClose = (code) => {
+      if (carrierCloseLogged) return;
+      carrierCloseLogged = true;
+      logEvent(session, "carrier_ws_close", { code: Number.isInteger(code) ? code : null });
+    };
+
+    const finish = async ({ hangupCarrier = false, reason = "agent_end", endedBy } = {}) => {
       if (closed) return;
       closed = true;
       clearTimeout(hardCap);
+      if (session && !session.endedFirst) {
+        session.endedFirst = endedBy ?? (hangupCarrier ? "agent" : "carrier");
+      }
       if (provider && provider.readyState === WebSocketImpl.OPEN) provider.close();
-      if (hangupCarrier && session) await hangup(session);
-      if (carrier.readyState === WebSocketImpl.OPEN) carrier.close();
+      if (hangupCarrier && session) await hangup(session, reason);
+      if (carrier.readyState === WebSocketImpl.OPEN) {
+        logCarrierClose(1000);
+        carrier.close();
+      }
       if (session) {
         session.streamActive = false;
         session.state = "terminal";
@@ -273,6 +377,7 @@ export function createBridge(config, deps = {}) {
       if (!data?.signed_url) throw new Error("signed URL unavailable");
       provider = new WebSocketImpl(data.signed_url);
       provider.on("open", () => {
+        logEvent(session, "agent_ws_open");
         provider.send(JSON.stringify({ type: "conversation_initiation_client_data", dynamic_variables: session.dynamicVariables }));
         while (queue.length && provider.readyState === WebSocketImpl.OPEN) provider.send(queue.shift());
       });
@@ -286,14 +391,53 @@ export function createBridge(config, deps = {}) {
         const metadata = conversationMetadata(message);
         if (metadata) {
           if (metadata.conversationId) session.conversationId = metadata.conversationId;
-          if (!hasSupportedAudioFormats(metadata)) void finish({ hangupCarrier: true });
+          const conversationId =
+            typeof metadata.conversationId === "string" &&
+            /^conv_[A-Za-z0-9_-]{1,96}$/.test(metadata.conversationId)
+              ? metadata.conversationId
+              : null;
+          logEvent(session, "agent_metadata", {
+            conversation_id: conversationId,
+            agent_output_audio_format: SAFE_AUDIO_FORMATS.has(metadata.agentOutputAudioFormat)
+              ? metadata.agentOutputAudioFormat
+              : null,
+            user_input_audio_format: SAFE_AUDIO_FORMATS.has(metadata.userInputAudioFormat)
+              ? metadata.userInputAudioFormat
+              : null,
+          });
+          if (!hasSupportedAudioFormats(metadata)) {
+            void finish({ hangupCarrier: true, reason: "format", endedBy: "format" });
+          }
           return;
         }
-        const outgoing = elevenLabsToSignalWire(message, streamSid);
-        if (outgoing && carrier.readyState === WebSocketImpl.OPEN) carrier.send(JSON.stringify(outgoing));
+        const translated = translateAgentMessage(message, streamSid);
+        if (translated?.toAgent && provider.readyState === WebSocketImpl.OPEN) {
+          provider.send(JSON.stringify(translated.toAgent));
+        }
+        if (translated?.toCarrier && carrier.readyState === WebSocketImpl.OPEN) {
+          if (message.type === "audio") {
+            session.agentAudioChunks += 1;
+            if (session.agentAudioChunks === 1) logEvent(session, "first_agent_audio");
+          } else if (message.type === "interruption") {
+            session.interruptionCount += 1;
+            logEvent(session, "agent_interruption", { count: session.interruptionCount });
+          }
+          carrier.send(JSON.stringify(translated.toCarrier));
+        }
       });
-      provider.on("close", () => void finish({ hangupCarrier: true }));
-      provider.on("error", () => void finish({ hangupCarrier: true }));
+      provider.on("close", (code, reason) => {
+        logEvent(session, "agent_ws_close", {
+          code: Number.isInteger(code) ? code : null,
+          reason: safeCloseReason(session, reason, [
+            config.bridgeSecret,
+            config.apiKey,
+            config.signalwireApiToken,
+            config.signalwirePhoneNumber,
+          ]),
+        });
+        void finish({ hangupCarrier: true, reason: "agent_end", endedBy: "agent" });
+      });
+      provider.on("error", () => void finish({ hangupCarrier: true, reason: "error", endedBy: "error" }));
     };
 
     carrier.on("message", async (raw) => {
@@ -305,17 +449,46 @@ export function createBridge(config, deps = {}) {
       }
       if (message.event === "start") {
         const start = message.start ?? {};
-        const result = validateStartEvent(session = sessions.get(start.customParameters?.sessionId), start.customParameters, start.callSid, now());
-        if (!result.ok) return carrier.close();
+        const sessionId = start.customParameters?.sessionId;
+        const candidate = sessions.get(sessionId);
+        const result = validateStartEvent(candidate, start.customParameters, start.callSid, now());
+        if (!result.ok) {
+          logEvent(candidate, "stream_rejected", { code: result.code }, {
+            sessionId: candidate ? null : /^[0-9a-f-]{36}$/i.test(sessionId ?? "") ? sessionId : null,
+            callSid: candidate ? null : safeCallSid(start.callSid),
+          });
+          logCarrierClose(1000);
+          return carrier.close();
+        }
+        session = candidate;
         streamSid = start.streamSid;
         session.streamActive = true;
         session.state = "streaming";
-        hardCap = setTimeout(() => void finish({ hangupCarrier: true }), MAX_CALL_MS);
+        const mediaFormat = start.mediaFormat ?? {};
+        logEvent(session, "stream_start", {
+          call_sid_match: start.callSid === session.callSid,
+          media_format: {
+            encoding:
+              mediaFormat.encoding === "audio/x-mulaw" || mediaFormat.encoding === "PCMU"
+                ? mediaFormat.encoding
+                : null,
+            sample_rate: [8_000, 16_000, 22_050, 24_000, 44_100, 48_000].includes(mediaFormat.sampleRate)
+              ? mediaFormat.sampleRate
+              : null,
+            channels: mediaFormat.channels === 1 || mediaFormat.channels === 2
+              ? mediaFormat.channels
+              : null,
+          },
+        });
+        hardCap = setTimeout(
+          () => void finish({ hangupCarrier: true, reason: "cap", endedBy: "cap" }),
+          maxCallMs,
+        );
         hardCap.unref?.();
         try {
           await openProvider();
         } catch {
-          await finish({ hangupCarrier: true });
+          await finish({ hangupCarrier: true, reason: "error", endedBy: "error" });
         }
         return;
       }
@@ -323,6 +496,8 @@ export function createBridge(config, deps = {}) {
       if (message.event === "media") {
         const translated = signalWireMediaToElevenLabs(message);
         if (!translated) return;
+        session.carrierAudioChunks += 1;
+        if (session.carrierAudioChunks === 1) logEvent(session, "first_carrier_audio");
         const encoded = JSON.stringify(translated);
         if (provider?.readyState === WebSocketImpl.OPEN) provider.send(encoded);
         else if (now() - startedAt <= 5_000) {
@@ -330,11 +505,15 @@ export function createBridge(config, deps = {}) {
           while (queue.length > 250) queue.shift();
         }
       } else if (message.event === "stop") {
-        await finish();
+        logEvent(session, "carrier_stop");
+        await finish({ endedBy: "carrier" });
       }
     });
-    carrier.on("close", () => void finish());
-    carrier.on("error", () => void finish());
+    carrier.on("close", (code) => {
+      logCarrierClose(code);
+      void finish({ endedBy: "carrier" });
+    });
+    carrier.on("error", () => void finish({ hangupCarrier: true, reason: "error", endedBy: "error" }));
   }
 
   app.addContentTypeParser("application/json", { parseAs: "string" }, (_request, body, done) => done(null, body));
@@ -348,9 +527,21 @@ export function createBridge(config, deps = {}) {
     });
     routes.post("/twiml/:id", async (request, reply) => {
       const session = sessions.get(request.params.id);
-      if (!session || session.expiresAt <= now() || !request.query?.k || !constantTime(request.query.k, session.mediaKey)) {
+      let reason = null;
+      if (!session) reason = "unknown_session";
+      else if (session.expiresAt <= now()) reason = "session_expired";
+      else if (!request.query?.k) reason = "missing_capability";
+      else if (!constantTime(request.query.k, session.mediaKey)) reason = "invalid_capability";
+      if (reason) {
+        logEvent(session, "twiml_rejected", { reason_code: reason }, {
+          sessionId:
+            session || !/^[0-9a-f-]{36}$/i.test(request.params.id)
+              ? null
+              : request.params.id,
+        });
         return reply.code(404).type("text/xml").send(hangupTwiML());
       }
+      logEvent(session, "twiml_served");
       return reply.type("text/xml").send(buildTwiML(config.publicUrl, session));
     });
     routes.get("/media", { websocket: true }, (socket) => void handleMedia(socket));
@@ -359,6 +550,8 @@ export function createBridge(config, deps = {}) {
       sweepTimer = setInterval(() => {
         for (const session of sessions.values()) {
           if (session.expiresAt <= now() && !session.streamActive) {
+            session.endedFirst ??= "expiry";
+            logCleanup(session);
             sessions.delete(session.id);
             sessionsByAction.delete(session.actionId);
           }
