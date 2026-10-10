@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { login, resetDemo } from "./ui-helpers";
+import { login, resetDemo, signOut } from "./ui-helpers";
 
 test("AT-14/J operator phone outreach enforces 200 characters and saves the default-policy draft", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await login(page, "operator@harbor.example");
   await page.goto(`/cases/${caseId}`);
   await page.getByRole("heading", { name: "Contact supplier" }).scrollIntoViewIfNeeded();

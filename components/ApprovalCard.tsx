@@ -38,6 +38,7 @@ export function ApprovalCard({
   const rejectHeading = useRef<HTMLHeadingElement>(null);
   const rejectButton = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
+  const selfMutating = useRef(false);
   const intentKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [stale, setStale] = useState(false);
@@ -50,16 +51,22 @@ export function ApprovalCard({
   const gross = formatMoney(plan.gross_commitment_minor, plan.currency);
 
   useEffect(() => {
-    if (plan.status !== "ready" && plan.status !== "pending" && plan.status !== "awaiting_approval") return;
+    if (
+      inFlight.current ||
+      selfMutating.current ||
+      (plan.status !== "ready" && plan.status !== "pending" && plan.status !== "awaiting_approval")
+    ) return;
     let active = true;
     const poll = async () => {
       while (active) {
         await wait(3000);
-        if (!active) return;
+        if (!active || selfMutating.current || inFlight.current) return;
         try {
           const response = await fetch(`/api/v1/cases/${caseSummary.id}`, { cache: "no-store" });
+          if (selfMutating.current || inFlight.current) return;
           if (!response.ok) continue;
           const envelope = await response.json() as { data?: { case?: { row_version?: number }; plan?: { row_version?: number } } };
+          if (selfMutating.current || inFlight.current) return;
           const latest = envelope.data;
           if (
             latest?.case?.row_version !== undefined &&
@@ -79,7 +86,7 @@ export function ApprovalCard({
     return () => {
       active = false;
     };
-  }, [caseSummary.id, caseSummary.row_version, plan.row_version, plan.status]);
+  }, [caseSummary.id, caseSummary.row_version, plan.row_version, plan.status, submitting]);
 
   async function pollAction(actionId: string) {
     setPolling(true);
@@ -128,7 +135,9 @@ export function ApprovalCard({
     intentKey.current ??= crypto.randomUUID();
     setSubmitting(true);
     setMessage("");
+    let approvalSucceeded = false;
     try {
+      selfMutating.current = true;
       const result = await postJson<{ expires_at: string }>(
         `/api/v1/plans/${plan.plan_id}/approve`,
         {
@@ -139,6 +148,7 @@ export function ApprovalCard({
         },
         intentKey.current,
       );
+      approvalSucceeded = true;
       intentKey.current = null;
       confirmDialog.current?.close();
       setMessage(`Plan approved. Approval valid until ${formatDateTime(result.expires_at, timeZone) ?? "Unknown"}.`);
@@ -154,6 +164,7 @@ export function ApprovalCard({
         for (const action of actionable) await pollAction(action.id);
       }
     } catch (error) {
+      if (!approvalSucceeded) selfMutating.current = false;
       if (error instanceof WorkspaceApiError && ["stale_fingerprint", "stale_version", "invalid_state"].includes(error.code)) {
         setStale(true);
         setMessage("This plan changed; review the updated terms.");
@@ -183,16 +194,20 @@ export function ApprovalCard({
     if (inFlight.current) return;
     inFlight.current = true;
     setSubmitting(true);
+    let rejectionSucceeded = false;
     try {
+      selfMutating.current = true;
       await postJson(`/api/v1/plans/${plan.plan_id}/reject`, {
         expected_version: plan.row_version,
         reason,
       });
+      rejectionSucceeded = true;
       rejectDialog.current?.close();
       setRejectReason("");
       setMessage("Plan rejected.");
       router.refresh();
     } catch (error) {
+      if (!rejectionSucceeded) selfMutating.current = false;
       setMessage(workspaceErrorMessage(error));
     } finally {
       inFlight.current = false;

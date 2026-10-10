@@ -15,7 +15,7 @@ test.beforeAll(() => {
   caseId = (JSON.parse(output) as { case_id: string }).case_id;
 });
 
-test("AT-28/J owner reviews canonical case and approves through F5", async ({ page }) => {
+test("AT-28/J owner approval result survives a delayed stale detail poll", async ({ page }) => {
   await login(page, "owner@harbor.example");
   await page.goto("/cases");
   await expect(page.getByText("Replay").first()).toBeVisible();
@@ -39,6 +39,7 @@ test("AT-28/J owner reviews canonical case and approves through F5", async ({ pa
       plan: {
         plan_id: string;
         plan_version: number;
+        row_version: number;
         input_fingerprint: string;
       };
     };
@@ -54,11 +55,42 @@ test("AT-28/J owner reviews canonical case and approves through F5", async ({ pa
       expect(request.headers()["idempotency-key"]).toBeTruthy();
     }
   });
+  let stalePollRequestStarted = false;
+  let staleResponseDelivered = false;
+  let releaseStaleResponse!: () => void;
+  const staleResponseGate = new Promise<void>((resolve) => {
+    releaseStaleResponse = resolve;
+  });
+  await page.route(`**/api/v1/cases/${caseId}`, async (route) => {
+    if (route.request().method() !== "GET" || stalePollRequestStarted) {
+      await route.continue();
+      return;
+    }
+    stalePollRequestStarted = true;
+    await staleResponseGate;
+    const response = await route.fetch();
+    const envelope = await response.json() as {
+      data?: { plan?: { row_version?: number } | null };
+    };
+    const currentPlan = envelope.data?.plan;
+    if (!currentPlan || typeof currentPlan.row_version !== "number") {
+      throw new Error("Plan row version was missing from case detail.");
+    }
+    currentPlan.row_version += 1;
+    await route.fulfill({ response, json: envelope });
+    staleResponseDelivered = true;
+  });
+  await expect.poll(() => stalePollRequestStarted, { timeout: 7_000 }).toBe(true);
   await expect(page.getByRole("button", { name: "Approve this plan" })).toBeVisible();
   await page.getByRole("button", { name: "Approve this plan" }).click();
   await expect(page.getByRole("dialog", { name: /Confirm recovery plan approval/ })).toBeVisible();
   await page.getByRole("button", { name: "Confirm approval" }).dblclick();
-  await expect(page.getByRole("status").filter({ hasText: /^Plan approved\. Approval valid until / })).toBeVisible({ timeout: 10_000 });
+  const approvalStatus = page.getByRole("status").filter({ hasText: /^Plan approved\. Approval valid until / });
+  await expect(approvalStatus).toBeVisible({ timeout: 10_000 });
+  releaseStaleResponse();
+  await expect.poll(() => staleResponseDelivered, { timeout: 5_000 }).toBe(true);
+  await page.waitForTimeout(4_000);
+  await expect(approvalStatus).toBeVisible();
   expect(approveCount).toBe(1);
   await expect(page.getByText("Approved").first()).toBeVisible();
   const approved = await page.request.get(`/api/v1/cases/${caseId}`);
