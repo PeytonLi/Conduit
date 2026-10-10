@@ -50,6 +50,35 @@ test("unauthenticated calls are rejected and duplicate action IDs do not dial tw
   await bridge.app.close();
 });
 
+test("media WebSocket accepts a handshake and closes an invalid start", async () => {
+  const bridge = createBridge(config);
+  await bridge.app.ready();
+  try {
+    const socket = await bridge.app.injectWS("/media");
+    const closed = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("WebSocket did not close")), 5_000);
+      socket.once("close", (code) => {
+        clearTimeout(timeout);
+        resolve(code);
+      });
+    });
+    socket.send(JSON.stringify({
+      event: "start",
+      start: {
+        callSid: "CA-bogus",
+        streamSid: "MZ-bogus",
+        customParameters: {
+          sessionId: "00000000-0000-4000-8000-000000000000",
+          key: "invalid",
+        },
+      },
+    }));
+    assert.ok(Number.isInteger(await closed));
+  } finally {
+    await bridge.app.close();
+  }
+});
+
 test("carrier status retries the same signed callback bytes and always acknowledges the carrier", async () => {
   const callbacks = [];
   let signalwireCount = 0;

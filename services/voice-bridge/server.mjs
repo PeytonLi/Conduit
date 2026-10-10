@@ -340,32 +340,34 @@ export function createBridge(config, deps = {}) {
   app.addContentTypeParser("application/json", { parseAs: "string" }, (_request, body, done) => done(null, body));
   app.register(formbody);
   app.register(websocket);
-  app.get("/health", async () => ({ ok: true }));
-  app.post("/calls", async (request, reply) => {
-    const result = await handleCall(request);
-    return reply.code(result.status).send(result.body);
-  });
-  app.post("/twiml/:id", async (request, reply) => {
-    const session = sessions.get(request.params.id);
-    if (!session || session.expiresAt <= now() || !request.query?.k || !constantTime(request.query.k, session.mediaKey)) {
-      return reply.code(404).type("text/xml").send(hangupTwiML());
-    }
-    return reply.type("text/xml").send(buildTwiML(config.publicUrl, session));
-  });
-  app.get("/media", { websocket: true }, (socket) => void handleMedia(socket));
-  app.post("/status/:id", handleStatus);
-  app.addHook("onReady", async () => {
-    sweepTimer = setInterval(() => {
-      for (const session of sessions.values()) {
-        if (session.expiresAt <= now() && !session.streamActive) {
-          sessions.delete(session.id);
-          sessionsByAction.delete(session.actionId);
-        }
+  app.register(async function bridgeRoutes(routes) {
+    routes.get("/health", async () => ({ ok: true }));
+    routes.post("/calls", async (request, reply) => {
+      const result = await handleCall(request);
+      return reply.code(result.status).send(result.body);
+    });
+    routes.post("/twiml/:id", async (request, reply) => {
+      const session = sessions.get(request.params.id);
+      if (!session || session.expiresAt <= now() || !request.query?.k || !constantTime(request.query.k, session.mediaKey)) {
+        return reply.code(404).type("text/xml").send(hangupTwiML());
       }
-    }, 60_000);
-    sweepTimer.unref?.();
+      return reply.type("text/xml").send(buildTwiML(config.publicUrl, session));
+    });
+    routes.get("/media", { websocket: true }, (socket) => void handleMedia(socket));
+    routes.post("/status/:id", handleStatus);
+    routes.addHook("onReady", async () => {
+      sweepTimer = setInterval(() => {
+        for (const session of sessions.values()) {
+          if (session.expiresAt <= now() && !session.streamActive) {
+            sessions.delete(session.id);
+            sessionsByAction.delete(session.actionId);
+          }
+        }
+      }, 60_000);
+      sweepTimer.unref?.();
+    });
+    routes.addHook("onClose", async () => clearInterval(sweepTimer));
   });
-  app.addHook("onClose", async () => clearInterval(sweepTimer));
   return { app, sessions };
 }
 
