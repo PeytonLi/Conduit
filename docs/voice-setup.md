@@ -106,6 +106,11 @@ could not repair a wrong host or credentials. That is now regression-tested.
 corrected setup and run the authorized-contact checklist. No provider configuration was changed and no calls
 were placed during this investigation. AT-15 remains unverified.
 
+A subsequent user-authorized live attempt at 4:59 PM PDT on October 9 failed with the same SIP 404. The outbound
+API returned `success: false`; conversation `conv_0401m4hhqxqtfrjrvg0fjwy9ks03` reports `failed`, zero duration,
+zero transcript turns, and no audio. This verifies the current call path still fails before connection; it does
+not validate two-way audio, tools, or application callback ingestion. See `BUILD_STATUS.md` for the test record.
+
 Rem encountered the same SIP 404 and instead used a persistent SignalWire REST + ElevenLabs WebSocket media
 bridge (`Rem/bridge/server.mjs` in the user's reference repository). That is a working precedent if direct SIP provisioning is
 unavailable, but porting it requires a separate always-running service, authenticated call dispatch, per-call
