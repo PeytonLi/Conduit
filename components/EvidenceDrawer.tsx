@@ -74,9 +74,9 @@ export function EvidenceDrawer({
           <dl className={styles.metadata}>
             <div><dt>Source type</dt><dd>{humanLabel("evidenceSourceType", evidence.source_type)}</dd></div>
             {evidence.locator && <div><dt>Source locator</dt><dd>{evidence.locator}</dd></div>}
-            <div><dt>Source time</dt><dd>{formatDateTime(evidence.source_time, timeZone) ?? "Unknown"}</dd></div>
-            <div><dt>Captured</dt><dd>{formatDateTime(evidence.captured_at, timeZone) ?? "Unknown"}</dd></div>
-            <div><dt>Last verified</dt><dd>{formatDateTime(evidence.verified_at, timeZone) ?? "Unknown"}</dd></div>
+            <div><dt>Source time</dt><dd>{formatDateTime(evidence.source_time, timeZone) ?? "Not provided"}</dd></div>
+            <div><dt>Captured</dt><dd>{formatDateTime(evidence.captured_at, timeZone) ?? "Not provided"}</dd></div>
+            {evidence.verified_at && <div><dt>Last verified</dt><dd>{formatDateTime(evidence.verified_at, timeZone)}</dd></div>}
           </dl>
           <h3>Stored excerpt</h3>
           <blockquote>{evidence.supported_excerpt ?? "No excerpt was retained for this source."}</blockquote>

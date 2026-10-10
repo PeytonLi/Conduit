@@ -14,6 +14,7 @@ import { QuoteCorrectionForm } from "./QuoteCorrectionForm";
 import { StatusBadge } from "./StatusBadge";
 import { ApprovalCard } from "./ApprovalCard";
 import { OutreachForm } from "./OutreachForm";
+import { Icon } from "./ui/Icon";
 import styles from "./case-detail.module.css";
 
 function severityTone(severity: string): "danger" | "warning" | "neutral" {
@@ -22,16 +23,20 @@ function severityTone(severity: string): "danger" | "warning" | "neutral" {
   return "neutral";
 }
 
+function timelineStatusLabel(status: string): string {
+  return status === "unknown" ? "Needs review" : humanLabel("timelineStatus", status);
+}
+
 function quantityLabel(value: number | null, unit: string): string {
-  return formatQuantity(value, unit) ?? "Unknown";
+  return formatQuantity(value, unit) ?? "Not provided";
 }
 
 function moneyLabel(value: string | null, currency: string | null): string {
-  return formatMoney(value, currency ?? "USD") ?? "Unknown";
+  return formatMoney(value, currency ?? "USD") ?? "Needs a price";
 }
 
 function displayBalance(value: number, unit: string): string {
-  const formatted = formatQuantity(Math.abs(value), unit) ?? "Unknown";
+  const formatted = formatQuantity(Math.abs(value), unit) ?? "Not available";
   return value < 0 ? `−${formatted} (short)` : formatted;
 }
 
@@ -118,9 +123,9 @@ function StockProjection({
           <tbody>
             {points.map((point, index) => (
               <tr key={`${point.at}-${index}`}>
-                <td>{formatDateTime(point.at, detail.case.location.timezone) ?? "Unknown"}</td>
+                <td>{formatDateTime(point.at, detail.case.location.timezone) ?? "Not available"}</td>
                 <td>{point.label || humanLabel("projectionKind", point.kind)}</td>
-                <td>{formatQuantityChange(point.delta, unit) ?? "Unknown"}</td>
+                <td>{formatQuantityChange(point.delta, unit) ?? "Not available"}</td>
                 <td>{displayBalance(point.balance, unit)}</td>
               </tr>
             ))}
@@ -140,19 +145,25 @@ function ImpactSummary({
 }) {
   const assessment = detail.assessment;
   const source = evidence.find((entry) => /inventory|receipt|stock/i.test(entry.purpose));
+  const sourceTimes = [
+    detail.case.source_as_of
+      ? `Source data as of ${formatDateTime(detail.case.source_as_of, detail.case.location.timezone)}`
+      : null,
+    detail.assessment?.assessed_at
+      ? `Assessed ${formatDateTime(detail.assessment.assessed_at, detail.case.location.timezone)}`
+      : null,
+    detail.case.replay_clock
+      ? `Replay clock ${formatDateTime(detail.case.replay_clock, detail.case.location.timezone)}`
+      : null,
+  ].filter((value): value is string => value !== null);
   return (
     <section aria-labelledby="impact-summary-heading" className={styles.impactSummary}>
       <h2 id="impact-summary-heading">Impact</h2>
-      <p className={styles.sourceTimes}>
-        Source data as of {formatDateTime(detail.case.source_as_of, detail.case.location.timezone) ?? "Unknown"}
-        {" · "}
-        Assessed {formatDateTime(detail.assessment?.assessed_at ?? null, detail.case.location.timezone) ?? "Unknown"}
-        {detail.case.replay_clock && <> · Replay clock {formatDateTime(detail.case.replay_clock, detail.case.location.timezone)}</>}
-      </p>
+      {sourceTimes.length > 0 && <p className={styles.sourceTimes}>{sourceTimes.join(" · ")}</p>}
       <dl className={styles.factList}>
         <div><dt>Shortage quantity</dt><dd>{quantityLabel(assessment?.bridge_quantity ?? null, detail.case.item.unit)} {sourceLink(source, detail.case.location.timezone)}</dd></div>
-        <div><dt>First shortage</dt><dd>{formatDateTime(assessment?.first_shortage_at ?? null, detail.case.location.timezone) ?? "Unknown"} {sourceLink(source, detail.case.location.timezone)}</dd></div>
-        <div><dt>Assessment horizon</dt><dd>{formatDateTimeRange(assessment?.horizon_start ?? null, assessment?.horizon_end ?? null, detail.case.location.timezone) ?? "Unknown"}</dd></div>
+        <div><dt>First shortage</dt><dd>{formatDateTime(assessment?.first_shortage_at ?? null, detail.case.location.timezone) ?? "Not available"} {sourceLink(source, detail.case.location.timezone)}</dd></div>
+        <div><dt>Assessment horizon</dt><dd>{formatDateTimeRange(assessment?.horizon_start ?? null, assessment?.horizon_end ?? null, detail.case.location.timezone) ?? "Not available"}</dd></div>
       </dl>
       <h3>Original and revised receipts</h3>
       {detail.order_lines.length ? (
@@ -160,21 +171,21 @@ function ImpactSummary({
           {detail.order_lines.map((line) => (
             <li key={line.po_line_id}>
               <strong>{line.po} · line {line.line}</strong>
-              <span>Original due: {formatDateTime(line.original_due_at, detail.case.location.timezone) ?? "Unknown"}</span>
+              {line.original_due_at && <span>Original due: {formatDateTime(line.original_due_at, detail.case.location.timezone)}</span>}
               {line.revised_receipts.length ? line.revised_receipts.map((receipt) => (
                 <span key={receipt.id}>
-                  Revised: {quantityLabel(receipt.quantity, detail.case.item.unit)} · {formatDateTimeRange(receipt.earliest_at, receipt.latest_at, detail.case.location.timezone) ?? "Unknown"}
+                  Revised: {quantityLabel(receipt.quantity, detail.case.item.unit)} · {formatDateTimeRange(receipt.earliest_at, receipt.latest_at, detail.case.location.timezone) ?? "Not confirmed yet"}
                   {sourceLink(evidence.find((entry) => entry.purpose.includes(receipt.id)) ?? source, detail.case.location.timezone)}
                 </span>
-              )) : <span>Revised receipt: Unknown</span>}
+              )) : <span>Revised receipt: Not confirmed yet</span>}
             </li>
           ))}
         </ul>
-      ) : <p>Original and revised receipt details are Unknown.</p>}
+      ) : <p>No purchase-order receipt details are available.</p>}
       {assessment?.missing_facts.length ? (
         <div className={styles.missingFacts}>
           <h3>Missing facts</h3>
-          <ul>{assessment.missing_facts.map((fact) => <li key={fact}>{fact}: Unknown</li>)}</ul>
+          <ul>{assessment.missing_facts.map((fact) => <li key={fact}>{humanLabel("missingQuoteTerm", fact)}: Needs confirmation</li>)}</ul>
         </div>
       ) : null}
       <StockProjection detail={detail} />
@@ -218,25 +229,25 @@ function SupplierOptionTable({
             {groupOptions.length === 0 ? <p>No {label.toLowerCase()} options.</p> : groupOptions.map((option) => (
               <article className={styles.optionCard} key={option.id}>
                 <header className={styles.optionHeader}>
-                  <div><h4>{option.supplier.name || "Unknown supplier"}</h4><StatusBadge tone={feasibility === "feasible" ? "success" : feasibility === "rejected" ? "danger" : "warning"}>{label}</StatusBadge></div>
+                  <div><h4>{option.supplier.name || "Supplier name unavailable"}</h4><StatusBadge tone={feasibility === "feasible" ? "success" : feasibility === "rejected" ? "danger" : "warning"}>{label}</StatusBadge></div>
                 </header>
                 <dl className={styles.optionSummary}>
-                  <div><dt>Quantity and arrival</dt><dd>{option.quantity === null ? "Unknown" : formatQuantity(option.quantity, detail.case.item.unit)}
-                    {option.schedule.map((entry, index) => <span key={`${option.id}-summary-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "Unknown"}</span>)}
+                  <div><dt>Quantity and arrival</dt><dd>{option.quantity === null ? "Not provided" : formatQuantity(option.quantity, detail.case.item.unit)}
+                    {option.schedule.map((entry, index) => <span key={`${option.id}-summary-${index}`}> · by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "arrival not confirmed"}</span>)}
                   </dd></div>
                   <div><dt>Total cash outlay</dt><dd>{moneyLabel(option.costs.total_cash_outlay_minor, option.currency)}</dd></div>
                   <div><dt>Net incremental</dt><dd>{moneyLabel(option.costs.net_incremental_minor, option.currency)}</dd></div>
                 </dl>
                 <Disclosure summary="Details">
-                  <p className={styles.optionContext}>{option.item_sku || "Unknown item"} · {option.location ?? "Unknown location"}</p>
+                  <p className={styles.optionContext}>{option.item_sku || "Item details unavailable"} · {option.location ?? "Location unavailable"}</p>
                 <dl className={styles.optionFacts}>
                   <div><dt>Purchasing status</dt><dd>{humanLabel("supplierStatus", option.supplier.purchasing_status)}</dd></div>
                   <div><dt>Specification status</dt><dd>{humanLabel("specificationStatus", option.specification_status)}</dd></div>
-                  <div><dt>Quantity and schedule</dt><dd>{option.quantity === null ? "Unknown" : formatQuantity(option.quantity, detail.case.item.unit)}
-                    {option.schedule.map((entry, index) => <span key={`${option.id}-schedule-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "Unknown"}</span>)}
+                  <div><dt>Quantity and schedule</dt><dd>{option.quantity === null ? "Not provided" : formatQuantity(option.quantity, detail.case.item.unit)}
+                    {option.schedule.map((entry, index) => <span key={`${option.id}-schedule-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "arrival not confirmed"}</span>)}
                   </dd></div>
-                  <div><dt>Quote validity</dt><dd>{formatDateTime(option.valid_until, detail.case.location.timezone) ?? "Unknown"}</dd></div>
-                  <div><dt>Latest order time</dt><dd>{formatDateTime(option.latest_order_at, detail.case.location.timezone) ?? "Unknown"}</dd></div>
+                  <div><dt>Quote validity</dt><dd>{formatDateTime(option.valid_until, detail.case.location.timezone) ?? "Not provided"}</dd></div>
+                  <div><dt>Latest order time</dt><dd>{formatDateTime(option.latest_order_at, detail.case.location.timezone) ?? "Not provided"}</dd></div>
                   <div><dt>Written confirmation</dt><dd>{option.written_confirmation ? "Yes" : "No"}</dd></div>
                   <div><dt>Original order treatment</dt><dd>{originalOrderTreatmentLabel(option.original_order_treatment, detail.case.purchase_orders[0])}</dd></div>
                   <div><dt>Surplus</dt><dd>{quantityLabel(option.surplus_quantity, detail.case.item.unit)}</dd></div>
@@ -248,7 +259,7 @@ function SupplierOptionTable({
                     <div key={key}><dt>{label}</dt><dd>{moneyLabel(option.costs[key], option.currency)}</dd></div>
                   ))}
                 </dl>
-                <p className={styles.verified}>Last verified: {formatDateTime(option.last_verified_at, detail.case.location.timezone) ?? "Unknown"}</p>
+                {option.last_verified_at && <p className={styles.verified}>Last verified: {formatDateTime(option.last_verified_at, detail.case.location.timezone)}</p>}
                 {[...new Set(option.evidence_ids)].length > 0 && (
                   <ul className={styles.sourceLinks}>
                     {[...new Set(option.evidence_ids)].flatMap((evidenceId, index) => {
@@ -265,7 +276,7 @@ function SupplierOptionTable({
                   <QuoteCorrectionForm
                     evidenceOptions={option.evidence_ids.map((id) => {
                       const source = evidence.find((entry) => entry.id === id);
-                      return { id, label: source ? humanLabel("evidenceSourceType", source.source_type) : "Unknown source" };
+                      return { id, label: source ? humanLabel("evidenceSourceType", source.source_type) : "Source unavailable" };
                     })}
                     expectedVersion={detail.case.row_version}
                     originalText={option.evidence_ids.map((id) => evidence.find((entry) => entry.id === id)?.supported_excerpt).filter(Boolean).join("\n\n")}
@@ -309,8 +320,8 @@ function ActionTimeline({
   const renderEntries = (entries: TimelineEntry[]) => (
     <ol>
       {entries.map((entry) => {
-        const status = humanLabel("timelineStatus", entry.status);
-        const tone = status === "Failed" ? "danger" : status === "Unknown" ? "warning" : "neutral";
+        const status = timelineStatusLabel(entry.status);
+        const tone = status === "Failed" ? "danger" : status === "Needs review" ? "warning" : "neutral";
         return (
           <li key={entry.id}>
             <div className={styles.timelineHeading}>
@@ -318,7 +329,7 @@ function ActionTimeline({
               <StatusBadge tone={tone}>{status}</StatusBadge>
             </div>
             <dl>
-              <div><dt>Time</dt><dd>{formatDateTime(entry.at, organizationTimeZone) ?? "Unknown"}</dd></div>
+              <div><dt>Time</dt><dd>{formatDateTime(entry.at, organizationTimeZone) ?? "Not available"}</dd></div>
               <div><dt>Actor</dt><dd>{entry.actor.label}</dd></div>
             </dl>
             {isReplay && entry.action_ref && <StatusBadge>Replay</StatusBadge>}
@@ -344,7 +355,7 @@ function ActionTimeline({
       <section aria-labelledby="calls-heading" className={styles.calls}>
         <h2 id="calls-heading">Supplier outreach</h2>
         {callActions.length ? (
-          <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {humanLabel("timelineStatus", call.status)}</li>)}</ul>
+          <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {timelineStatusLabel(call.status)}</li>)}</ul>
         ) : <p>No calls for this case.</p>}
         {canOutreach && detail.supplier_contacts.length > 0
           ? <OutreachForm
@@ -393,19 +404,20 @@ export function CaseDetailView({
     .split(" · ")
     .filter((part) => !detail.case.purchase_orders.includes(part))
     .join(" · ");
-  const caseTitle = titleWithoutPurchaseOrder || detail.case.item.sku || detail.case.title;
+  const caseTitle = titleWithoutPurchaseOrder || detail.case.item.sku || detail.case.title || "Case details";
+  const caseContext = [
+    detail.case.item.description || detail.case.item.sku,
+    detail.case.location.name,
+    detail.case.purchase_orders.join(", "),
+  ].filter(Boolean);
   return (
     <div className={styles.detail}>
       <header className={styles.caseHeader}>
         <h1>{caseTitle}</h1>
-        <p className={styles.caseContext}>
-          {detail.case.item.description || detail.case.item.sku || "Unknown item"} ·
-          {" "}{detail.case.location.name || "Unknown location"} ·
-          {" "}{detail.case.purchase_orders.join(", ") || "Unknown"}
-        </p>
+        <p className={styles.caseContext}>{caseContext.join(" · ") || "Case details unavailable"}</p>
         <div className={styles.headerBadges}>
-          <StatusBadge>{humanLabel("phase", detail.case.phase)}</StatusBadge>
-          <StatusBadge tone={severityTone(detail.case.severity)}>{humanLabel("severity", detail.case.severity)}</StatusBadge>
+          {detail.case.phase && <StatusBadge>{humanLabel("phase", detail.case.phase)}</StatusBadge>}
+          {detail.case.severity && <StatusBadge tone={severityTone(detail.case.severity)}>{humanLabel("severity", detail.case.severity)}</StatusBadge>}
         </div>
         {detail.case.data_stale && (
           <p className={styles.staleWarning} role="status">
@@ -415,7 +427,7 @@ export function CaseDetailView({
         )}
       </header>
       <section aria-label="Case impact" className={styles.impact}>
-        <h2>{detail.impact_sentence}</h2>
+        <h2><Icon name="alert" aria-hidden="true" />{detail.impact_sentence}</h2>
         <p>{detail.explanation}</p>
         {supportEvidence && <EvidenceDrawer evidence={supportEvidence} label="View impact source" timeZone={detail.case.location.timezone} />}
       </section>
@@ -423,7 +435,7 @@ export function CaseDetailView({
         <div className={styles.nextAction}>
           <p className={styles.eyebrow}>Next action</p>
           <h2>{detail.case.next_action.label}</h2>
-          <p>Due: {formatDateTime(detail.case.next_action.due_at, detail.case.location.timezone) ?? "Unknown"}</p>
+          {detail.case.next_action.due_at && <p>Due: {formatDateTime(detail.case.next_action.due_at, detail.case.location.timezone)}</p>}
         </div>
         {detail.plan ? (
           <ApprovalCard
@@ -431,7 +443,7 @@ export function CaseDetailView({
             caseSummary={detail.case}
             environmentMode={environmentMode}
             originalOrderTreatment={originalOrderTreatmentLabel(
-              planOption?.original_order_treatment ?? "unknown",
+              planOption?.original_order_treatment ?? "not_specified",
               detail.case.purchase_orders[0],
             )}
             plan={detail.plan}
@@ -464,7 +476,7 @@ export function CaseDetailView({
                   <tr key={`${entry.id}:${entry.purpose}`}>
                     <td>{humanLabel("evidenceSourceType", entry.source_type)}</td>
                     <td>{humanLabel("evidencePurpose", entry.purpose)}</td>
-                    <td>{formatDateTime(entry.source_time, detail.case.location.timezone) ?? "Unknown"}</td>
+                    <td>{formatDateTime(entry.source_time, detail.case.location.timezone) ?? "Not available"}</td>
                     <td><EvidenceDrawer evidence={entry} label="Open" timeZone={detail.case.location.timezone} /></td>
                   </tr>
                 ))}

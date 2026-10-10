@@ -1,11 +1,12 @@
 .error {
   display: grid;
   justify-items: start;
-  gap: 12px;
-  padding: 28px;
+  gap: var(--space-3);
+  padding: var(--space-6);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
   color: var(--color-text);
 }
 
@@ -15,22 +16,47 @@
 }
 
 .error button {
-  padding: 9px 12px;
+  min-height: 40px;
+  padding: 9px 14px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--color-surface);
   color: var(--color-text);
+  font: inherit;
+  font-weight: 650;
   cursor: pointer;
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease), transform 140ms var(--ease);
+}
+
+.error button:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+  transform: translateY(-1px);
 }
 
 .error button:focus-visible {
-  outline: 2px solid var(--color-brand-700);
-  outline-offset: 2px;
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.loading {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.loading .skeleton:first-child {
+  min-height: 96px;
+}
+
+.loading .skeleton:nth-child(2) {
+  min-height: 240px;
 }
 
 .skeleton {
   min-height: 120px;
-  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   background: linear-gradient(90deg, var(--color-neutral-100) 25%, var(--color-neutral-50) 50%, var(--color-neutral-100) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;

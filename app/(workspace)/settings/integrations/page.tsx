@@ -1,12 +1,15 @@
 import { requireMembership } from "@/lib/auth";
 import { listConnections } from "@/lib/db/queries/connections";
 import { formatDateTime } from "@/lib/db/queries/format";
+import { getOrganization } from "@/lib/db/queries/organization";
 import { humanLabel } from "@/lib/db/queries/labels";
 import { parseServerEnv } from "@/lib/env";
 import { Card } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Icon } from "@/components/ui/Icon";
+import { EmptyState } from "@/components/ui/EmptyState";
 import styles from "./integrations.module.css";
 
 const purposeByCapability: Record<string, string> = {
@@ -18,10 +21,22 @@ const purposeByCapability: Record<string, string> = {
   inngest: "Runs case workflows in the background.",
 };
 
+const iconByCapability = {
+  deepseek: "sparkle",
+  gmail: "inbox",
+  voice: "phone",
+  exa: "search",
+  neatlogs: "activity",
+  inngest: "clock",
+} as const;
+
 export default async function IntegrationsSettingsPage() {
   const membership = await requireMembership();
   const appEnvironment = parseServerEnv(process.env).APP_ENV;
-  const result = await listConnections(membership);
+  const [result, organization] = await Promise.all([
+    listConnections(membership),
+    getOrganization(membership),
+  ]);
   const configured = new Map(result.connections.map((connection) => [connection.provider, connection]));
   const providers = [...new Set([
     ...result.connections.map((connection) => connection.provider),
@@ -46,25 +61,36 @@ export default async function IntegrationsSettingsPage() {
             return (
               <Card className={styles.card} key={provider}>
                 <div className={styles.cardHeading}>
-                  <h2>{connection ? humanLabel("provider", provider) : humanLabel("capability", provider)}</h2>
+                  <div className={styles.cardIdentity}>
+                    <span aria-hidden="true" className={styles.iconTile}>
+                      <Icon name={iconByCapability[provider as keyof typeof iconByCapability] ?? "plug"} />
+                    </span>
+                    <h2>{connection ? humanLabel("provider", provider) : humanLabel("capability", provider)}</h2>
+                  </div>
+                </div>
+                <div className={styles.cardStatus}>
                   <StatusBadge tone={notNeededInReplay ? "neutral" : ready ? "success" : "warning"}>
                     {notNeededInReplay ? "Not needed in replay" : ready ? "Ready" : "Needs setup"}
                   </StatusBadge>
                 </div>
-                <p>{purposeByCapability[provider] ?? "Connect this provider to Conduit."}</p>
-                {connection && (
-                  <>
-                    <p>Last successful sync: {formatDateTime(connection.last_success_at, "UTC") ?? "No successful sync yet"}</p>
-                    {connection.last_error_message && <p className={styles.error}>{connection.last_error_message}</p>}
-                    <ul className={styles.capabilities}>
-                      {Object.entries(connection.capabilities).map(([name, available]) => (
-                        <li key={name}>{humanLabel("capability", name)}: {available ? "Ready" : "Unavailable"}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                <Disclosure summary="Setup details">
-                  {membership.role === "owner" && readiness?.missing.length ? (
+                <p className={styles.purpose}>{purposeByCapability[provider] ?? "Connect this provider to Conduit."}</p>
+                <div className={styles.connectionDetails}>
+                  {connection && (
+                    <>
+                      <p>Last successful sync: {formatDateTime(connection.last_success_at, organization.timezone) ?? "No successful sync yet"}</p>
+                      {connection.last_error_message && <p className={styles.error}>{connection.last_error_message}</p>}
+                      <ul className={styles.capabilities}>
+                        {Object.entries(connection.capabilities).map(([name, available]) => (
+                          <li key={name}>{humanLabel("capability", name)}: {available ? "Ready" : "Unavailable"}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+                <Disclosure className={styles.setupDetails} summary="Setup details">
+                  {notNeededInReplay ? (
+                    <p>No provider setup is needed for replay.</p>
+                  ) : membership.role === "owner" && readiness?.missing.length ? (
                     <ul>{readiness.missing.map((name) => <li key={name}>{name}</li>)}</ul>
                   ) : !ready ? (
                     <p>Ask an owner to review this provider’s environment configuration.</p>
@@ -76,7 +102,7 @@ export default async function IntegrationsSettingsPage() {
             );
           })}
         </section>
-      ) : <p>No provider connections are configured.</p>}
+      ) : <EmptyState icon="plug" message="No provider connections are configured." />}
     </main>
   );
 }

@@ -19,7 +19,7 @@ test("AT-28/J owner approval result survives a delayed stale detail poll", async
   await login(page, "owner@harbor.example");
   await page.goto("/cases");
   await expect(page.getByText("Replay").first()).toBeVisible();
-  await expect(page.getByText("Replay clock: Mon, Oct 12, 8:00 AM PDT")).toBeVisible();
+  await expect(page.getByText("Replay clock · Mon, Oct 12, 8:00 AM PDT")).toBeVisible();
   await expect(page.getByText("Wed, Oct 14, 9:00 AM PDT").first()).toBeVisible();
   await expect(page.getByText("600 cartons").first()).toBeVisible();
   await page.locator(`a[href="/cases/${caseId}"]`).first().click();

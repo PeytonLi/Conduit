@@ -15,8 +15,9 @@
   gap: 18px;
   padding: 20px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface, var(--color-surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .currentHeader {

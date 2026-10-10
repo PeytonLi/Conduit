@@ -174,7 +174,7 @@ export function CaseQueue({
   function renderCaseTitle(item: CaseSummary) {
     return (
       <Link className={styles.caseLink} href={`/cases/${item.id}`}>
-        {item.title || item.item.sku || "Unknown case"}
+        {item.title || item.item.sku || "Case details unavailable"}
       </Link>
     );
   }
@@ -189,9 +189,9 @@ export function CaseQueue({
             <StatusBadge tone={toneForSeverity(item.severity)}>{humanLabel("severity", item.severity)}</StatusBadge>
           </div>
         </td>
-        <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</td>
-        <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</td>
-        <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Unknown"}</td>
+        <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Supplier details unavailable"}</td>
+        <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Not available"}</td>
+        <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Not available"}</td>
         <td><StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge></td>
         <td>{item.next_action.label}</td>
         <td>{item.assignee?.email ?? "Unassigned"}</td>
@@ -210,7 +210,8 @@ export function CaseQueue({
       </header>
       {replayCase?.replay_clock && (
         <p className={styles.replayClock} role="status">
-          Replay clock: {formatDateTime(replayCase.replay_clock, replayCase.location.timezone)}
+          <Icon name="clock" aria-hidden="true" />
+          <span>Replay clock · {formatDateTime(replayCase.replay_clock, replayCase.location.timezone)}</span>
         </p>
       )}
       <section aria-label="Case summary" className={styles.summaryGrid}>
@@ -348,7 +349,8 @@ export function CaseQueue({
       )}
       {refreshError && (
         <p className={styles.refreshBanner} role="status">
-          Couldn’t refresh. Showing the list from {formatDateTime(result?.refreshed_at ?? null, displayTimeZone) ?? "Unknown"}.
+          Couldn’t refresh. Showing the last available list.
+          {result?.refreshed_at && <> Updated {formatDateTime(result.refreshed_at, displayTimeZone)}.</>}
           <button onClick={() => void load(filters, false)} type="button">Retry</button>
         </p>
       )}
@@ -391,9 +393,9 @@ export function CaseQueue({
                   <span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>
                   {renderCaseBadges(item)}
                   <dl>
-                    <div><dt>Supplier</dt><dd>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</dd></div>
-                    <div><dt>First shortage</dt><dd>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</dd></div>
-                    <div><dt>At risk</dt><dd>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Unknown"}</dd></div>
+                    <div><dt>Supplier</dt><dd>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Supplier details unavailable"}</dd></div>
+                    <div><dt>First shortage</dt><dd>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Not available"}</dd></div>
+                    <div><dt>At risk</dt><dd>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Not available"}</dd></div>
                     <div><dt>Next action</dt><dd>{item.next_action.label}</dd></div>
                     <div><dt>Assignee</dt><dd>{item.assignee?.email ?? "Unassigned"}</dd></div>
                   </dl>

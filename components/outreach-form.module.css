@@ -3,6 +3,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-content: start;
+  min-width: 0;
 }
 
 .form h3,
@@ -39,7 +40,7 @@
   min-height: 40px;
   padding: 8px 10px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--surface, var(--color-surface));
   color: var(--text, var(--color-text));
   font: inherit;
@@ -75,12 +76,18 @@
   min-height: 40px;
   padding: 9px 14px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--color-brand-700);
   color: var(--color-surface);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 140ms var(--ease), transform 140ms var(--ease);
+}
+
+.submit:not(:disabled):hover {
+  background: var(--color-brand-800);
+  transform: translateY(-1px);
 }
 
 .submit:disabled {

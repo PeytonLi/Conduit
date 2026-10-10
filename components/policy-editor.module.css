@@ -1,6 +1,6 @@
 .form {
   display: grid;
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .group {
@@ -11,7 +11,7 @@
   margin: 0;
   padding: 16px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface, var(--color-surface));
 }
 
@@ -71,7 +71,7 @@
   min-height: 40px;
   padding: 8px 10px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--surface, var(--color-surface));
   color: var(--text, var(--color-text));
   font: inherit;
@@ -104,17 +104,23 @@
   min-height: 40px;
   padding: 9px 14px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--color-brand-700);
   color: var(--color-surface);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 140ms var(--ease), transform 140ms var(--ease);
 }
 
 .submit:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.submit:not(:disabled):hover {
+  background: var(--color-brand-800);
+  transform: translateY(-1px);
 }
 
 .field input:focus-visible,

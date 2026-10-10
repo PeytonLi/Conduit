@@ -64,17 +64,17 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
         </p>
       )}
       {page.items.length ? (
-        <DataTable caption="Organization activity">
+        <DataTable caption="Organization activity" className={styles.table}>
           <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Reason</th><th scope="col">Case</th></tr></thead>
           <tbody>{page.items.map((entry) => <tr key={entry.id}>
-            <td>{formatDateTime(entry.at, organization.timezone) ?? "Unknown"}</td>
+            <td>{formatDateTime(entry.at, organization.timezone) ?? "Not available"}</td>
             <td>{entry.event_name}</td>
             <td>{entry.actor.label}</td>
             <td>{entry.reason ?? "—"}</td>
             <td>{entry.case_id ? <Link href={`/cases/${entry.case_id}`}>Open case</Link> : "—"}</td>
           </tr>)}</tbody>
         </DataTable>
-      ) : <EmptyState message="No activity matches these filters." />}
+      ) : <EmptyState icon="activity" message="No activity matches these filters." />}
       {page.next_cursor && (
         <div className={styles.nextPage}>
           <ButtonLink href={`/activity?${nextPageParams}`} variant="secondary">

@@ -2,8 +2,9 @@
   margin-block: 24px;
   padding: 20px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface, var(--color-surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .section h2,
@@ -34,7 +35,7 @@
   min-width: 0;
   padding: 9px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 6px;
+  border-radius: var(--radius);
   font: inherit;
 }
 
@@ -55,6 +56,16 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+
+.fileRow:focus-within {
+  border-color: var(--color-brand-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.fileRow:hover {
+  border-color: var(--color-brand-200);
 }
 
 .fileLabel {
@@ -87,6 +98,24 @@
   font-size: var(--text-xs);
 }
 
+.fileRow input::file-selector-button {
+  margin-inline-end: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--color-brand-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+}
+
+.fileRow input::file-selector-button:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-100);
+}
+
 .fileName {
   grid-column: 1 / -1;
   overflow: hidden;
@@ -112,6 +141,20 @@
 .result button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.form button:not(:disabled):hover,
+.result button:not(:disabled):hover {
+  background: var(--color-brand-800);
+}
+
+.form button:focus-visible,
+.result button:focus-visible,
+.metadata input:focus-visible,
+.files input:focus-visible,
+.confirmation input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .result {

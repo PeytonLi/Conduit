@@ -38,16 +38,16 @@ export default async function SuppliersPage() {
                   {contact.outreach_approved ? "Outreach approved" : "Outreach not approved"}
                 </StatusBadge>
               </li>
-            ))}</ul> : <p>No supplier contacts.</p>}
+            ))}</ul> : <EmptyState icon="users" message="No supplier contacts yet." />}
           </section>
           <section aria-label={`${supplier.name} linked items`}>
             <h3>Items</h3>
             {supplier.items.length ? <ul className={styles.list}>{supplier.items.map((item, index) => (
               <li key={`${item.sku}-${index}`}>
                 <strong>{item.sku}</strong>
-                <span>Last verified {formatDateTime(item.last_verified_at, organization.timezone) ?? "Unknown"}</span>
+                {item.last_verified_at && <span>Last verified {formatDateTime(item.last_verified_at, organization.timezone)}</span>}
               </li>
-            ))}</ul> : <p>No linked items.</p>}
+            ))}</ul> : <EmptyState icon="package" message="No linked items yet." />}
           </section>
           <Disclosure summary="Approval controls">
             {membership.role === "owner"
@@ -55,7 +55,7 @@ export default async function SuppliersPage() {
               : <p>Only an owner can change supplier approvals.</p>}
           </Disclosure>
         </Card>
-      )) : <EmptyState message="No suppliers are available." />}
+      )) : <EmptyState icon="truck" message="No suppliers are available." />}
     </main>
   );
 }

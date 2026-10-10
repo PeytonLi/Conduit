@@ -43,6 +43,10 @@
   justify-content: flex-end;
 }
 
+.table table {
+  min-width: 720px;
+}
+
 @media (max-width: 760px) {
   .filters {
     grid-template-columns: 1fr auto;

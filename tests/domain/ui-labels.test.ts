@@ -20,4 +20,24 @@ describe("UI labels", () => {
   it("maps a recovery-plan-ready event to its activity title", () => {
     expect(humanLabel("auditEvent", "recovery.plan.ready")).toBe("Plan ready for approval");
   });
+
+  it("gives every audit event on the Harbor replay case a specific title", () => {
+    const eventTypes = [
+      "assessment.recalculated",
+      "demo.reset",
+      "import.activated",
+      "outreach.drafted",
+      "plan.approved",
+      "policy.version_created",
+      "purchase_order.line_matched",
+      "recovery.plan.ready",
+      "supplier.delay.received",
+      "supplier.offer.verified",
+      "supplier.request.sent",
+    ];
+
+    for (const eventType of eventTypes) {
+      expect(humanLabel("auditEvent", eventType), eventType).not.toBe("Activity recorded");
+    }
+  });
 });

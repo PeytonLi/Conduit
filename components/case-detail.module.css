@@ -11,6 +11,7 @@
     "evidence decision";
   align-items: start;
   gap: 20px;
+  min-width: 0;
   color: var(--text, var(--color-text));
 }
 
@@ -40,8 +41,9 @@
   min-width: 0;
   padding: 20px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface, var(--color-surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .caseHeader {
@@ -92,13 +94,25 @@
 
 .impact {
   grid-area: impact;
-  border-left: 4px solid var(--accent, var(--color-brand-700));
+  background: linear-gradient(125deg, var(--color-accent-50), var(--color-neutral-50));
 }
 
 .impact h2 {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 8px;
-  font-size: 1.35rem;
+  font-family: var(--font-heading);
+  font-size: 1.45rem;
   line-height: 1.35;
+}
+
+.impact h2 svg {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 4px;
+  color: var(--color-accent-700);
 }
 
 .impact p {
@@ -108,7 +122,7 @@
 
 .decision {
   position: sticky;
-  top: 18px;
+  top: 88px;
   display: grid;
   grid-area: decision;
   gap: 14px;
@@ -118,8 +132,9 @@
 .nextAction {
   padding: 17px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface, var(--color-surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .nextAction h2 {
@@ -177,6 +192,15 @@
   display: grid;
   grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
   gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--color-neutral-100);
+}
+
+.factList > div:last-child,
+.optionFacts > div:last-child,
+.costs > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .factList dt,
@@ -275,7 +299,7 @@
 }
 
 .shortageMark {
-  fill: var(--color-danger-700);
+  fill: var(--color-accent-700);
   stroke: var(--color-surface);
   stroke-width: 2;
 }
@@ -336,8 +360,9 @@
   margin: 12px 0;
   padding: 17px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
 }
 
 .optionHeader {
@@ -397,17 +422,31 @@
   grid-area: timeline;
 }
 
-.timeline > ol {
+.timeline ol {
   display: grid;
   gap: 10px;
-  margin: 0;
-  padding-left: 22px;
+  margin: 0 0 0 7px;
+  padding: 0 0 0 22px;
+  border-left: 1px solid var(--color-brand-200);
+  list-style: none;
 }
 
-.timeline > ol > li {
-  padding: 13px;
-  border: 1px solid var(--border, var(--color-border));
-  border-radius: var(--radius);
+.timeline ol > li {
+  position: relative;
+  padding: 0 0 12px;
+}
+
+.timeline ol > li::before {
+  position: absolute;
+  top: 4px;
+  left: -29px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--color-brand-600);
+  box-shadow: 0 0 0 1px var(--color-brand-200);
+  content: "";
 }
 
 .timelineHeading {
@@ -472,6 +511,32 @@
   border-radius: 7px;
 }
 
+.evidenceList table {
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.evidenceList th,
+.evidenceList td {
+  padding: 10px 9px;
+  border-bottom: 1px solid var(--color-neutral-100);
+  vertical-align: top;
+}
+
+.evidenceList th {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.detail button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.detail :is(button, a, summary, input, select, textarea):focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
 @media (min-width: 1100px) {
   .detail {
     grid-template-columns: minmax(0, 1fr) 360px;
@@ -521,6 +586,11 @@
   .costs > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
+  }
+
+  .optionSummary > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
   }
 
   .evidenceList li {

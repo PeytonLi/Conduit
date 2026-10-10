@@ -1,10 +1,10 @@
 .card {
   padding: 20px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface, var(--color-surface));
   color: var(--text, var(--color-text));
-  box-shadow: 0 12px 30px #10182810;
+  box-shadow: var(--shadow-sm);
 }
 
 .header {
@@ -69,7 +69,7 @@
 .replayNotice {
   padding: 11px;
   border: 1px solid var(--color-warning-200);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--color-warning-50);
   color: var(--color-warning-700);
   font-size: 0.86rem;
@@ -87,9 +87,9 @@
   min-height: 44px;
   padding: 10px 14px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--color-brand-700);
-  color: white;
+  color: var(--color-surface);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -117,6 +117,13 @@
 .approve:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.approve:not(:disabled):hover,
+.reject:hover,
+.confirmActions button:not(:disabled):hover,
+.result button:hover {
+  transform: translateY(-1px);
 }
 
 .approve:focus-visible,
@@ -148,13 +155,13 @@
   width: min(480px, calc(100vw - 28px));
   padding: 24px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--text, var(--color-text));
-  box-shadow: 0 20px 70px #11182740;
+  box-shadow: var(--shadow-lg);
 }
 
 .confirmDialog::backdrop {
-  background: #121a29a8;
+  background: rgb(18 26 41 / 66%);
 }
 
 .confirmActions {
@@ -168,7 +175,7 @@
   min-height: 40px;
   padding: 8px 10px;
   border: 1px solid var(--border, var(--color-border));
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--surface, var(--color-surface));
   color: var(--text, var(--color-text));
   font: inherit;

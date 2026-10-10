@@ -17,6 +17,12 @@
   outline-offset: 2px;
 }
 
+.trigger:hover,
+.close:hover,
+.openFile:hover {
+  color: var(--color-brand-700);
+}
+
 .dialog {
   width: min(620px, calc(100vw - 28px));
   max-height: min(82vh, 800px);
@@ -26,11 +32,11 @@
   border-radius: 12px;
   background: var(--surface, var(--color-surface));
   color: var(--text, var(--color-text));
-  box-shadow: 0 20px 70px #11182740;
+  box-shadow: var(--shadow-lg);
 }
 
 .dialog::backdrop {
-  background: #121a29a8;
+  background: rgb(18 26 41 / 66%);
 }
 
 .dialogContent {

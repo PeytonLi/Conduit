@@ -11,6 +11,42 @@
   margin-top: var(--space-2);
 }
 
+.table table {
+  min-width: 600px;
+}
+
 .table td {
   vertical-align: top;
+}
+
+@media (max-width: 520px) {
+  .table table {
+    min-width: 100%;
+    table-layout: fixed;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 6px;
+  }
+
+  .table th:nth-child(1) {
+    width: 40%;
+  }
+
+  .table th:nth-child(2) {
+    width: 38%;
+  }
+
+  .table th:nth-child(3) {
+    width: 22%;
+  }
+
+  .table td:first-child {
+    overflow-wrap: anywhere;
+  }
+
+  .table td form {
+    min-width: 0;
+  }
 }
