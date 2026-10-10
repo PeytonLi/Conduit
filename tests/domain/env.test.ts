@@ -38,6 +38,37 @@ describe("server environment", () => {
     expect(JSON.stringify(status)).not.toContain("never-return-this");
   });
 
+  it("requires a phone number for SIP but bridge URL and secret for media bridge", () => {
+    const common = {
+      ...requiredEnvironment,
+      APP_ENV: "sandbox",
+      ELEVENLABS_API_KEY: "key",
+      ELEVENLABS_AGENT_ID: "agent",
+      ELEVENLABS_WEBHOOK_SECRET: "webhook",
+    };
+    expect(capabilities(parseServerEnv({ ...common, ELEVENLABS_PHONE_NUMBER_ID: "phone" })).voice).toEqual({
+      ready: true,
+      missing: [],
+    });
+    const bridge = parseServerEnv({
+      ...common,
+      VOICE_TRANSPORT: "media_bridge",
+      VOICE_BRIDGE_URL: "https://bridge.example.test",
+      VOICE_BRIDGE_SECRET: "12345678901234567890123456789012",
+    });
+    expect(capabilities(bridge).voice).toEqual({ ready: true, missing: [] });
+    expect(capabilities({ ...bridge, VOICE_BRIDGE_SECRET: "" }).voice.missing).toEqual(["VOICE_BRIDGE_SECRET"]);
+    expect(() => parseServerEnv({ ...common, VOICE_TRANSPORT: "media_bridge", VOICE_BRIDGE_URL: "http://bridge.example.test" })).toThrow();
+    expect(() =>
+      parseServerEnv({
+        ...common,
+        VOICE_TRANSPORT: "media_bridge",
+        VOICE_BRIDGE_URL: "https://bridge.example.test",
+        VOICE_BRIDGE_SECRET: "too-short",
+      }),
+    ).toThrow();
+  });
+
   it("rejects invalid environment modes and missing Supabase configuration", () => {
     expect(() => parseServerEnv({ ...requiredEnvironment, APP_ENV: "production" })).toThrow();
     expect(() =>

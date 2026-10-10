@@ -12,6 +12,8 @@ export interface OutboundCallResponse {
   sipCallId?: string;
 }
 
+export type VoiceTransport = "sip_trunk" | "media_bridge";
+
 export interface ConversationSnapshot {
   conversationId: string;
   status: string;
@@ -23,9 +25,20 @@ export interface ConversationSnapshot {
 
 /** Narrow provider seam so the adapter can be tested with a fake that never dials. */
 export interface VoiceProviderClient {
+  readonly transport: VoiceTransport;
   startOutboundCall(request: OutboundCallRequest): Promise<OutboundCallResponse>;
   getConversation(conversationId: string): Promise<ConversationSnapshot | null>;
   findConversationByActionId(actionId: string, sinceUnixSeconds: number): Promise<ConversationSnapshot | null>;
+}
+
+export class ProviderHttpError extends Error {
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = "ProviderHttpError";
+    this.statusCode = statusCode;
+  }
 }
 
 /**
@@ -33,8 +46,11 @@ export interface VoiceProviderClient {
  * Everything else (timeouts, network errors, 5xx) is ambiguous: the call may be ringing.
  */
 export function classifyProviderError(error: unknown): "rejected" | "ambiguous" {
-  if (error instanceof ElevenLabsError && typeof error.statusCode === "number") {
-    const code = error.statusCode;
+  const code =
+    error instanceof ElevenLabsError || error instanceof ProviderHttpError
+      ? error.statusCode
+      : undefined;
+  if (typeof code === "number") {
     if (code >= 400 && code < 500 && code !== 408 && code !== 409 && code !== 429) return "rejected";
   }
   return "ambiguous";
@@ -69,31 +85,19 @@ export interface ElevenLabsVoiceConfig {
   ringingTimeoutSecs?: number;
 }
 
-export function createElevenLabsVoiceClient(config: ElevenLabsVoiceConfig): VoiceProviderClient {
+export interface ElevenLabsConversationReader {
+  getConversation(conversationId: string): Promise<ConversationSnapshot | null>;
+  findConversationByActionId(actionId: string, sinceUnixSeconds: number): Promise<ConversationSnapshot | null>;
+}
+
+export function createElevenLabsConversationReader(config: {
+  apiKey: string;
+  agentId: string;
+}): ElevenLabsConversationReader {
   const client = new ElevenLabsClient({ apiKey: config.apiKey });
-  // Never let the SDK retry a call start: a retry could place a second call.
-  const startOptions = { timeoutInSeconds: config.timeoutSeconds ?? 20, maxRetries: 0 };
   const readOptions = { timeoutInSeconds: 15, maxRetries: 2 };
 
   return {
-    async startOutboundCall(request) {
-      const response = await client.conversationalAi.sipTrunk.outboundCall(
-        {
-          agentId: config.agentId,
-          agentPhoneNumberId: config.phoneNumberId,
-          toNumber: request.toNumber,
-          conversationInitiationClientData: { dynamicVariables: request.dynamicVariables },
-          telephonyCallConfig: { ringingTimeoutSecs: config.ringingTimeoutSecs ?? 45 },
-        },
-        startOptions,
-      );
-      return {
-        success: response.success,
-        message: response.message,
-        conversationId: response.conversationId ?? undefined,
-        sipCallId: response.sipCallId ?? undefined,
-      };
-    },
     async getConversation(conversationId) {
       try {
         return toSnapshot(await client.conversationalAi.conversations.get(conversationId, {}, readOptions));
@@ -112,6 +116,36 @@ export function createElevenLabsVoiceClient(config: ElevenLabsVoiceConfig): Voic
         if (snapshot?.actionId === actionId) return snapshot;
       }
       return null;
+    },
+  };
+}
+
+export function createElevenLabsVoiceClient(config: ElevenLabsVoiceConfig): VoiceProviderClient {
+  const client = new ElevenLabsClient({ apiKey: config.apiKey });
+  const reader = createElevenLabsConversationReader(config);
+  // Never let the SDK retry a call start: a retry could place a second call.
+  const startOptions = { timeoutInSeconds: config.timeoutSeconds ?? 20, maxRetries: 0 };
+
+  return {
+    transport: "sip_trunk",
+    ...reader,
+    async startOutboundCall(request) {
+      const response = await client.conversationalAi.sipTrunk.outboundCall(
+        {
+          agentId: config.agentId,
+          agentPhoneNumberId: config.phoneNumberId,
+          toNumber: request.toNumber,
+          conversationInitiationClientData: { dynamicVariables: request.dynamicVariables },
+          telephonyCallConfig: { ringingTimeoutSecs: config.ringingTimeoutSecs ?? 45 },
+        },
+        startOptions,
+      );
+      return {
+        success: response.success,
+        message: response.message,
+        conversationId: response.conversationId ?? undefined,
+        sipCallId: response.sipCallId ?? undefined,
+      };
     },
   };
 }

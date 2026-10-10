@@ -113,7 +113,7 @@ export interface CallbackLink extends CallToolSummary {
 }
 
 export interface CallbackRecordInput {
-  provider: "elevenlabs";
+  provider: "elevenlabs" | "voice_bridge";
   external_event_key: string;
   conversation_id: string;
   event_type: string;

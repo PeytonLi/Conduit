@@ -1,10 +1,26 @@
 import { z } from "zod";
 
 const optionalNonempty = z.string().trim().min(1).optional().or(z.literal(""));
+const optionalHttpsUrl = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      return new URL(value).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "must be an https URL")
+  .optional()
+  .or(z.literal(""));
+const optionalBridgeSecret = z.string().trim().min(32).optional().or(z.literal(""));
 
 export const serverEnvSchema = z.object({
   APP_BASE_URL: optionalNonempty,
   APP_ENV: z.enum(["replay", "sandbox", "live"]).default("replay"),
+  VOICE_TRANSPORT: z.enum(["sip_trunk", "media_bridge"]).default("sip_trunk"),
+  VOICE_BRIDGE_URL: optionalHttpsUrl,
+  VOICE_BRIDGE_SECRET: optionalBridgeSecret,
   SUPABASE_URL: z.string().url(),
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
   SUPABASE_SECRET_KEY: z.string().min(1),
@@ -53,8 +69,10 @@ export function capabilities(
     voice: [
       "ELEVENLABS_API_KEY",
       "ELEVENLABS_AGENT_ID",
-      "ELEVENLABS_PHONE_NUMBER_ID",
       "ELEVENLABS_WEBHOOK_SECRET",
+      ...(env.VOICE_TRANSPORT === "media_bridge"
+        ? ["VOICE_BRIDGE_URL", "VOICE_BRIDGE_SECRET"]
+        : ["ELEVENLABS_PHONE_NUMBER_ID"]),
     ],
     exa: ["EXA_API_KEY"],
     neatlogs: ["NEATLOGS_API_KEY", "NEATLOGS_ENDPOINT"],

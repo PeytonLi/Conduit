@@ -58,7 +58,11 @@ async function main() {
   const deepseekBase = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
   const deepseekModel = requireEnv("DEEPSEEK_MODEL");
   requireEnv("DEEPSEEK_API_KEY");
-  const trunkRequest = process.env.SIGNALWIRE_PHONE_NUMBER || process.env.SIGNALWIRE_SIP_ADDRESS
+  const voiceTransport = process.env.VOICE_TRANSPORT || "sip_trunk";
+  if (voiceTransport !== "sip_trunk" && voiceTransport !== "media_bridge") {
+    throw new Error("VOICE_TRANSPORT must be sip_trunk or media_bridge");
+  }
+  const trunkRequest = voiceTransport === "sip_trunk" && (process.env.SIGNALWIRE_PHONE_NUMBER || process.env.SIGNALWIRE_SIP_ADDRESS)
     ? buildElevenLabsSipTrunkRequest({
         phoneNumber: requireEnv("SIGNALWIRE_PHONE_NUMBER"),
         sipAddress: requireEnv("SIGNALWIRE_SIP_ADDRESS"),
@@ -118,6 +122,12 @@ async function main() {
 
   // 4. Agent with DeepSeek as a custom OpenAI-compatible LLM (streaming chat completions).
   const conversationConfig: ElevenLabs.ConversationalConfig = {
+    ...(voiceTransport === "media_bridge"
+      ? {
+          asr: { userInputAudioFormat: "ulaw_8000" },
+          tts: { agentOutputAudioFormat: "ulaw_8000" },
+        }
+      : {}),
     agent: {
       firstMessage: SUPPLIER_CALL_FIRST_MESSAGE,
       prompt: {

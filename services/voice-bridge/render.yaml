@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: conduit-voice-bridge
+    runtime: node
+    rootDir: services/voice-bridge
+    buildCommand: npm ci
+    startCommand: node server.mjs
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: SIGNALWIRE_SPACE_URL
+        sync: false
+      - key: SIGNALWIRE_PROJECT_ID
+        sync: false
+      - key: SIGNALWIRE_API_TOKEN
+        sync: false
+      - key: SIGNALWIRE_PHONE_NUMBER
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: VOICE_BRIDGE_SECRET
+        sync: false
+      - key: CONDUIT_URL
+        sync: false
+      - key: BRIDGE_ALLOWED_TO
+        sync: false
+      - key: PORT
+        sync: false
+      - key: BRIDGE_PORT
+        sync: false

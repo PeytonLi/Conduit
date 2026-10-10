@@ -10,8 +10,9 @@ Conduit supplier_call action ─► ElevenLabs SIP outbound call ─► SignalWi
           └──────────── signed post-call webhook (/api/webhooks/elevenlabs) ◄┘
 ```
 
-> Status: implemented and replay-tested. **Live proof (AT-15) is not done**: it needs real credentials and an
-> explicitly authorized test number. Never call a real supplier for testing.
+> Status: implemented and replay-tested. **Live proof (AT-15) passed via `media_bridge` on 2026-10-10 (see
+> `BUILD_STATUS.md`). Native `sip_trunk` remains unproven after SignalWire SIP 404.** Never call a real supplier for
+> testing.
 
 ## Components
 
@@ -149,7 +150,48 @@ copied into Conduit. MyDuo's ElevenLabs speech path uses Recall for meeting audi
 - **Missing callback**: `voice-stale-call-sweep` (every 5 min) queues `action.reconcile.requested` for calls with no
   callback after 20 minutes.
 
-## M0 feasibility checklist (PRD ch.05 §5)
+## Media bridge transport
+
+The default transport remains `sip_trunk`. Set `VOICE_TRANSPORT=media_bridge`
+only when the Conduit-owned bridge has been deployed and tested. The flow is:
+
+1. The Conduit adapter prepares the grant and call-session ledger row, then
+   sends a signed request to the bridge.
+2. The bridge creates the SignalWire REST call.
+3. SignalWire fetches capability-protected TwiML and opens a bidirectional
+   `<Connect><Stream>` media stream.
+4. The bridge forwards PCMU/µ-law 8 kHz audio to and from an ElevenLabs
+   signed WebSocket.
+5. Existing ElevenLabs post-call callbacks own reconciliation once a
+   conversation starts. If the carrier fails before that point, the bridge
+   sends a signed status event to `/api/webhooks/voice-bridge`, which uses the
+   same callback receipt, quarantine, and action-hint resolution path.
+
+Conduit needs `VOICE_TRANSPORT`, `VOICE_BRIDGE_URL` (HTTPS), and
+`VOICE_BRIDGE_SECRET` (at least 32 characters), in addition to
+`ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, and
+`ELEVENLABS_WEBHOOK_SECRET`. Bridge deployment needs the ElevenLabs agent
+credentials, SignalWire space/project/token/caller ID, `PUBLIC_URL`,
+`VOICE_BRIDGE_SECRET`, and `CONDUIT_URL`; `BRIDGE_ALLOWED_TO` is an optional
+E.164 allowlist. See `services/voice-bridge/README.md` and `render.yaml` for
+the Render root directory, `npm ci` build, starter plan, and health check.
+
+The bridge keeps active sessions in memory and must run as one always-on
+instance; do not use a free or idle-sleeping plan. Conduit-to-bridge requests
+and bridge callbacks use HMAC signatures. SignalWire TwiML, media, and status
+paths use per-call capability keys. There is no unauthenticated `/call`
+endpoint. Dynamic variables (including
+`secret__conduit_voice_token`), secrets, signed URLs, and full phone numbers
+must never be logged.
+
+For a media-bridge live test, keep the SIP setup as-is but configure the bridge
+URL/secret, confirm the bridge `/health` endpoint, verify the authorized
+destination allowlist, and confirm both ElevenLabs audio formats are
+`ulaw_8000`. The remaining case, grant, callback, no-answer, and reconciliation
+checks were exercised in the October 10 authorized test; see `BUILD_STATUS.md`.
+This verifies the media-bridge transport only, not native `sip_trunk`.
+
+## M0 feasibility checklist (PRD ch.05 §5) — native `sip_trunk`
 
 Run only against an **explicitly authorized test contact**. Record evidence (IDs, timestamps, screenshots) in
 `BUILD_STATUS.md`.
@@ -166,4 +208,6 @@ Run only against an **explicitly authorized test contact**. Record evidence (IDs
        `supplier.call.finished` outbox row).
 7. [ ] Exercise no-answer and call-start failure paths (`no_answer` / `busy` / `initiation_failed` outcomes).
 
-Until all seven pass, AT-15 remains **unverified** and live voice must stay disabled.
+These checks track native `sip_trunk` feasibility. AT-15 is verified for
+`media_bridge` only; native SIP remains unverified until its routing and call
+checks pass.

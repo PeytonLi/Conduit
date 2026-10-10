@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const ELEVENLABS_SIGNATURE_HEADER = "elevenlabs-signature";
+export const CONDUIT_SIGNATURE_HEADER = "x-conduit-signature";
 /** Matches the installed SDK's `webhooks.constructEvent` tolerance (30 minutes). */
 export const SIGNATURE_MAX_AGE_SECONDS = 30 * 60;
 /** Clock-skew allowance for timestamps slightly in the future. */
@@ -14,7 +15,7 @@ export type SignatureCheck =
  * Verifies an ElevenLabs webhook signature: header `t=<unix>,v0=<hex>` where
  * hex = HMAC-SHA256(secret, `${t}.${rawBody}`). Must run on the raw, unparsed body.
  */
-export function verifyElevenLabsSignature(
+export function verifyHmacSignature(
   rawBody: string,
   header: string | null,
   secret: string,
@@ -47,8 +48,21 @@ export function verifyElevenLabsSignature(
   return matches ? { ok: true, timestamp } : { ok: false, reason: "bad_signature" };
 }
 
+export function verifyElevenLabsSignature(
+  rawBody: string,
+  header: string | null,
+  secret: string,
+  nowMs: number,
+): SignatureCheck {
+  return verifyHmacSignature(rawBody, header, secret, nowMs);
+}
+
 /** Test/replay helper producing a header in the provider's format. */
 export function signElevenLabsPayload(rawBody: string, secret: string, timestampSeconds: number): string {
   const digest = createHmac("sha256", secret).update(`${timestampSeconds}.${rawBody}`, "utf8").digest("hex");
   return `t=${timestampSeconds},v0=${digest}`;
+}
+
+export function signConduitPayload(rawBody: string, secret: string, timestampSeconds: number): string {
+  return signElevenLabsPayload(rawBody, secret, timestampSeconds);
 }
