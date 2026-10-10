@@ -6,8 +6,8 @@
     "impact decision"
     "summary decision"
     "options decision"
-    "timeline decision"
     "calls decision"
+    "timeline decision"
     "evidence decision";
   align-items: start;
   gap: 20px;
@@ -50,6 +50,24 @@
 
 .caseHeader > p {
   margin: 8px 0;
+}
+
+.caseContext {
+  color: var(--color-muted);
+  font-weight: 550;
+}
+
+.staleWarning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid #f1d18a;
+  border-radius: var(--radius);
+  background: #fffbeb;
+  color: var(--color-warning-700);
 }
 
 .eyebrow {
@@ -123,6 +141,34 @@
   display: grid;
   gap: 9px;
   margin: 15px 0;
+}
+
+.optionSummary {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.optionSummary > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--space-3);
+}
+
+.optionSummary dt {
+  color: var(--color-muted);
+}
+
+.optionSummary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.optionContext {
+  margin: 0 0 var(--space-3);
+  color: var(--color-muted);
 }
 
 .factList > div,
@@ -432,10 +478,10 @@
     grid-template-areas:
       "header decision"
       "impact decision"
-      "summary decision"
-      "options decision"
-      "timeline decision"
-      "calls decision"
+    "summary decision"
+    "options decision"
+    "calls decision"
+    "timeline decision"
       "evidence decision";
   }
 }
@@ -449,8 +495,8 @@
       "decision"
       "summary"
       "options"
-      "timeline"
       "calls"
+      "timeline"
       "evidence";
   }
 

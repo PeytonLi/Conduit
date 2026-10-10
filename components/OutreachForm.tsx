@@ -28,6 +28,7 @@ export function OutreachForm({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
+  const [hasInteracted, setHasInteracted] = useState(false);
   const [message, setMessage] = useState("");
   const [replayNotice, setReplayNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -36,6 +37,7 @@ export function OutreachForm({
   const draftError = validateOutreachDraft({ channel, body, subject: channel === "email" ? subject : undefined });
 
   async function submit() {
+    setHasInteracted(true);
     const validation = validateOutreachDraft({ channel, body, subject: channel === "email" ? subject : undefined });
     if (validation) {
       setError(validation);
@@ -83,6 +85,7 @@ export function OutreachForm({
       <label className={styles.contactField}>
         Supplier contact
         <select
+          onBlur={() => setHasInteracted(true)}
           onChange={(event) => {
             const next = contacts.find((contact) => contact.id === event.target.value);
             setContactId(event.target.value);
@@ -103,7 +106,7 @@ export function OutreachForm({
       </label>
       <label className={styles.field}>
         Channel
-        <select onChange={(event) => {
+        <select onBlur={() => setHasInteracted(true)} onChange={(event) => {
           intentKey.current = null;
           setChannel(event.target.value as OutreachChannel);
         }} value={channel}>
@@ -113,23 +116,24 @@ export function OutreachForm({
       {channel === "email" && (
         <label className={styles.field}>
           Subject
-          <input maxLength={200} onChange={(event) => {
+          <input maxLength={200} onBlur={() => setHasInteracted(true)} onChange={(event) => {
             intentKey.current = null;
+            setError("");
             setSubject(event.target.value);
           }} value={subject} />
         </label>
       )}
       <label className={styles.messageField}>
         Message
-        <textarea maxLength={limit + 1} onChange={(event) => {
+        <textarea maxLength={limit + 1} onBlur={() => setHasInteracted(true)} onChange={(event) => {
           intentKey.current = null;
           setError("");
           setBody(event.target.value);
         }} value={body} />
       </label>
       {channel === "phone" && <p aria-live="polite" className={styles.counter}>{body.length}/{limit}</p>}
-      {(error || draftError) && <p className={styles.error} role="alert">{error || draftError}</p>}
-      <button className={styles.submit} disabled={submitting || Boolean(draftError)} onClick={() => void submit()} type="button">
+      {(error || (hasInteracted && draftError)) && <p className={styles.error} role="alert">{error || draftError}</p>}
+      <button className={styles.submit} disabled={submitting} onClick={() => void submit()} type="button">
         {submitting ? "Preparing…" : "Prepare request"}
       </button>
       {message && <p className={styles.result}>{message}</p>}

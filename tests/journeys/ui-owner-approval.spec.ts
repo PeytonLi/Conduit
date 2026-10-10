@@ -24,8 +24,10 @@ test("AT-28/J owner approval result survives a delayed stale detail poll", async
   await expect(page.getByText("600 cartons").first()).toBeVisible();
   await page.locator(`a[href="/cases/${caseId}"]`).first().click();
   await expect(page.getByRole("heading", { name: /600 cartons are needed/i })).toBeVisible();
-  await expect(page.getByText("Specification: 300 × 200 × 150 mm · KRAFT-SW-DEMO")).toBeVisible();
-  await expect(page.getByText("Replay clock: Mon, Oct 12, 8:00 AM PDT")).toBeVisible();
+  const optionDetails = page.locator('section[aria-labelledby="options-heading"] details').first();
+  await optionDetails.locator("summary").click();
+  await expect(optionDetails.getByText("Specification status")).toBeVisible();
+  await expect(page.getByText(/Replay clock Mon, Oct 12, 8:00 AM PDT/)).toBeVisible();
   await expect(page.getByRole("table", { name: "Sources linked to this case" })).toBeVisible();
   await expect(page.getByText("Ready for approval").first()).toBeVisible();
   await expect(page.getByText("Replay: approving records the decision in the demo only; no supplier or business system is contacted.")).toBeVisible();

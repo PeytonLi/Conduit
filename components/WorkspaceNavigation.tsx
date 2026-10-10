@@ -5,7 +5,13 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import styles from "./workspace-navigation.module.css";
 
-export function WorkspaceNavigation({ showDemo }: { showDemo: boolean }) {
+export function WorkspaceNavigation({
+  showDemo,
+  showGetStarted,
+}: {
+  showDemo: boolean;
+  showGetStarted: boolean;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const current = (href: string) =>
@@ -30,6 +36,11 @@ export function WorkspaceNavigation({ showDemo }: { showDemo: boolean }) {
         className={`${styles.navigation} ${open ? styles.open : ""}`}
         id="primary-navigation"
       >
+        {showGetStarted && (
+          <Link aria-current={current("/onboarding") ? "page" : undefined} className={linkClass("/onboarding")} href="/onboarding" onClick={close}>
+            Get started
+          </Link>
+        )}
         <Link aria-current={current("/cases") ? "page" : undefined} className={linkClass("/cases")} href="/cases" onClick={close}>
           Cases
         </Link>

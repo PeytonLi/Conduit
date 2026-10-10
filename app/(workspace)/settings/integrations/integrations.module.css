@@ -1,0 +1,50 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.page > h1,
+.page > p {
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-4);
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.card h2,
+.card p {
+  margin: 0;
+}
+
+.cardHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.capabilities,
+.card ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.error {
+  color: var(--color-danger-700);
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

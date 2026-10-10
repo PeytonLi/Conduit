@@ -1,0 +1,18 @@
+.card {
+  display: grid;
+  max-width: 680px;
+  gap: var(--space-4);
+}
+
+.card h2,
+.card p {
+  margin: 0;
+}
+
+.note {
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+  font-size: var(--text-sm);
+}

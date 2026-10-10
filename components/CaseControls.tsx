@@ -1,10 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CaseDetail } from "@/lib/db/queries/cases";
+import { Button } from "./ui/Button";
+import { Disclosure } from "./ui/Disclosure";
+import { SelectField, TextAreaField } from "./ui/Field";
 import { postJson, workspaceErrorMessage } from "./client-api";
 import styles from "./case-controls.module.css";
+
+type CaseAction = "pause" | "resume" | "reassess" | "accept-risk";
 
 export function CaseControls({
   detail,
@@ -19,6 +24,21 @@ export function CaseControls({
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
   const [busyName, setBusyName] = useState("");
+  const [chosenAction, setChosenAction] = useState<CaseAction | "">("");
+
+  useEffect(() => {
+    function requestReassessment() {
+      if (!detail.permissions.can_reassess || role === "viewer") return;
+      const disclosure = document.getElementById("case-options");
+      if (disclosure instanceof HTMLDetailsElement) disclosure.open = true;
+      setChosenAction("reassess");
+      requestAnimationFrame(() => {
+        document.getElementById("case-options")?.querySelector("textarea")?.focus();
+      });
+    }
+    window.addEventListener("conduit:request-reassessment", requestReassessment);
+    return () => window.removeEventListener("conduit:request-reassessment", requestReassessment);
+  }, [detail.permissions.can_reassess, role]);
 
   async function submit(
     name: string,
@@ -45,79 +65,85 @@ export function CaseControls({
   }
 
   if (role === "viewer") {
-    return <p className={styles.readOnly}>Read-only access.</p>;
+    return (
+      <Disclosure className={styles.controls} summary="Case options">
+        <p className={styles.readOnly}>Read-only access.</p>
+      </Disclosure>
+    );
   }
 
   const canControl = detail.permissions.can_control;
+  const availableActions: CaseAction[] = [
+    ...(detail.case.run_control === "active" ? ["pause" as const] : []),
+    ...(detail.case.run_control === "paused" ? ["resume" as const] : []),
+    ...(detail.permissions.can_reassess ? ["reassess" as const] : []),
+    ...(detail.permissions.can_accept_risk && detail.case.phase !== "closed" ? ["accept-risk" as const] : []),
+  ];
+  const requiresReason = chosenAction === "reassess" || chosenAction === "accept-risk";
+
+  async function submitChosenAction() {
+    if (!chosenAction) return;
+    if (requiresReason && !reason.trim()) {
+      setMessage("Add a reason before continuing.");
+      return;
+    }
+    const body: Record<string, unknown> = {
+      expected_version: detail.case.row_version,
+      ...(reason.trim() ? { reason: reason.trim() } : {}),
+    };
+    const path = chosenAction === "reassess"
+      ? `/api/v1/cases/${detail.case.id}/reassess`
+      : `/api/v1/cases/${detail.case.id}/control`;
+    if (chosenAction === "pause" || chosenAction === "resume") body.command = chosenAction;
+    if (chosenAction === "accept-risk") {
+      body.command = "close";
+      body.outcome = "accepted_risk";
+    }
+    await submit(chosenAction, path, body);
+  }
+
   return (
-    <section aria-labelledby="controls-heading" className={styles.controls}>
-      <h2 id="controls-heading">Case controls</h2>
-      {!canControl && <p className={styles.readOnly}>You don’t have permission to change this case.</p>}
-      {canControl && (
+    <Disclosure id="case-options" className={styles.controls} summary="Case options">
+      {!canControl ? (
+        <p className={styles.readOnly}>You don’t have permission to change this case.</p>
+      ) : availableActions.length ? (
         <>
-          <label className={styles.reason}>
-            Reason for change
-            <textarea onChange={(event) => setReason(event.target.value)} value={reason} />
-          </label>
-          <div className={styles.actions}>
-            {detail.case.run_control === "active" ? (
-              <button
-                disabled={Boolean(busyName)}
-                onClick={() => void submit("pause", `/api/v1/cases/${detail.case.id}/control`, {
-                  command: "pause",
-                  expected_version: detail.case.row_version,
-                  reason: reason.trim() || undefined,
-                })}
-                type="button"
+          <SelectField
+            label="Action"
+            onChange={(event) => {
+              setChosenAction(event.target.value as CaseAction | "");
+              setMessage("");
+            }}
+            value={chosenAction}
+          >
+            <option value="">Choose an action</option>
+            {availableActions.map((action) => (
+              <option key={action} value={action}>
+                {action === "accept-risk" ? "Close with accepted risk" : action === "reassess" ? "Request reassessment" : action === "pause" ? "Pause case" : "Resume case"}
+              </option>
+            ))}
+          </SelectField>
+          {chosenAction && (
+            <>
+              <TextAreaField
+                label="Reason for change"
+                onChange={(event) => setReason(event.target.value)}
+                value={reason}
+              />
+              <Button
+                disabled={Boolean(busyName) || (requiresReason && !reason.trim())}
+                onClick={() => void submitChosenAction()}
+                variant={chosenAction === "accept-risk" ? "danger" : "primary"}
               >
-                {busyName === "pause" ? "Pausing…" : "Pause case"}
-              </button>
-            ) : detail.case.run_control === "paused" ? (
-              <button
-                disabled={Boolean(busyName)}
-                onClick={() => void submit("resume", `/api/v1/cases/${detail.case.id}/control`, {
-                  command: "resume",
-                  expected_version: detail.case.row_version,
-                  reason: reason.trim() || undefined,
-                })}
-                type="button"
-              >
-                {busyName === "resume" ? "Resuming…" : "Resume case"}
-              </button>
-            ) : (
-              <p className={styles.readOnly}>This case is blocked until its outcome is reviewed.</p>
-            )}
-            {detail.permissions.can_reassess && (
-              <button
-                disabled={Boolean(busyName) || !reason.trim()}
-                onClick={() => void submit("reassess", `/api/v1/cases/${detail.case.id}/reassess`, {
-                  expected_version: detail.case.row_version,
-                  reason: reason.trim(),
-                })}
-                type="button"
-              >
-                {busyName === "reassess" ? "Requesting reassessment…" : "Request reassessment"}
-              </button>
-            )}
-            {detail.permissions.can_accept_risk && detail.case.phase !== "closed" && (
-              <button
-                className={styles.riskButton}
-                disabled={Boolean(busyName) || !reason.trim()}
-                onClick={() => void submit("accept-risk", `/api/v1/cases/${detail.case.id}/control`, {
-                  command: "close",
-                  outcome: "accepted_risk",
-                  expected_version: detail.case.row_version,
-                  reason: reason.trim(),
-                })}
-                type="button"
-              >
-                {busyName === "accept-risk" ? "Closing…" : "Close with accepted risk"}
-              </button>
-            )}
-          </div>
+                {busyName === chosenAction ? "Saving…" : chosenAction === "accept-risk" ? "Close with accepted risk" : chosenAction === "reassess" ? "Request reassessment" : chosenAction === "pause" ? "Pause case" : "Resume case"}
+              </Button>
+            </>
+          )}
         </>
+      ) : (
+        <p className={styles.readOnly}>No case options are available right now.</p>
       )}
       {message && <p role="status">{message}</p>}
-    </section>
+    </Disclosure>
   );
 }

@@ -1,14 +1,14 @@
 .navigation {
   display: grid;
   align-content: start;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .link {
-  padding: 10px 11px;
-  border-radius: 7px;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius);
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 
@@ -17,15 +17,15 @@
 }
 
 .active {
-  background: #eaf0ff;
+  background: var(--color-brand-50);
   color: var(--accent);
   font-weight: 700;
 }
 
 .sectionLabel {
-  margin: 14px 11px 3px;
+  margin: var(--space-3) var(--space-3) var(--space-1);
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -34,9 +34,9 @@
 .menuButton {
   display: none;
   width: max-content;
-  padding: 8px 11px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -45,7 +45,7 @@
 
 .menuButton:focus-visible,
 .link:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 

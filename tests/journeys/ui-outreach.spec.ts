@@ -16,8 +16,8 @@ test("AT-14/J operator phone outreach enforces 200 characters and saves the defa
   await page.getByLabel("Channel").selectOption("phone");
   const message = page.getByLabel("Message");
   await message.fill("x".repeat(201));
+  await message.blur();
   await expect(page.getByText("Message must be 200 characters or fewer.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Prepare request" })).toBeDisabled();
   await message.fill("x".repeat(200));
   await expect(page.getByText("200/200")).toBeVisible();
   const outreachResponse = page.waitForResponse((response) =>

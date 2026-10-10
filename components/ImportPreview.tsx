@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { MembershipContext } from "@/lib/auth";
+import { DateTimeField, TextField } from "./ui/Field";
 import styles from "./import-preview.module.css";
 
 const fileFields = [
@@ -80,6 +81,56 @@ function statusLabel(status: ImportStatus): string {
   }
 }
 
+function dateTimeLocalValue(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
+function dateTimeLocalToIso(value: string, timeZone: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day, hour, minute] = match;
+  const target = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+  let instant = target;
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const values = Object.fromEntries(formatter.formatToParts(new Date(instant)).map(({ type, value }) => [type, value]));
+      const represented = Date.UTC(
+        Number(values.year),
+        Number(values.month) - 1,
+        Number(values.day),
+        Number(values.hour),
+        Number(values.minute),
+      );
+      const adjustment = target - represented;
+      if (!adjustment) break;
+      instant += adjustment;
+    }
+    if (dateTimeLocalValue(new Date(instant), timeZone) !== value) return null;
+    return new Date(instant).toISOString();
+  } catch {
+    return null;
+  }
+}
+
 function issueLabel(issue: ValidationIssue): string {
   const location = [issue.file, issue.row === null ? null : `row ${issue.row}`, issue.field]
     .filter(Boolean)
@@ -89,8 +140,8 @@ function issueLabel(issue: ValidationIssue): string {
 
 export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
   const [files, setFiles] = useState<Partial<Record<FileField, File>>>({});
-  const [sourceAsOf, setSourceAsOf] = useState("");
   const [timezone, setTimezone] = useState("America/Los_Angeles");
+  const [sourceAsOf, setSourceAsOf] = useState(() => dateTimeLocalValue(new Date(), "America/Los_Angeles"));
   const [currency, setCurrency] = useState("USD");
   const [importRecord, setImportRecord] = useState<ImportRecord | null>(null);
   const [contactPermissionsConfirmed, setContactPermissionsConfirmed] = useState(false);
@@ -117,8 +168,9 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
       setError("Each CSV must be at most 5 MB and all files together at most 20 MB.");
       return;
     }
-    if (!sourceAsOf.trim() || !timezone.trim() || !/^[A-Z]{3}$/.test(currency)) {
-      setError("Enter a source timestamp with an offset, a timezone, and a three-letter currency.");
+    const sourceAsOfIso = dateTimeLocalToIso(sourceAsOf, timezone.trim());
+    if (!sourceAsOfIso || !/^[A-Z]{3}$/.test(currency)) {
+      setError("Enter a valid source date and time for the selected timezone, and a three-letter currency.");
       return;
     }
 
@@ -127,7 +179,7 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
       const form = new FormData();
       form.append("metadata", JSON.stringify({
         schema_version: 1,
-        source_as_of: sourceAsOf.trim(),
+        source_as_of: sourceAsOfIso,
         timezone: timezone.trim(),
         currency,
       }));
@@ -220,39 +272,35 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
       ) : (
         <form className={styles.form} onSubmit={stageImport}>
           <div className={styles.metadata}>
-            <label>
-              Source data as of (ISO 8601 with offset)
-              <input
-                onChange={(event) => setSourceAsOf(event.target.value)}
-                placeholder="2026-10-12T15:00:00Z"
-                required
-                type="text"
-                value={sourceAsOf}
-              />
-            </label>
-            <label>
-              Timezone
-              <input
-                onChange={(event) => setTimezone(event.target.value)}
-                required
-                value={timezone}
-              />
-            </label>
-            <label>
-              Currency
-              <input
-                maxLength={3}
-                onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-                required
-                value={currency}
-              />
-            </label>
+            <DateTimeField
+              label="Source data as of"
+              onChange={(event) => setSourceAsOf(event.target.value)}
+              required
+              value={sourceAsOf}
+            />
+            <TextField
+              label="Timezone"
+              onChange={(event) => setTimezone(event.target.value)}
+              required
+              value={timezone}
+            />
+            <TextField
+              label="Currency"
+              maxLength={3}
+              onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+              required
+              value={currency}
+            />
           </div>
           <div className={styles.files}>
             {fileFields.map(({ field, label }) => (
-              <label key={field}>
-                {label}
+              <label className={styles.fileRow} key={field}>
+                <span className={styles.fileLabel}>{label}</span>
+                <span className={files[field] ? styles.fileChosen : styles.fileMissing}>
+                  {files[field] ? "Chosen" : "Missing"}
+                </span>
                 <input
+                  aria-label={label}
                   accept=".csv,text/csv"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
@@ -261,6 +309,7 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
                   }}
                   type="file"
                 />
+                {files[field] && <span className={styles.fileName}>{files[field]!.name}</span>}
               </label>
             ))}
           </div>

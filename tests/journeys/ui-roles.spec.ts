@@ -31,6 +31,7 @@ test("AT-14 viewer is read-only", async ({ page }) => {
   await signOut(page);
   await login(page, "viewer@harbor.example");
   await page.goto(`/cases/${caseId}`);
+  await page.getByText("Case options", { exact: true }).click();
   await expect(page.getByText("Read-only access.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Pause case" })).toHaveCount(0);
   const response = await page.request.post(`/api/v1/cases/${caseId}/control`, {

@@ -1,0 +1,69 @@
+.page {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+}
+
+.progress {
+  margin: 0;
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stepCard {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.completeIcon,
+.pendingIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 750;
+}
+
+.completeIcon {
+  background: #dcfce7;
+  color: var(--color-success-700);
+}
+
+.pendingIcon {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-700);
+}
+
+.stepContent {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.stepTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stepTitle h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.stepContent p {
+  margin: 0;
+  color: var(--color-muted);
+}

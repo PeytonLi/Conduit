@@ -40,6 +40,7 @@ export default async function CasePage({
       options={options.options}
       role={membership.role}
       timeline={timeline}
+      organizationTimeZone={organization.timezone}
     />
   );
 }

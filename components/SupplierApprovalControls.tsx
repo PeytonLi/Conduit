@@ -4,6 +4,9 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SupplierSummary } from "@/lib/db/queries/suppliers";
 import { postJson, workspaceErrorMessage } from "./client-api";
+import { Button } from "./ui/Button";
+import { SelectField, TextAreaField } from "./ui/Field";
+import styles from "./supplier-approval-controls.module.css";
 
 export function SupplierApprovalControls({ supplier }: { supplier: SupplierSummary }) {
   const router = useRouter();
@@ -32,13 +35,21 @@ export function SupplierApprovalControls({ supplier }: { supplier: SupplierSumma
     }
   }
 
-  return <section>
-    <label>Decision <select onChange={(event) => setDecision(event.target.value as typeof decision)} value={decision}>
+  return <section className={styles.controls}>
+    <SelectField label="Decision" onChange={(event) => setDecision(event.target.value as typeof decision)} value={decision}>
       <option value="approve">Approve</option><option value="block">Block</option><option value="revoke">Revoke approval</option>
-    </select></label>
-    <label>Reason <textarea onChange={(event) => setReason(event.target.value)} value={reason} /></label>
-    <button disabled={busy || !reason.trim()} onClick={() => void submit("purchasing")} type="button">Update purchasing approval</button>
-    {supplier.contacts.map((contact) => <button disabled={busy || !reason.trim()} key={contact.id} onClick={() => void submit("contact", contact.id)} type="button">Update outreach approval for {contact.display_name ?? contact.address}</button>)}
-    {message && <p role="status">{message}</p>}
+    </SelectField>
+    <TextAreaField label="Reason" onChange={(event) => setReason(event.target.value)} value={reason} />
+    <div className={styles.actions}>
+      <Button disabled={busy || !reason.trim()} onClick={() => void submit("purchasing")} variant="secondary">
+        {busy ? "Saving…" : "Update purchasing approval"}
+      </Button>
+      {supplier.contacts.map((contact) => (
+        <Button disabled={busy || !reason.trim()} key={contact.id} onClick={() => void submit("contact", contact.id)} variant="secondary">
+          Update outreach approval for {contact.display_name ?? contact.address}
+        </Button>
+      ))}
+    </div>
+    {message && <p className={styles.message} role="status">{message}</p>}
   </section>;
 }

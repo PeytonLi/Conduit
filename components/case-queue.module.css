@@ -1,8 +1,7 @@
 .queue {
-  --surface: #fff;
   display: grid;
-  gap: 22px;
-  color: var(--text, #16191d);
+  gap: var(--space-5);
+  color: var(--color-text);
 }
 
 .pageHeader {
@@ -34,35 +33,68 @@
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .summaryTile {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.summaryTile button {
   display: grid;
-  gap: 6px;
-  padding: 17px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 10px;
-  background: var(--surface);
+  width: 100%;
+  height: 100%;
+  justify-items: start;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.summaryTile button:hover {
+  background: var(--color-brand-50);
+}
+
+.summaryTile button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
 }
 
 .summaryTile span,
 .summaryTile small {
-  color: var(--muted, #5b636e);
+  color: var(--color-muted);
 }
 
 .summaryTile strong {
-  font-size: 1.7rem;
+  font-size: var(--text-2xl);
 }
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 10px;
-  background: var(--surface);
+  grid-template-columns: minmax(0, 2fr) minmax(170px, 1fr) minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.filterDisclosure > summary {
+  display: none;
+}
+
+.filterDisclosure > div {
+  display: block;
+  padding-top: 0;
 }
 
 .filters label {
@@ -75,50 +107,52 @@
 }
 
 .searchLabel {
-  grid-column: 1 / -1;
+  grid-column: 1 / span 2;
 }
 
 .filters input:not([type="checkbox"]),
 .filters select {
   min-width: 0;
-  min-height: 40px;
-  padding: 7px 9px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text, #16191d);
+  min-height: 42px;
+  padding: 9px var(--space-3);
+  border: 1px solid var(--color-neutral-300);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
   font: inherit;
 }
 
-.phaseFilters {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
+.mainFilter {
+  min-width: 0;
+}
+
+.decisionToggle,
+.secondaryToggle {
+  display: flex !important;
+  min-height: 42px;
+  align-items: center !important;
+  gap: var(--space-2) !important;
+  font-weight: 600 !important;
+}
+
+.decisionToggle input,
+.secondaryToggle input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
   margin: 0;
-  padding: 12px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 6px;
+  accent-color: var(--color-brand-700);
 }
 
-.phaseFilters legend {
-  padding: 0 5px;
-  font-weight: 700;
+.moreFilters {
+  grid-column: 1 / -1;
 }
 
-.phaseFilters label,
-.checkFilters label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.82rem;
-  font-weight: 500;
-}
-
-.checkFilters {
+.secondaryFilters {
   display: grid;
-  align-content: center;
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-3);
 }
 
 .clearButton,
@@ -126,15 +160,20 @@
 .emptyState button,
 .errorState button,
 .refreshBanner button {
+  min-height: 40px;
   width: max-content;
-  padding: 9px 12px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text, #16191d);
+  padding: 8px var(--space-3);
+  border: 1px solid var(--color-neutral-300);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
   font: inherit;
   font-weight: 650;
   cursor: pointer;
+}
+
+.clearButton {
+  align-self: end;
 }
 
 .clearButton {
@@ -346,7 +385,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .phaseFilters {
+  .searchLabel,
+  .moreFilters {
+    grid-column: 1 / -1;
+  }
+
+  .secondaryFilters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -356,12 +400,31 @@
   }
 }
 
+@media (max-width: 639px) {
+  .filterDisclosure > summary {
+    display: flex;
+  }
+
+  .filterDisclosure:not([open]) > div {
+    display: none;
+  }
+
+  .filterDisclosure[open] > div {
+    display: block;
+  }
+}
+
 @media (max-width: 420px) {
   .filters {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .searchLabel,
+  .moreFilters {
+    grid-column: auto;
+  }
+
   .summaryTile {
-    padding: 12px;
+    padding: 0;
   }
 }

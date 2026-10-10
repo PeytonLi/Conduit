@@ -5,7 +5,9 @@ import type {
   TimelineEntry,
 } from "@/lib/db/queries/cases";
 import { formatDateTime, formatDateTimeRange, formatMoney, formatQuantity, formatQuantityChange } from "@/lib/db/queries/format";
-import { humanLabel, originalOrderTreatmentLabel } from "@/lib/db/queries/labels";
+import { humanLabel, originalOrderTreatmentLabel } from "@/lib/ui/labels";
+import { Disclosure } from "./ui/Disclosure";
+import { RequestReassessmentButton } from "./RequestReassessmentButton";
 import { CaseControls } from "./CaseControls";
 import { EvidenceDrawer } from "./EvidenceDrawer";
 import { QuoteCorrectionForm } from "./QuoteCorrectionForm";
@@ -68,14 +70,21 @@ function StockProjection({
   const unit = detail.case.item.unit;
   const timeZone = detail.case.location.timezone;
 
+  if (!points.length) {
+    return (
+      <section aria-labelledby={chartId} className={styles.projection}>
+        <h3 id={chartId}>Projected usable stock</h3>
+        <p>No stock projection is available for this case.</p>
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby={chartId} className={styles.projection}>
       <figure>
         <figcaption id={chartId}>Projected usable stock</figcaption>
         <p className={styles.chartSummary}>
-          {points.length
-            ? `Projected balance ranges from ${displayBalance(minBalance, unit)} to ${displayBalance(maxBalance, unit)}.`
-            : "Projection points are Unknown."}
+          Projected balance ranges from {displayBalance(minBalance, unit)} to {displayBalance(maxBalance, unit)}.
         </p>
         <svg
           aria-hidden="true"
@@ -107,14 +116,14 @@ function StockProjection({
           <caption>Projected usable stock ({unit}, {detail.case.location.timezone})</caption>
           <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Change</th><th scope="col">Projected balance</th></tr></thead>
           <tbody>
-            {points.length ? points.map((point, index) => (
+            {points.map((point, index) => (
               <tr key={`${point.at}-${index}`}>
                 <td>{formatDateTime(point.at, detail.case.location.timezone) ?? "Unknown"}</td>
                 <td>{point.label || humanLabel("projectionKind", point.kind)}</td>
                 <td>{formatQuantityChange(point.delta, unit) ?? "Unknown"}</td>
                 <td>{displayBalance(point.balance, unit)}</td>
               </tr>
-            )) : <tr><td colSpan={4}>Unknown</td></tr>}
+            ))}
           </tbody>
         </table>
       </div>
@@ -133,7 +142,13 @@ function ImpactSummary({
   const source = evidence.find((entry) => /inventory|receipt|stock/i.test(entry.purpose));
   return (
     <section aria-labelledby="impact-summary-heading" className={styles.impactSummary}>
-      <h2 id="impact-summary-heading">Impact summary</h2>
+      <h2 id="impact-summary-heading">Impact</h2>
+      <p className={styles.sourceTimes}>
+        Source data as of {formatDateTime(detail.case.source_as_of, detail.case.location.timezone) ?? "Unknown"}
+        {" · "}
+        Assessed {formatDateTime(detail.assessment?.assessed_at ?? null, detail.case.location.timezone) ?? "Unknown"}
+        {detail.case.replay_clock && <> · Replay clock {formatDateTime(detail.case.replay_clock, detail.case.location.timezone)}</>}
+      </p>
       <dl className={styles.factList}>
         <div><dt>Shortage quantity</dt><dd>{quantityLabel(assessment?.bridge_quantity ?? null, detail.case.item.unit)} {sourceLink(source, detail.case.location.timezone)}</dd></div>
         <div><dt>First shortage</dt><dd>{formatDateTime(assessment?.first_shortage_at ?? null, detail.case.location.timezone) ?? "Unknown"} {sourceLink(source, detail.case.location.timezone)}</dd></div>
@@ -204,8 +219,16 @@ function SupplierOptionTable({
               <article className={styles.optionCard} key={option.id}>
                 <header className={styles.optionHeader}>
                   <div><h4>{option.supplier.name || "Unknown supplier"}</h4><StatusBadge tone={feasibility === "feasible" ? "success" : feasibility === "rejected" ? "danger" : "warning"}>{label}</StatusBadge></div>
-                  <p>{option.item_sku || "Unknown item"} · {option.location ?? "Unknown location"}</p>
                 </header>
+                <dl className={styles.optionSummary}>
+                  <div><dt>Quantity and arrival</dt><dd>{option.quantity === null ? "Unknown" : formatQuantity(option.quantity, detail.case.item.unit)}
+                    {option.schedule.map((entry, index) => <span key={`${option.id}-summary-${index}`}> · {formatQuantity(entry.quantity, detail.case.item.unit)} by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "Unknown"}</span>)}
+                  </dd></div>
+                  <div><dt>Total cash outlay</dt><dd>{moneyLabel(option.costs.total_cash_outlay_minor, option.currency)}</dd></div>
+                  <div><dt>Net incremental</dt><dd>{moneyLabel(option.costs.net_incremental_minor, option.currency)}</dd></div>
+                </dl>
+                <Disclosure summary="Details">
+                  <p className={styles.optionContext}>{option.item_sku || "Unknown item"} · {option.location ?? "Unknown location"}</p>
                 <dl className={styles.optionFacts}>
                   <div><dt>Purchasing status</dt><dd>{humanLabel("supplierStatus", option.supplier.purchasing_status)}</dd></div>
                   <div><dt>Specification status</dt><dd>{humanLabel("specificationStatus", option.specification_status)}</dd></div>
@@ -219,7 +242,7 @@ function SupplierOptionTable({
                   <div><dt>Surplus</dt><dd>{quantityLabel(option.surplus_quantity, detail.case.item.unit)}</dd></div>
                 </dl>
                 {option.reasons.length > 0 && <div className={styles.reasons}><strong>Constraints and reasons</strong><ul>{option.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>}
-                {option.missing_fields.length > 0 && <p className={styles.missingOption}>Missing: {option.missing_fields.join(", ")}</p>}
+                {option.missing_fields.length > 0 && <p className={styles.missingOption}>Missing: {option.missing_fields.map((field) => humanLabel("missingQuoteTerm", field)).join(", ")}</p>}
                 <dl className={styles.costs}>
                   {costRows.map(([label, key]) => (
                     <div key={key}><dt>{label}</dt><dd>{moneyLabel(option.costs[key], option.currency)}</dd></div>
@@ -250,6 +273,7 @@ function SupplierOptionTable({
                     timezone={detail.case.location.timezone}
                   />
                 )}
+                </Disclosure>
               </article>
             ))}
           </section>
@@ -263,58 +287,62 @@ function ActionTimeline({
   timeline,
   evidence,
   detail,
+  organizationTimeZone,
   environmentMode,
   canOutreach,
 }: {
   timeline: TimelineEntry[];
   evidence: CaseEvidence[];
   detail: CaseDetail;
+  organizationTimeZone: string;
   environmentMode: "live" | "sandbox" | "replay";
   canOutreach: boolean;
 }) {
   const callActions = timeline.filter((entry) => entry.group === "call_outcome");
+  const orderedTimeline = [...timeline].sort((left, right) =>
+    new Date(right.at).getTime() - new Date(left.at).getTime(),
+  );
+  const visibleTimeline = orderedTimeline.slice(0, 5);
+  const additionalTimeline = orderedTimeline.slice(5);
   const isReplay = detail.case.data_label === "Replay" ||
     (detail.case.data_label === null && environmentMode === "replay");
+  const renderEntries = (entries: TimelineEntry[]) => (
+    <ol>
+      {entries.map((entry) => {
+        const status = humanLabel("timelineStatus", entry.status);
+        const tone = status === "Failed" ? "danger" : status === "Unknown" ? "warning" : "neutral";
+        return (
+          <li key={entry.id}>
+            <div className={styles.timelineHeading}>
+              <h3>{entry.title}</h3>
+              <StatusBadge tone={tone}>{status}</StatusBadge>
+            </div>
+            <dl>
+              <div><dt>Time</dt><dd>{formatDateTime(entry.at, organizationTimeZone) ?? "Unknown"}</dd></div>
+              <div><dt>Actor</dt><dd>{entry.actor.label}</dd></div>
+            </dl>
+            {isReplay && entry.action_ref && <StatusBadge>Replay</StatusBadge>}
+            {[...new Set(entry.evidence_ids)].length > 0 && (
+              <ul className={styles.sourceLinks}>
+                {[...new Set(entry.evidence_ids)].flatMap((id, index) => {
+                  const source = evidence.find((item) => item.id === id);
+                  return source ? (
+                    <li key={id}>
+                      <EvidenceDrawer evidence={source} label={`Source ${index + 1}`} timeZone={detail.case.location.timezone} />
+                    </li>
+                  ) : [];
+                })}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
   return (
     <>
-      <section aria-labelledby="timeline-heading" className={styles.timeline}>
-        <h2 id="timeline-heading">Action timeline</h2>
-        {timeline.length ? (
-          <ol>
-            {timeline.map((entry) => {
-              const status = humanLabel("timelineStatus", entry.status);
-              const tone = status === "Failed" ? "danger" : status === "Unknown" ? "warning" : "neutral";
-              return (
-                <li key={entry.id}>
-                  <div className={styles.timelineHeading}>
-                    <h3>{entry.title}</h3>
-                    <StatusBadge tone={tone}>{status}</StatusBadge>
-                  </div>
-                  <dl>
-                    <div><dt>Time</dt><dd>{formatDateTime(entry.at, detail.case.location.timezone) ?? "Unknown"}</dd></div>
-                    <div><dt>Actor</dt><dd>{entry.actor.label}</dd></div>
-                  </dl>
-                  {isReplay && entry.action_ref && <StatusBadge>Replay</StatusBadge>}
-                  {[...new Set(entry.evidence_ids)].length > 0 && (
-                    <ul className={styles.sourceLinks}>
-                      {[...new Set(entry.evidence_ids)].flatMap((id, index) => {
-                        const source = evidence.find((item) => item.id === id);
-                        return source ? (
-                          <li key={id}>
-                            <EvidenceDrawer evidence={source} label={`Source ${index + 1}`} timeZone={detail.case.location.timezone} />
-                          </li>
-                        ) : [];
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        ) : <p>No recorded actions for this case.</p>}
-      </section>
       <section aria-labelledby="calls-heading" className={styles.calls}>
-        <h2 id="calls-heading">Supplier call and outreach</h2>
+        <h2 id="calls-heading">Supplier outreach</h2>
         {callActions.length ? (
           <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {humanLabel("timelineStatus", call.status)}</li>)}</ul>
         ) : <p>No calls for this case.</p>}
@@ -323,8 +351,17 @@ function ActionTimeline({
               caseId={detail.case.id}
               contacts={detail.supplier_contacts}
               isReplay={isReplay || environmentMode === "sandbox"}
-            />
+          />
           : !detail.supplier_contacts.length && <p>No supplier contacts are available for this case.</p>}
+      </section>
+      <section aria-labelledby="timeline-heading" className={styles.timeline}>
+        <h2 id="timeline-heading">Timeline</h2>
+        {visibleTimeline.length ? renderEntries(visibleTimeline) : <p>No recorded activity yet.</p>}
+        {additionalTimeline.length > 0 && (
+          <Disclosure summary={`Show all (${orderedTimeline.length})`}>
+            {renderEntries(additionalTimeline)}
+          </Disclosure>
+        )}
       </section>
     </>
   );
@@ -337,6 +374,7 @@ export function CaseDetailView({
   timeline,
   role,
   environmentMode,
+  organizationTimeZone,
 }: {
   detail: CaseDetail;
   options: OptionRow[];
@@ -344,43 +382,37 @@ export function CaseDetailView({
   timeline: TimelineEntry[];
   role: "owner" | "operator" | "viewer";
   environmentMode: "live" | "sandbox" | "replay";
+  organizationTimeZone: string;
 }) {
   const supportEvidence = evidence.find((item) => /delay|supplier|quote/i.test(item.purpose));
   const planOption = options.find((option) => option.plan_id === detail.plan?.plan_id);
   const planEvidence = detail.plan?.evidence_ids
     .map((id) => evidence.find((item) => item.id === id))
     .filter((item): item is CaseEvidence => item !== undefined) ?? [];
-  const specification = detail.case.item.specification;
-  const specificationText = specification
-    ? `${String(specification.length_mm ?? "Unknown")} × ${String(specification.width_mm ?? "Unknown")} × ${String(specification.height_mm ?? "Unknown")} mm · ${String(specification.material_grade ?? "Unknown")}`
-    : "Unknown";
+  const titleWithoutPurchaseOrder = detail.case.title
+    .split(" · ")
+    .filter((part) => !detail.case.purchase_orders.includes(part))
+    .join(" · ");
+  const caseTitle = titleWithoutPurchaseOrder || detail.case.item.sku || detail.case.title;
   return (
     <div className={styles.detail}>
       <header className={styles.caseHeader}>
-        <p className={styles.eyebrow}>Case {detail.case.id.slice(0, 8)}</p>
-        <h1>{detail.case.title}</h1>
-        <p>{detail.case.item.description || "Unknown item description"} · {detail.case.item.sku || "Unknown SKU"}</p>
-        <p>Specification: {specificationText}</p>
-        <p>Location: {detail.case.location.name || "Unknown"}</p>
-        <p>Purchase orders: {detail.case.purchase_orders.length ? detail.case.purchase_orders.join(", ") : "Unknown"}</p>
-        <p>Assignee: {detail.case.assignee?.email ?? "Unassigned"}</p>
+        <h1>{caseTitle}</h1>
+        <p className={styles.caseContext}>
+          {detail.case.item.description || detail.case.item.sku || "Unknown item"} ·
+          {" "}{detail.case.location.name || "Unknown location"} ·
+          {" "}{detail.case.purchase_orders.join(", ") || "Unknown"}
+        </p>
         <div className={styles.headerBadges}>
           <StatusBadge>{humanLabel("phase", detail.case.phase)}</StatusBadge>
-          <StatusBadge tone={detail.case.run_control === "blocked" ? "warning" : "neutral"}>
-            {humanLabel("runControl", detail.case.run_control)}{detail.case.block_reason ? ` · ${humanLabel("blockReason", detail.case.block_reason)}` : ""}
-          </StatusBadge>
           <StatusBadge tone={severityTone(detail.case.severity)}>{humanLabel("severity", detail.case.severity)}</StatusBadge>
-          <StatusBadge>{humanLabel("dataLabel", detail.data_label)}</StatusBadge>
-          {detail.case.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}
         </div>
-        {detail.case.replay_clock && (
-          <p>Replay clock: {formatDateTime(detail.case.replay_clock, detail.case.location.timezone)}</p>
+        {detail.case.data_stale && (
+          <p className={styles.staleWarning} role="status">
+            Business data may be out of date.
+            {detail.permissions.can_reassess && <RequestReassessmentButton />}
+          </p>
         )}
-        <p className={styles.sourceTimes}>
-          Source data as of {formatDateTime(detail.case.source_as_of, detail.case.location.timezone) ?? "Unknown"}
-          {" · "}
-          Assessed {formatDateTime(detail.assessment?.assessed_at ?? null, detail.case.location.timezone) ?? "Unknown"}
-        </p>
       </header>
       <section aria-label="Case impact" className={styles.impact}>
         <h2>{detail.impact_sentence}</h2>
@@ -416,6 +448,7 @@ export function CaseDetailView({
         environmentMode={environmentMode}
         evidence={evidence}
         timeline={timeline}
+        organizationTimeZone={organizationTimeZone}
       />
       <section aria-labelledby="evidence-heading" className={styles.evidenceList}>
         <h2 id="evidence-heading">Evidence</h2>
