@@ -204,6 +204,28 @@ describe("AT-29 telemetry", () => {
     expect(list[0].keep).toBe("safe");
   });
 
+  it("masks phone formats without changing dates, identifiers, or other numbers", () => {
+    const preserved = [
+      "2026-10-16",
+      "2026-10-11T19:34:07Z",
+      "164e0534-c2a1-4d6e-9f1a-1e1cf4bd4cc6",
+      "ec3afe8cfba54655536423aa01bd77e2",
+      "4,000 cartons",
+      6195,
+    ];
+    const phones = [
+      "+1 415 555 0100",
+      "(415) 555-0100",
+      "415-555-0100",
+      "415.555.0100",
+      "+14155550100",
+    ];
+    const masked = maskTelemetry({ preserved, phones });
+
+    expect(masked.preserved).toEqual(preserved);
+    expect(masked.phones).toEqual(phones.map(() => "[phone]"));
+  });
+
   it("preserves numeric token counts while masking other sensitive values", () => {
     const input = {
       "neatlogs.llm.token_count.prompt": 391,
