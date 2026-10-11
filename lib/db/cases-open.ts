@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { extractionV1Schema, type ExtractionV1 } from "@/lib/agent/extraction-schema";
+import {
+  extractionV1Schema,
+  PROMPT_VERSION,
+  type ExtractionV1,
+} from "@/lib/agent/extraction-schema";
 import {
   verifyExtraction,
   type UnresolvedFact,
@@ -13,6 +17,7 @@ import {
 import { findQuote } from "@/lib/agent/extraction-verify";
 import type { RpcClient } from "./messages";
 import { loadMessage } from "./messages";
+import { orgPseudonym, withBusinessSpan } from "@/lib/telemetry";
 
 export interface OpenCasesResult {
   status: "matched" | "needs_review" | "not_delay" | string;
@@ -114,19 +119,40 @@ export async function processSourceMessage({
   }
 
   if (!facts) {
-    const result = await extractDelayFacts({
-      mode: effectiveModeOfOrg,
-      message: {
-        rfcMessageId: message.rfc_message_id,
-        bodyHash: "",
-        segments: loaded.segments.map((s) => ({
-          kind: s.kind as "body" | "quoted" | "forwarded",
-          index: s.index,
-          content: s.content,
-        })),
+    const result = await withBusinessSpan(
+      "message_extraction",
+      {
+        org_pseudonym: orgPseudonym(orgId),
+        model: deps.model,
+        prompt_version: PROMPT_VERSION,
+        source_message_id: sourceMessageId,
       },
-      deps,
-    });
+      () =>
+        extractDelayFacts({
+          mode: effectiveModeOfOrg,
+          message: {
+            rfcMessageId: message.rfc_message_id,
+            bodyHash: "",
+            segments: loaded.segments.map((s) => ({
+              kind: s.kind as "body" | "quoted" | "forwarded",
+              index: s.index,
+              content: s.content,
+            })),
+          },
+          deps: {
+            ...deps,
+            recordUsage: async ({ requestId, model, rawUnits }) => {
+              if (effectiveModeOfOrg === "replay") return;
+              await rpc.rpc("inbox_record_extraction_usage", {
+                org_id: orgId,
+                request_id: requestId,
+                model,
+                raw_units: rawUnits,
+              });
+            },
+          },
+        }),
+    );
     const recorded = await rpc.rpc<{ version: number }>("inbox_record_extraction", {
       org_id: orgId,
       source_message_id: sourceMessageId,

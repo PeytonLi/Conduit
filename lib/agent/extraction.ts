@@ -3,12 +3,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import OpenAI from "openai";
 import { z } from "zod";
+import { safeErrorLogFields } from "@/lib/safe-error";
+import { getNeatlogs, isTelemetryEnabled } from "@/lib/telemetry";
 import { extractionV1Schema, PROMPT_VERSION, type ExtractionV1 } from "./extraction-schema";
 
 export interface DeepSeekEnv {
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_BASE_URL?: string;
   DEEPSEEK_MODEL?: string;
+  NEATLOGS_API_KEY?: string;
 }
 
 /**
@@ -17,12 +20,18 @@ export interface DeepSeekEnv {
  */
 export function createDeepSeekClient(env: DeepSeekEnv): ChatClient | null {
   if (!env.DEEPSEEK_API_KEY || !env.DEEPSEEK_MODEL) return null;
-  const client = new OpenAI({
+  let client = new OpenAI({
     apiKey: env.DEEPSEEK_API_KEY,
     baseURL: env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
     timeout: 60_000,
     maxRetries: 0,
   });
+  if (env.NEATLOGS_API_KEY && isTelemetryEnabled()) {
+    const neatlogs = getNeatlogs();
+    if (neatlogs?.wrapOpenAI) {
+      client = neatlogs.wrapOpenAI(client) as OpenAI;
+    }
+  }
   return {
     async complete(params) {
       const res = await client.chat.completions.create({
@@ -34,6 +43,7 @@ export function createDeepSeekClient(env: DeepSeekEnv): ChatClient | null {
         thinking: params.thinking,
       } as OpenAI.ChatCompletionCreateParamsNonStreaming);
       return {
+        id: res.id,
         content: res.choices[0]?.message?.content ?? "",
         usage: res.usage,
       };
@@ -49,7 +59,13 @@ export interface ChatClient {
     temperature: number;
     max_tokens: number;
     thinking?: { type: "disabled" };
-  }): Promise<{ content: string; usage?: unknown }>;
+  }): Promise<{ id?: string; content: string; usage?: unknown }>;
+}
+
+export interface ExtractionUsageRecord {
+  requestId: string;
+  model: string;
+  rawUnits: Record<string, number>;
 }
 
 export interface ExtractionMessage {
@@ -140,6 +156,38 @@ export interface ExtractDeps {
   deepseek?: ChatClient;
   replayFixturesDir?: string;
   model?: string;
+  recordUsage?: (record: ExtractionUsageRecord) => Promise<void>;
+}
+
+function rawUsageUnits(usage: unknown): Record<string, number> {
+  if (usage === null || typeof usage !== "object" || Array.isArray(usage)) return {};
+  const source = usage as Record<string, unknown>;
+  const rawUnits: Record<string, number> = {};
+  for (const key of [
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "prompt_cache_hit_tokens",
+    "prompt_cache_miss_tokens",
+  ]) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) rawUnits[key] = value;
+  }
+  return rawUnits;
+}
+
+async function recordExtractionUsage(
+  response: { id?: string; usage?: unknown },
+  model: string,
+  recordUsage: ExtractDeps["recordUsage"],
+): Promise<void> {
+  const rawUnits = rawUsageUnits(response.usage);
+  if (!response.id || Object.keys(rawUnits).length === 0 || !recordUsage) return;
+  try {
+    await recordUsage({ requestId: response.id, model, rawUnits });
+  } catch (error) {
+    console.error("message extraction usage write failed", safeErrorLogFields(error));
+  }
 }
 
 export async function extractDelayFacts({
@@ -211,6 +259,7 @@ export async function extractDelayFacts({
       max_tokens: 2000,
       thinking: { type: "disabled" },
     });
+    await recordExtractionUsage(first, model, deps.recordUsage);
     let attempt = parseModelResponse(first.content);
     if (attempt.facts) {
       return {
@@ -241,6 +290,7 @@ export async function extractDelayFacts({
       max_tokens: 2000,
       thinking: { type: "disabled" },
     });
+    await recordExtractionUsage(second, model, deps.recordUsage);
     attempt = parseModelResponse(second.content);
     return {
       extractor: "deepseek",

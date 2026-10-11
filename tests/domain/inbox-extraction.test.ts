@@ -1,8 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  _resetTelemetryForTests,
+  initTelemetry,
+  type NeatlogsModule,
+} from "@/lib/telemetry";
+import {
+  createDeepSeekClient,
   extractDelayFacts,
   type ChatClient,
 } from "@/lib/agent/extraction";
+
+afterEach(() => {
+  _resetTelemetryForTests();
+  vi.restoreAllMocks();
+});
 
 const message = {
   rfcMessageId: "<x@y.example>",
@@ -130,6 +141,7 @@ describe("inbox-extraction: deepseek request params", () => {
   });
 
   it("replay mode reads fixtures and validates them", async () => {
+    const recordUsage = vi.fn(async () => {});
     const r = await extractDelayFacts({
       mode: "replay",
       message: {
@@ -137,11 +149,150 @@ describe("inbox-extraction: deepseek request params", () => {
         bodyHash: "x",
         segments: message.segments,
       },
-      deps: {},
+      deps: { recordUsage },
     });
     expect(r.extractor).toBe("replay_fixture");
     expect(r.status).toBe("valid");
     expect(r.facts?.lines[0].order_ref).toBe("PO-1042");
+    expect(recordUsage).not.toHaveBeenCalled();
+  });
+
+  it("records usage for a successful provider response", async () => {
+    const recordUsage = vi.fn(async () => {});
+    const deepseek: ChatClient = {
+      async complete() {
+        return {
+          id: "request-1",
+          content: validJson,
+          usage: {
+            prompt_tokens: 11,
+            completion_tokens: 7,
+            total_tokens: 18,
+            prompt_cache_hit_tokens: 2,
+            prompt_cache_miss_tokens: 9,
+          },
+        };
+      },
+    };
+
+    const result = await extractDelayFacts({
+      mode: "live",
+      message,
+      deps: { deepseek, model: "deepseek-chat", recordUsage },
+    });
+
+    expect(result.status).toBe("valid");
+    expect(recordUsage).toHaveBeenCalledTimes(1);
+    expect(recordUsage).toHaveBeenCalledWith({
+      requestId: "request-1",
+      model: "deepseek-chat",
+      rawUnits: {
+        prompt_tokens: 11,
+        completion_tokens: 7,
+        total_tokens: 18,
+        prompt_cache_hit_tokens: 2,
+        prompt_cache_miss_tokens: 9,
+      },
+    });
+  });
+
+  it("records usage for both the initial and retry requests", async () => {
+    const recordUsage = vi.fn(async () => {});
+    const responses = [
+      {
+        id: "request-1",
+        content: JSON.stringify({ schema_version: 1 }),
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      },
+      {
+        id: "request-2",
+        content: validJson,
+        usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+      },
+    ];
+    const deepseek: ChatClient = {
+      async complete() {
+        return responses.shift()!;
+      },
+    };
+
+    const result = await extractDelayFacts({
+      mode: "live",
+      message,
+      deps: { deepseek, model: "deepseek-chat", recordUsage },
+    });
+
+    expect(result.status).toBe("valid");
+    expect(recordUsage).toHaveBeenCalledTimes(2);
+    expect(recordUsage).toHaveBeenNthCalledWith(1, {
+      requestId: "request-1",
+      model: "deepseek-chat",
+      rawUnits: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+    });
+    expect(recordUsage).toHaveBeenNthCalledWith(2, {
+      requestId: "request-2",
+      model: "deepseek-chat",
+      rawUnits: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    });
+  });
+
+  it("skips usage writes without a response id or token usage", async () => {
+    const recordUsage = vi.fn(async () => {});
+    const responses = [
+      { content: validJson, usage: { prompt_tokens: 5 } },
+      { id: "request-without-usage", content: validJson },
+    ];
+    const deepseek: ChatClient = {
+      async complete() {
+        return responses.shift()!;
+      },
+    };
+
+    for (let index = 0; index < 2; index += 1) {
+      await extractDelayFacts({
+        mode: "live",
+        message,
+        deps: { deepseek, model: "deepseek-chat", recordUsage },
+      });
+    }
+
+    expect(recordUsage).not.toHaveBeenCalled();
+  });
+
+  it("keeps extraction successful and logs sanitized usage-write failures", async () => {
+    const recordUsage = vi.fn(async () => {
+      throw Object.assign(new Error("Bearer secret-token"), {
+        code: "USAGE_WRITE_FAILED",
+      });
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deepseek: ChatClient = {
+      async complete() {
+        return {
+          id: "request-1",
+          content: validJson,
+          usage: { prompt_tokens: 5 },
+        };
+      },
+    };
+
+    const result = await extractDelayFacts({
+      mode: "live",
+      message,
+      deps: { deepseek, model: "deepseek-chat", recordUsage },
+    });
+
+    expect(result.status).toBe("valid");
+    expect(errorLog).toHaveBeenCalledTimes(1);
+    expect(errorLog).toHaveBeenCalledWith(
+      "message extraction usage write failed",
+      {
+        name: "Error",
+        code: "USAGE_WRITE_FAILED",
+        message: "Bearer [redacted]",
+      },
+    );
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain("secret-token");
   });
 });
 
@@ -157,12 +308,37 @@ describe("effectiveMode and deepseek factory", () => {
   });
 
   it("createDeepSeekClient returns null without key or model", async () => {
-    const { createDeepSeekClient } = await import("@/lib/agent/extraction");
     expect(createDeepSeekClient({})).toBeNull();
     expect(createDeepSeekClient({ DEEPSEEK_API_KEY: "k" })).toBeNull();
     expect(createDeepSeekClient({ DEEPSEEK_MODEL: "m" })).toBeNull();
     expect(
       createDeepSeekClient({ DEEPSEEK_API_KEY: "k", DEEPSEEK_MODEL: "m" }),
     ).not.toBeNull();
+  });
+
+  it("wraps the extraction OpenAI client when neatlogs is enabled", async () => {
+    const wrapOpenAI = vi.fn(<T>(client: T) => client);
+    const neatlogs = {
+      async init() {},
+      async trace<T>(
+        _options: { name: string; kind?: string; input?: unknown },
+        fn: (span: { setAttribute(key: string, value: unknown): void }) => T | Promise<T>,
+      ) {
+        return fn({ setAttribute() {} });
+      },
+      async flush() {},
+      async shutdown() {},
+      wrapOpenAI,
+    } as unknown as NeatlogsModule;
+    await initTelemetry({ NEATLOGS_API_KEY: "n" }, { neatlogs });
+
+    expect(
+      createDeepSeekClient({
+        DEEPSEEK_API_KEY: "k",
+        DEEPSEEK_MODEL: "m",
+        NEATLOGS_API_KEY: "n",
+      }),
+    ).not.toBeNull();
+    expect(wrapOpenAI).toHaveBeenCalledTimes(1);
   });
 });
