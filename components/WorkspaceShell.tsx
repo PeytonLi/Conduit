@@ -9,9 +9,9 @@ import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import styles from "./workspace-shell.module.css";
 
 const environmentCopy = {
-  replay: { label: "Replay", hint: "Sample data · nothing is sent" },
-  sandbox: { label: "Sandbox", hint: "Test mode · approved test contacts only" },
-  live: { label: "Live", hint: "Real suppliers" },
+  replay: { label: "Replay", hint: "Sample data · nothing is sent", icon: "play" },
+  sandbox: { label: "Sandbox", hint: "Test mode · approved test contacts only", icon: "shield" },
+  live: { label: "Live", hint: "Real suppliers", icon: "phone" },
 } as const;
 
 function initials(value: string) {
@@ -61,7 +61,7 @@ export function WorkspaceShell({
         <header className={styles.header}>
           <div className={styles.identity}>
             <span className={`${styles.environment} ${styles[`env_${environment}`] ?? ""}`} title={env.hint}>
-              <span aria-hidden="true" className={styles.envDot} />
+              <Icon name={env.icon} size={12} />
               {env.label}
             </span>
             <span className={styles.envHint}>{env.hint}</span>

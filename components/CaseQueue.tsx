@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseListQuery } from "@/lib/db/queries/contracts";
 import { formatDateTime, formatQuantity } from "@/lib/db/queries/format";
 import type { CaseListResult, CaseSummary } from "@/lib/db/queries/cases";
-import { humanLabel, labels } from "@/lib/ui/labels";
+import { humanLabel, labels, phaseStage, phaseTone } from "@/lib/ui/labels";
 import { Disclosure } from "./ui/Disclosure";
 import { LiveRegion } from "./LiveRegion";
 import { StatusBadge } from "./StatusBadge";
@@ -158,7 +158,7 @@ export function CaseQueue({
   function renderCaseBadges(item: CaseSummary, includePhase = true) {
     return (
       <div className={styles.badges}>
-        {includePhase && <StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge>}
+        {includePhase && <StatusBadge stage={phaseStage(item.phase)} tone={phaseTone(item.phase)}>{humanLabel("phase", item.phase)}</StatusBadge>}
         {item.run_control !== "active" && (
           <StatusBadge tone={item.run_control === "blocked" ? "warning" : "neutral"}>
             {humanLabel("runControl", item.run_control)}{item.block_reason ? `: ${humanLabel("blockReason", item.block_reason)}` : ""}
@@ -192,7 +192,7 @@ export function CaseQueue({
         <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Supplier details unavailable"}</td>
         <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Not available"}</td>
         <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Not available"}</td>
-        <td><StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge></td>
+        <td><StatusBadge stage={phaseStage(item.phase)} tone={phaseTone(item.phase)}>{humanLabel("phase", item.phase)}</StatusBadge></td>
         <td>{item.next_action.label}</td>
         <td>{item.assignee?.email ?? "Unassigned"}</td>
         <td>{item.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}</td>

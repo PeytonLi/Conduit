@@ -551,12 +551,13 @@
 
 .timeline ol > li::before {
   position: absolute;
-  top: 4px;
-  left: -29px;
-  width: 11px;
-  height: 11px;
+  top: 5px;
+  left: -27px;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
   border: 2px solid var(--color-surface);
-  border-radius: 50%;
+  border-radius: 1px;
   background: var(--color-brand-600);
   box-shadow: 0 0 0 1px var(--color-brand-200);
   content: "";

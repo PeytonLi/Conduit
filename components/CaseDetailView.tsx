@@ -8,7 +8,7 @@ import type {
   TimelineEntry,
 } from "@/lib/db/queries/cases";
 import { formatDateTime, formatDateTimeRange, formatMoney, formatQuantity, formatQuantityChange } from "@/lib/db/queries/format";
-import { humanLabel, originalOrderTreatmentLabel } from "@/lib/ui/labels";
+import { humanLabel, originalOrderTreatmentLabel, phaseStage, phaseTone } from "@/lib/ui/labels";
 import { Disclosure } from "./ui/Disclosure";
 import { RequestReassessmentButton } from "./RequestReassessmentButton";
 import { CaseControls } from "./CaseControls";
@@ -580,7 +580,7 @@ export function CaseDetailView({
         <h1>{caseTitle}</h1>
         <p className={styles.caseContext}>{caseContext.join(" · ") || "Case details unavailable"}</p>
         <div className={styles.headerBadges}>
-          {detail.case.phase && <StatusBadge>{humanLabel("phase", detail.case.phase)}</StatusBadge>}
+          {detail.case.phase && <StatusBadge stage={phaseStage(detail.case.phase)} tone={phaseTone(detail.case.phase)}>{humanLabel("phase", detail.case.phase)}</StatusBadge>}
           {detail.case.severity && <StatusBadge tone={severityTone(detail.case.severity)}>{humanLabel("severity", detail.case.severity)}</StatusBadge>}
         </div>
         {detail.case.data_stale && (
