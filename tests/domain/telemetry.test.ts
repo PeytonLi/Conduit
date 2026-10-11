@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   _resetTelemetryForTests,
   flushTelemetry,
+  getNeatlogs,
   initTelemetry,
   isTelemetryEnabled,
   orgPseudonym,
@@ -59,6 +60,21 @@ afterEach(() => {
 });
 
 describe("AT-29 telemetry", () => {
+  it("shares initialized state across reloaded module instances", async () => {
+    const { mod } = fakeNeatlogs();
+    await initTelemetry({ NEATLOGS_API_KEY: "k" }, { neatlogs: mod });
+
+    vi.resetModules();
+    const reloaded = await import("@/lib/telemetry");
+    try {
+      expect(reloaded.isTelemetryEnabled()).toBe(true);
+      expect(reloaded.getNeatlogs()).toBe(mod);
+      expect(getNeatlogs()).toBe(mod);
+    } finally {
+      reloaded._resetTelemetryForTests();
+    }
+  });
+
   it("no NEATLOGS_API_KEY -> disabled, business fn still runs once", async () => {
     const { mod, spans } = fakeNeatlogs();
     await initTelemetry({}, { neatlogs: mod });
@@ -186,6 +202,45 @@ describe("AT-29 telemetry", () => {
     const list = masked.list as Record<string, unknown>[];
     expect(list[0].secret_token).toBe("[redacted]");
     expect(list[0].keep).toBe("safe");
+  });
+
+  it("preserves numeric token counts while masking other sensitive values", () => {
+    const input = {
+      "neatlogs.llm.token_count.prompt": 391,
+      "neatlogs.llm.max_tokens": 1200,
+      prompt_tokens: 5,
+      reasoning_tokens: "12",
+      "neatlogs.llm.token_count.cache_read": "256",
+      access_token: "abc",
+      token: "xyz",
+      api_key: "k",
+      token_count: "abc",
+      authorization: "Bearer x",
+      reasoning_content: "...",
+      nested: {
+        completion_tokens: 212,
+        access_token: "nested-secret",
+        sibling: "person@example.com",
+      },
+    };
+
+    const masked = maskTelemetry(input) as Record<string, unknown>;
+    expect(masked["neatlogs.llm.token_count.prompt"]).toBe(391);
+    expect(masked["neatlogs.llm.max_tokens"]).toBe(1200);
+    expect(masked.prompt_tokens).toBe(5);
+    expect(masked.reasoning_tokens).toBe("12");
+    expect(masked["neatlogs.llm.token_count.cache_read"]).toBe("256");
+    expect(masked.access_token).toBe("[redacted]");
+    expect(masked.token).toBe("[redacted]");
+    expect(masked.api_key).toBe("[redacted]");
+    expect(masked.token_count).toBe("[redacted]");
+    expect(masked.authorization).toBe("[redacted]");
+    expect(masked.reasoning_content).toBe("[redacted]");
+
+    const nested = masked.nested as Record<string, unknown>;
+    expect(nested.completion_tokens).toBe(212);
+    expect(nested.access_token).toBe("[redacted]");
+    expect(nested.sibling).toBe("p***@example.com");
   });
 
   it("flushTelemetry never throws", async () => {

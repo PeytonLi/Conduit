@@ -1,5 +1,8 @@
 const SENSITIVE_KEY =
   /api[_-]?key|secret|token|authorization|password|cookie|reasoning(_content)?|credential/i;
+const NUMERIC_TOKEN_COUNT_KEY =
+  /(^|[._-])(max_tokens|[a-z_]*tokens|token_count(\.[a-z_]+)?)$/i;
+const NUMERIC_TOKEN_COUNT_STRING = /^\d+(\.\d+)?$/;
 
 const PATTERNS: { re: RegExp; replacement: string }[] = [
   { re: /sk-[A-Za-z0-9]{16,}/g, replacement: "[redacted]" },
@@ -32,7 +35,13 @@ export function maskTelemetry<T>(value: T): T {
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (SENSITIVE_KEY.test(key)) {
+      const numericTokenCount =
+        NUMERIC_TOKEN_COUNT_KEY.test(key) &&
+        ((typeof entry === "number" && Number.isFinite(entry)) ||
+          (typeof entry === "string" && NUMERIC_TOKEN_COUNT_STRING.test(entry)));
+      if (numericTokenCount) {
+        out[key] = entry;
+      } else if (SENSITIVE_KEY.test(key)) {
         out[key] = "[redacted]";
       } else {
         out[key] = maskTelemetry(entry);
