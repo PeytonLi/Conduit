@@ -12,7 +12,7 @@ Current phase: Phase 1 foundation implemented and locally verified; provider fea
 - The implementation work is on `devin/1791572968-phase1-setup`, based on the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit).
 - Local environment verified: Node.js v22.23.3, pnpm 10.34.6, Docker 29.7.2, and Supabase CLI 2.120.0.
 - No provider credentials, connected accounts, phone calls, supplier messages, or business-system writes have been tested or provisioned.
-- Current model choice: DeepSeek. Proposed phone provider: SignalWire.
+- Current model choice: DeepSeek. Current voice route: SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`), superseding native SIP after `SIP 404 Domain unavailable` from the registered-device host.
 
 ## Milestone ledger
 
@@ -36,7 +36,7 @@ If provider credentials remain unavailable, continue deterministic inventory and
 ## Open gates
 
 1. Live DeepSeek account/model and usage capture.
-2. ElevenLabs custom DeepSeek model + SignalWire SIP + authenticated tools + callback.
+2. Live provider credentials and production configuration for SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge.
 3. Authorized Gmail test mailbox and OAuth setup.
 4. Actual pilot business system and access; B0 uses imports and a demo ledger.
 5. Exa account if live public discovery is included in the build.
@@ -53,7 +53,7 @@ If provider credentials remain unavailable, continue deterministic inventory and
 - Regression reproduced before the fix: setup updated only `agentId` on an existing number; seven invalid configurations were accepted. After the fix, all 24 focused voice tests passed, including rejection before any provider writes. Typecheck, lint, and diff whitespace checks passed. The full unit suite had 260 passes and two unrelated failures: CSV content hashing with Windows CRLF fixtures, and the inventory performance threshold (106.37 ms versus 100 ms). Checks ran on the available Node 24.14.0; the project pins Node 22.
 - Inspected the user's live harness branch at `8928486` (`devin/1791582744-live-voice-harness`); its preparation scripts use the same voice adapter and need no contract changes for this fix.
 - During the initial investigation, provider configurations and application data were not changed and no test calls were placed. Schema and supplier-call payload contracts are unchanged. The subsequently authorized live attempt is recorded below.
-- Next action: obtain a PSTN termination Domain Application and its digest credentials from SignalWire, apply the corrected setup in the live environment, and run AT-15 with an explicitly authorized test contact. Live voice remains unverified. Rem's persistent media bridge is an alternative if direct SIP provisioning is unavailable.
+- The original native SIP follow-up is superseded by PR #12's SignalWire REST + `<Connect><Stream>` media-bridge route (`VOICE_TRANSPORT=media_bridge`); the registered-device host returned `SIP 404 Domain unavailable`. Native SIP is historical, not an open verification item.
 
 ### Authorized live call test — October 9, 2026, 4:59 PM PDT
 
@@ -75,7 +75,7 @@ If provider credentials remain unavailable, continue deterministic inventory and
   - The callback exposed a correlation bug: `provider_conversation_id` was set to the SignalWire SID. Migration `20261012190700_voice_bridge_callback_conversation_id.sql` fixes future bridge callbacks; the existing sandbox row was left as recorded.
 - **Tool authorization probes:** requests to `/api/voice/tools/read_case_facts` without a header and with a bogus `x-conduit-voice-token` both returned HTTP 401.
 - **AT-15 — VERIFIED via `media_bridge` (2026-10-10).** Met criteria: authorized sandbox calls; AI disclosure and contact confirmation; two-way audio and interruption clearing; scoped case-fact and offer tools; provisional offer capture, read-back confirmation, and clean agent-initiated end without commitment; signed callback/outcome and `supplier.call.finished` evidence; no-answer outcome handling and no redial under the case cap; and rejection of missing/invalid tool authorization.
-- **Transport caveats:** native `sip_trunk` remains unverified after SignalWire SIP 404. `busy` was not exercised live (only its mapping is unit-tested); `initiation_failed` was proven earlier on the SIP path. The media-bridge verification does not establish native SIP behavior.
+- **Transport caveats:** native `sip_trunk` was superseded after SignalWire SIP 404 and is not an open verification item. `busy` was not exercised live (only its mapping is unit-tested); `initiation_failed` was proven earlier on the SIP path. PR #12's `media_bridge` route was verified in AT-15.
 
 ## Specification checks completed
 

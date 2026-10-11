@@ -4,6 +4,8 @@ Conduit is a planned supplier delay recovery agent. It connects supplier message
 
 The proposed workflow supports email and supplier calls using DeepSeek, ElevenLabs, and SignalWire, with neatlogs for runtime traces, Entire for development history, and CFO.ai for the product's business model.
 
+The current voice route is SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`). It supersedes native ElevenLabs SIP-trunk outbound: that SignalWire host serves registered devices and returned `SIP 404 Domain unavailable`.
+
 **Status:** The Phase 1 application and local-development foundation has passed local verification. No live provider or supplier workflow is enabled, and Phase 2 business behavior remains unimplemented. See [BUILD_STATUS.md](BUILD_STATUS.md) for evidence and remaining gates.
 
 Start with the [product requirements](PRD.md). Implementation agents should read the [compact handoff](AGENT_HANDOFF.md) and [current build status](BUILD_STATUS.md), then load the relevant [reference chapters](docs/prd/). The [research notes](research/neathack-research.md) cover hackathon requirements, precedents, and integration research.

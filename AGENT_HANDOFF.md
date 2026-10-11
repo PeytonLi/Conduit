@@ -16,7 +16,7 @@ Conduit watches supplier delay messages, connects them to purchase orders and da
 - Supabase Postgres/Auth/private Storage.
 - Inngest for durable work and waits.
 - **DeepSeek** for planning and the proposed ElevenLabs custom LLM. Do not silently change model providers.
-- **ElevenLabs + SignalWire** for voice/SIP; interoperability still untested.
+- **ElevenLabs + SignalWire** for voice via SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`). This supersedes native SIP, which failed with `SIP 404 Domain unavailable` because that SignalWire host serves registered devices only.
 - Gmail first; one imported business dataset for B0; one actual business connector for pilot.
 - Proposed Exa REST for public supplier discovery; Zod for validation.
 - **neatlogs** for runtime evidence; **Entire** for coding history; **CFO.ai** for product economics.
