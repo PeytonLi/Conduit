@@ -94,6 +94,7 @@ export const labels = {
     "case.reassess_after_supplier_offer.requested": "Reassessing after supplier offer",
     "membership.role.changed": "Member access changed",
     "connection.gmail.connected": "Gmail connected",
+    "connection.gmail.disconnected": "Gmail disconnected",
     "policy.version_created": "Policy updated",
     "plan.created": "Recovery plan created",
     "plan.approved": "Recovery plan approved",
@@ -241,6 +242,10 @@ export const labels = {
     failed: "Failed",
     unknown: "Unknown",
     info: "Recorded",
+  },
+  dispatchReason: {
+    connection_unavailable: "Gmail connection unavailable",
+    preparer_revoked: "Action preparer no longer has access",
   },
   projectionKind: {
     start: "Starting inventory",

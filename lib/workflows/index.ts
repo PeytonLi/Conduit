@@ -8,6 +8,7 @@ import { outboxDrain } from "./outbox.inngest";
 import { reconcileDue, reconcileRequested } from "./reconcile.inngest";
 import { voiceStaleCallSweep } from "./voice-call";
 import { reassessAfterSupplierCallFunction } from "./supplier-call-reassess";
+import { expireEvidenceSources } from "./evidence-retention.inngest";
 
 import { caseAssessmentFunction } from "./case-assessment";
 import { caseRecoveryFunction } from "./case-recovery";
@@ -25,5 +26,6 @@ export const functions: InngestFunction.Any[] = [
   caseAssessmentFunction,
   caseRecoveryFunction,
   reassessAfterSupplierCallFunction,
+  expireEvidenceSources,
 ];
 export { inngest };

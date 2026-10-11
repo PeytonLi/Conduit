@@ -33,6 +33,9 @@ export const serverEnvSchema = z.object({
   GOOGLE_CLIENT_ID: optionalNonempty,
   GOOGLE_CLIENT_SECRET: optionalNonempty,
   GOOGLE_REDIRECT_URI: optionalNonempty,
+  GMAIL_PROVIDER: z.enum(["google", "composio"]).default("google"),
+  COMPOSIO_API_KEY: optionalNonempty,
+  COMPOSIO_GMAIL_AUTH_CONFIG_ID: optionalNonempty,
   ELEVENLABS_API_KEY: optionalNonempty,
   ELEVENLABS_AGENT_ID: optionalNonempty,
   ELEVENLABS_PHONE_NUMBER_ID: optionalNonempty,
@@ -65,7 +68,14 @@ export function capabilities(
 ): CapabilityStatus {
   const required: Record<CapabilityName, string[]> = {
     deepseek: ["DEEPSEEK_API_KEY", "DEEPSEEK_MODEL"],
-    gmail: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
+    gmail:
+      env.GMAIL_PROVIDER === "composio"
+        ? [
+            "COMPOSIO_API_KEY",
+            "COMPOSIO_GMAIL_AUTH_CONFIG_ID",
+            "CREDENTIAL_ENCRYPTION_KEY",
+          ]
+        : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
     voice: [
       "ELEVENLABS_API_KEY",
       "ELEVENLABS_AGENT_ID",

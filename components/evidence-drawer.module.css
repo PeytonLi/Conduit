@@ -82,6 +82,16 @@
   color: var(--muted, var(--color-muted));
 }
 
+@media (min-width: 641px) {
+  .dialog .metadata > div {
+    grid-template-columns: minmax(130px, max-content) minmax(0, 1fr);
+  }
+
+  .dialog .metadata dt {
+    white-space: nowrap;
+  }
+}
+
 .metadata dd {
   min-width: 0;
   margin: 0;
@@ -99,6 +109,25 @@
   background: var(--color-neutral-50);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.expiredNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius);
+  background: var(--color-neutral-50);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.expiredNotice svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .openFile {

@@ -29,15 +29,25 @@ export interface SyncStore {
 
 export interface GmailPollEnv {
   APP_ENV?: string;
+  GMAIL_PROVIDER?: "google" | "composio";
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_REDIRECT_URI?: string;
+  COMPOSIO_API_KEY?: string;
+  COMPOSIO_GMAIL_AUTH_CONFIG_ID?: string;
   CREDENTIAL_ENCRYPTION_KEY?: string;
 }
 
-/** The gmail poll never runs in replay and requires full OAuth config. */
+/** The gmail poll never runs in replay and requires provider credentials. */
 export function gmailPollEnabled(env: GmailPollEnv): boolean {
   if (env.APP_ENV === "replay") return false;
+  if (env.GMAIL_PROVIDER === "composio") {
+    return Boolean(
+      env.COMPOSIO_API_KEY &&
+        env.COMPOSIO_GMAIL_AUTH_CONFIG_ID &&
+        env.CREDENTIAL_ENCRYPTION_KEY,
+    );
+  }
   return Boolean(
     env.GOOGLE_CLIENT_ID &&
       env.GOOGLE_CLIENT_SECRET &&

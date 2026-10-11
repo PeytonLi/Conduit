@@ -1,0 +1,48 @@
+.button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: var(--text-xs);
+}
+
+.disconnect {
+  border-color: var(--color-danger-200);
+  background: var(--color-danger-50);
+  box-shadow: none;
+  color: var(--color-danger-700);
+}
+
+.disconnect:hover:not(:disabled) {
+  border-color: var(--color-danger-200);
+  background: #f9e7e1;
+  color: var(--color-danger-700);
+}
+
+.confirmation {
+  display: grid;
+  flex: 0 0 100%;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.message,
+.error {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.message {
+  color: var(--color-neutral-700);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+.error {
+  color: var(--color-danger-700);
+}
