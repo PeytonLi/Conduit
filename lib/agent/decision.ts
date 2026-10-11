@@ -143,14 +143,28 @@ export function parseModelTurn(turn: ModelTurn): ParseResult {
     return { ok: false, issues: issueText(parsed.error, stripped) };
   }
   const decision = parsed.data;
+  const payload = { ...decision.payload };
+  if (decision.decision_type === "request_review") {
+    if (typeof payload.reason === "string" && payload.reason.length > 500) {
+      payload.reason = `${payload.reason.slice(0, 499)}…`;
+    }
+    for (const key of ["missing_fields", "object_ids"]) {
+      if (Array.isArray(payload[key]) && payload[key].length > 20) {
+        payload[key] = payload[key].slice(0, 20);
+      }
+    }
+  }
   const payloadResult = PAYLOAD_SCHEMAS[decision.decision_type].safeParse(
-    decision.payload,
+    payload,
   );
   if (!payloadResult.success) {
     return {
       ok: false,
-      issues: issueText(payloadResult.error, JSON.stringify(decision.payload)),
+      issues: issueText(payloadResult.error, JSON.stringify(payload)),
     };
   }
-  return { ok: true, decision };
+  return {
+    ok: true,
+    decision: { ...decision, payload: payloadResult.data } as PlannerDecision,
+  };
 }
