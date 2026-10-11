@@ -61,7 +61,7 @@
   --text-2xl: 1.5rem;
   --text-3xl: 2rem;
   --font-body: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-heading: var(--font-display), Georgia, "Times New Roman", serif;
+  --font-heading: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   font-family: var(--font-body);
   color: var(--color-text);
@@ -94,14 +94,15 @@ h1,
 h2,
 h3 {
   color: var(--color-neutral-900);
-  letter-spacing: -0.015em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
 h1 {
   font-family: var(--font-heading);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 h2 {

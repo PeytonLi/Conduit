@@ -29,13 +29,18 @@ test("AT-36 keyboard-only narrow owner journey", async ({ page }) => {
   await expect(caseLink).toBeFocused();
 
   await page.keyboard.press("Enter");
+  const overviewTab = page.getByRole("tab", { name: "Overview" });
+  await overviewTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: /^Options \(/ })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: /^History \(/ }).click();
   await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
   let invokerText = "";
   for (let index = 0; index < 80; index++) {
     const label = await page.evaluate(() => {
       const element = document.activeElement as HTMLElement | null;
       const text = element?.textContent?.trim() ?? "";
-      return element?.tagName === "BUTTON" && text.includes("View") ? text : "";
+      return element?.tagName === "BUTTON" && text === "Open" ? text : "";
     });
     if (label) {
       invokerText = label;
@@ -43,7 +48,7 @@ test("AT-36 keyboard-only narrow owner journey", async ({ page }) => {
     }
     await page.keyboard.press("Tab");
   }
-  expect(invokerText).toContain("View");
+  expect(invokerText).toBe("Open");
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -59,4 +64,13 @@ test("AT-36 keyboard-only narrow owner journey", async ({ page }) => {
   for (const button of await page.getByRole("button").all()) {
     await expect(button).toHaveAccessibleName(/.+/);
   }
+});
+
+test("case detail tabs support history deep links", async ({ page }) => {
+  await login(page, "owner@harbor.example");
+  const caseId = await resetDemo(page);
+  await page.goto(`/cases/${caseId}?tab=history`);
+
+  await expect(page.getByRole("tab", { name: /^History \(/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
 });

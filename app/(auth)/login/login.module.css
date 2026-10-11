@@ -38,7 +38,7 @@
   gap: 10px;
   font-family: var(--font-heading);
   font-size: 1.45rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
@@ -52,14 +52,14 @@
   margin: 0 0 28px;
   font-family: var(--font-heading);
   font-size: clamp(2.1rem, 3.4vw, 3.1rem);
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: -0.025em;
-  line-height: 1.08;
+  line-height: 1.14;
 }
 
 .storyHeadline em {
-  color: #f7b590;
-  font-style: italic;
+  color: var(--color-accent-100);
+  font-style: normal;
 }
 
 .storyBody ul {
