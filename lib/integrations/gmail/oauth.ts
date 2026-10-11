@@ -33,10 +33,14 @@ export function buildAuthorizationUrl({
   signingKey: string;
   now: () => Date;
 }): string {
-  const state = signState(
-    { o: orgId, u: userId, n: nonce, r: redirectUri, exp: Math.floor(now().getTime() / 1000) + 600 },
+  const state = createGmailState({
+    orgId,
+    userId,
+    nonce,
+    redirectUri,
     signingKey,
-  );
+    now,
+  });
   return oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
@@ -44,6 +48,33 @@ export function buildAuthorizationUrl({
     state,
     include_granted_scopes: false,
   });
+}
+
+export function createGmailState({
+  orgId,
+  userId,
+  nonce,
+  redirectUri,
+  signingKey,
+  now,
+}: {
+  orgId: string;
+  userId: string;
+  nonce: string;
+  redirectUri: string;
+  signingKey: string;
+  now: () => Date;
+}): string {
+  return signState(
+    {
+      o: orgId,
+      u: userId,
+      n: nonce,
+      r: redirectUri,
+      exp: Math.floor(now().getTime() / 1000) + 600,
+    },
+    signingKey,
+  );
 }
 
 export function verifyCallback({

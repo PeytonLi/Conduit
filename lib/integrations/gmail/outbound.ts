@@ -57,7 +57,7 @@ export function renderSupplierEmail(
   payload: SupplierEmailPayload,
   action: ActionRecord,
   { fromAddress, domain }: { fromAddress: string; domain: string },
-): { mime: string; rfcMessageId: string; payloadHash: string } {
+): { mime: string; rfcMessageId: string; payloadHash: string; subject: string; body: string } {
   const rfcMessageId = `<conduit.${action.id}@${stripHeader(domain)}>`;
   const subjectBase = stripHeader(payload.subject);
   const subject = payload.thread
@@ -117,9 +117,10 @@ export function renderSupplierEmail(
       .join(" ");
     headers.push(`References: ${refs}`);
   }
-  const mime = `${headers.join("\r\n")}\r\n\r\n${lines.join("\r\n")}`;
+  const body = lines.join("\r\n");
+  const mime = `${headers.join("\r\n")}\r\n\r\n${body}`;
   const payloadHash = createHash("sha256").update(mime).digest("hex");
-  return { mime, rfcMessageId, payloadHash };
+  return { mime, rfcMessageId, payloadHash, subject, body };
 }
 
 export interface ContactRecord {
@@ -187,7 +188,7 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
       }
 
       const fromAddress = await deps.fromAddressFor(action);
-      const { mime, rfcMessageId } = renderSupplierEmail(payload, action, {
+      const { mime, rfcMessageId, subject, body } = renderSupplierEmail(payload, action, {
         fromAddress,
         domain: domainOf(fromAddress),
       });
@@ -195,7 +196,8 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
       try {
         // Idempotent in every mode: replay's transport records sends and can
         // answer this lookup without touching a network.
-        const existing = await transport.findSentByRfcMessageId(rfcMessageId);
+        const reconciliation = { to: payload.to, subject, body, allowContentMatch: false };
+        const existing = await transport.findSentByRfcMessageId(rfcMessageId, reconciliation);
         if (existing) {
           return {
             outcome: "confirmed",
@@ -203,10 +205,18 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
             safeSummary: "supplier email already sent (found in Sent)",
           };
         }
-        const sent = await transport.send({
-          raw: mime,
-          threadId: payload.thread?.provider_thread_id,
-        });
+        const sent = transport.sendStructured
+          ? await transport.sendStructured({
+              to: payload.to,
+              subject,
+              body,
+              rfcMessageId,
+              threadId: payload.thread?.provider_thread_id,
+            })
+          : await transport.send({
+              raw: mime,
+              threadId: payload.thread?.provider_thread_id,
+            });
         return {
           outcome: "submitted",
           providerRef: isReplay ? `replay:${action.id}` : sent.id,
@@ -224,8 +234,8 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
     },
     async findResult(action) {
       const parsed = supplierEmailPayloadSchema.safeParse(action.payload);
-      if (!parsed.success || !action.providerRef) {
-        return { outcome: "unknown", safeSummary: "no provider reference" };
+      if (!parsed.success) {
+        return { outcome: "unknown", safeSummary: "invalid supplier email payload" };
       }
       const isReplay = action.mode === "replay" || deps.appEnv() === "replay";
       const transport = isReplay
@@ -236,11 +246,16 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
       }
       try {
         const fromAddress = await deps.fromAddressFor(action);
-        const { rfcMessageId } = renderSupplierEmail(parsed.data, action, {
+        const { rfcMessageId, subject, body } = renderSupplierEmail(parsed.data, action, {
           fromAddress,
           domain: domainOf(fromAddress),
         });
-        const found = await transport.findSentByRfcMessageId(rfcMessageId);
+        const found = await transport.findSentByRfcMessageId(rfcMessageId, {
+          to: parsed.data.to,
+          subject,
+          body,
+          allowContentMatch: true,
+        });
         if (found) {
           return {
             outcome: "confirmed",

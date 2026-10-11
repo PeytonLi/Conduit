@@ -6,8 +6,11 @@ import {
   gmailPollEnabled,
   syncGmailConnection,
 } from "@/lib/integrations/gmail/sync";
-import { createGoogleGmailApi } from "@/lib/integrations/gmail/api";
+import { createGoogleGmailApi, type GmailApi } from "@/lib/integrations/gmail/api";
+import { createComposioGmailApi } from "@/lib/integrations/gmail/composio-api";
+import { createComposioClient } from "@/lib/integrations/gmail/composio-client";
 import { decryptCredential } from "@/lib/integrations/gmail/crypto";
+import { parseGmailCredential } from "@/lib/integrations/gmail/credentials";
 import { google } from "googleapis";
 import { ingestMessage } from "@/lib/db/messages";
 import { parseServerEnv } from "@/lib/env";
@@ -51,18 +54,38 @@ export const inboxGmailPoll = inngest.createFunction(
         if (!cred.encrypted_b64 || !cred.key_version || !env.CREDENTIAL_ENCRYPTION_KEY) {
           return { ok: false, reason: "missing credential" };
         }
-        const refreshToken = decryptCredential(
+        const credential = parseGmailCredential(decryptCredential(
           cred.encrypted_b64,
           env.CREDENTIAL_ENCRYPTION_KEY,
           cred.key_version,
-        );
-        const oauth2 = new google.auth.OAuth2(
-          env.GOOGLE_CLIENT_ID,
-          env.GOOGLE_CLIENT_SECRET,
-          env.GOOGLE_REDIRECT_URI,
-        );
-        oauth2.setCredentials({ refresh_token: refreshToken });
-        const api = createGoogleGmailApi(oauth2);
+        ));
+        let api: GmailApi;
+        if (env.GMAIL_PROVIDER === "composio") {
+          if (credential.provider !== "composio" || !env.COMPOSIO_API_KEY) {
+            return { ok: false, reason: "provider credential mismatch" };
+          }
+          api = createComposioGmailApi(
+            createComposioClient(env.COMPOSIO_API_KEY),
+            conn.org_id,
+            credential.connectedAccountId,
+          );
+        } else {
+          if (
+            credential.provider !== "google" ||
+            !env.GOOGLE_CLIENT_ID ||
+            !env.GOOGLE_CLIENT_SECRET ||
+            !env.GOOGLE_REDIRECT_URI
+          ) {
+            return { ok: false, reason: "provider credential mismatch" };
+          }
+          const oauth2 = new google.auth.OAuth2(
+            env.GOOGLE_CLIENT_ID,
+            env.GOOGLE_CLIENT_SECRET,
+            env.GOOGLE_REDIRECT_URI,
+          );
+          oauth2.setCredentials({ refresh_token: credential.refreshToken });
+          api = createGoogleGmailApi(oauth2);
+        }
         return syncGmailConnection({
           orgId: conn.org_id,
           connectionId: conn.connection_id,

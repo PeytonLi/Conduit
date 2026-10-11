@@ -31,6 +31,7 @@
     "inngest:dev": "npx inngest-cli@1.46.0 dev -u http://localhost:3000/api/inngest"
   },
   "dependencies": {
+    "@composio/core": "0.22.0",
     "@elevenlabs/elevenlabs-js": "2.71.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.3",

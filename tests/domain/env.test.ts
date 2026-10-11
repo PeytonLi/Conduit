@@ -38,6 +38,32 @@ describe("server environment", () => {
     expect(JSON.stringify(status)).not.toContain("never-return-this");
   });
 
+  it("requires only Composio credentials when Composio Gmail is selected", () => {
+    const missing = capabilities(
+      parseServerEnv({ ...requiredEnvironment, GMAIL_PROVIDER: "composio" }),
+    );
+    expect(missing.gmail).toEqual({
+      ready: false,
+      missing: [
+        "COMPOSIO_API_KEY",
+        "COMPOSIO_GMAIL_AUTH_CONFIG_ID",
+        "CREDENTIAL_ENCRYPTION_KEY",
+      ],
+    });
+
+    const ready = capabilities(
+      parseServerEnv({
+        ...requiredEnvironment,
+        GMAIL_PROVIDER: "composio",
+        COMPOSIO_API_KEY: "never-return-this",
+        COMPOSIO_GMAIL_AUTH_CONFIG_ID: "ac_example",
+        CREDENTIAL_ENCRYPTION_KEY: "never-return-this-either",
+      }),
+    );
+    expect(ready.gmail).toEqual({ ready: true, missing: [] });
+    expect(JSON.stringify(ready)).not.toContain("never-return-this");
+  });
+
   it("requires a phone number for SIP but bridge URL and secret for media bridge", () => {
     const common = {
       ...requiredEnvironment,

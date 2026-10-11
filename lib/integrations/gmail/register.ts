@@ -12,6 +12,9 @@ import {
 import { createReplayTransport } from "@/lib/integrations/gmail/replay";
 import { createGoogleGmailApi, type GmailApi } from "@/lib/integrations/gmail/api";
 import { decryptCredential } from "@/lib/integrations/gmail/crypto";
+import { createComposioGmailApi } from "@/lib/integrations/gmail/composio-api";
+import { createComposioClient } from "@/lib/integrations/gmail/composio-client";
+import { parseGmailCredential } from "@/lib/integrations/gmail/credentials";
 
 interface LoadedCredential {
   status: string;
@@ -73,10 +76,19 @@ export function ensureSupplierEmailAdapter(): void {
       transportFor: async (action): Promise<GmailApi | null> => {
         const env = parseServerEnv(process.env);
         if (
-          !env.GOOGLE_CLIENT_ID ||
-          !env.GOOGLE_CLIENT_SECRET ||
-          !env.GOOGLE_REDIRECT_URI ||
           !env.CREDENTIAL_ENCRYPTION_KEY
+        ) {
+          return null;
+        }
+        if (
+          env.GMAIL_PROVIDER === "composio" &&
+          (!env.COMPOSIO_API_KEY || !env.COMPOSIO_GMAIL_AUTH_CONFIG_ID)
+        ) {
+          return null;
+        }
+        if (
+          env.GMAIL_PROVIDER === "google" &&
+          (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI)
         ) {
           return null;
         }
@@ -89,17 +101,33 @@ export function ensureSupplierEmailAdapter(): void {
         ) {
           return null;
         }
-        const refreshToken = decryptCredential(
+        const credential = parseGmailCredential(decryptCredential(
           cred.encrypted_b64,
           env.CREDENTIAL_ENCRYPTION_KEY,
           cred.key_version,
-        );
+        ));
+        if (env.GMAIL_PROVIDER === "composio") {
+          if (credential.provider !== "composio" || !env.COMPOSIO_API_KEY) return null;
+          return createComposioGmailApi(
+            createComposioClient(env.COMPOSIO_API_KEY),
+            action.orgId,
+            credential.connectedAccountId,
+          );
+        }
+        if (
+          credential.provider !== "google" ||
+          !env.GOOGLE_CLIENT_ID ||
+          !env.GOOGLE_CLIENT_SECRET ||
+          !env.GOOGLE_REDIRECT_URI
+        ) {
+          return null;
+        }
         const oauth2 = new google.auth.OAuth2(
           env.GOOGLE_CLIENT_ID,
           env.GOOGLE_CLIENT_SECRET,
           env.GOOGLE_REDIRECT_URI,
         );
-        oauth2.setCredentials({ refresh_token: refreshToken });
+        oauth2.setCredentials({ refresh_token: credential.refreshToken });
         return createGoogleGmailApi(oauth2);
       },
       fromAddressFor: async (action): Promise<string> => {
@@ -110,6 +138,13 @@ export function ensureSupplierEmailAdapter(): void {
           return "inbox@conduit.local";
         }
         const cred = await loadCredential(action);
+        if (!cred?.encrypted_b64 || !cred.key_version) return "inbox@conduit.local";
+        const env = parseServerEnv(process.env);
+        if (!env.CREDENTIAL_ENCRYPTION_KEY) return "inbox@conduit.local";
+        const credential = parseGmailCredential(
+          decryptCredential(cred.encrypted_b64, env.CREDENTIAL_ENCRYPTION_KEY, cred.key_version),
+        );
+        if (credential.provider === "composio") return "inbox@conduit.local";
         return cred?.external_account_id ?? "inbox@conduit.local";
       },
       replayTransport: createReplayTransport(),

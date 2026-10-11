@@ -1,5 +1,12 @@
 import { google, type Auth, type gmail_v1 } from "googleapis";
 
+export interface GmailReconciliationContext {
+  to: string;
+  subject: string;
+  body: string;
+  allowContentMatch?: boolean;
+}
+
 export interface GmailApi {
   getProfile(): Promise<{ emailAddress: string; historyId: string }>;
   listMessages(args: {
@@ -19,7 +26,17 @@ export interface GmailApi {
     raw: Buffer;
   }>;
   send(args: { raw: string; threadId?: string }): Promise<{ id: string; threadId: string }>;
-  findSentByRfcMessageId(rfcId: string): Promise<{ id: string; threadId: string } | null>;
+  sendStructured?(args: {
+    to: string;
+    subject: string;
+    body: string;
+    rfcMessageId: string;
+    threadId?: string;
+  }): Promise<{ id: string; threadId: string }>;
+  findSentByRfcMessageId(
+    rfcId: string,
+    context?: GmailReconciliationContext,
+  ): Promise<{ id: string; threadId: string } | null>;
 }
 
 export type GmailErrorKind =

@@ -186,4 +186,20 @@ describe("gmailPollEnabled", () => {
       expect(gmailPollEnabled({ ...full, [key]: undefined })).toBe(false);
     }
   });
+  it("requires Composio credentials when the Composio provider is selected", () => {
+    const composio = {
+      APP_ENV: "live",
+      GMAIL_PROVIDER: "composio" as const,
+      COMPOSIO_API_KEY: "key",
+      COMPOSIO_GMAIL_AUTH_CONFIG_ID: "auth-config",
+      CREDENTIAL_ENCRYPTION_KEY: "key",
+    };
+    expect(gmailPollEnabled(composio)).toBe(true);
+    expect(gmailPollEnabled({ ...composio, COMPOSIO_API_KEY: undefined })).toBe(false);
+    expect(
+      gmailPollEnabled({ ...composio, COMPOSIO_GMAIL_AUTH_CONFIG_ID: undefined }),
+    ).toBe(false);
+    expect(gmailPollEnabled({ ...composio, CREDENTIAL_ENCRYPTION_KEY: undefined })).toBe(false);
+    expect(gmailPollEnabled({ ...composio, APP_ENV: "replay" })).toBe(false);
+  });
 });
