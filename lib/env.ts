@@ -75,7 +75,7 @@ export function capabilities(
         : ["ELEVENLABS_PHONE_NUMBER_ID"]),
     ],
     exa: ["EXA_API_KEY"],
-    neatlogs: ["NEATLOGS_API_KEY", "NEATLOGS_ENDPOINT"],
+    neatlogs: ["NEATLOGS_API_KEY"],
     inngest: ["INNGEST_EVENT_KEY", "INNGEST_SIGNING_KEY"],
   };
 
