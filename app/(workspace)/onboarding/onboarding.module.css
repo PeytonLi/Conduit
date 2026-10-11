@@ -4,10 +4,45 @@
   gap: var(--space-4);
 }
 
+.hero {
+  display: grid;
+  gap: var(--space-4);
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--color-brand-100);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(125deg, var(--color-brand-50), var(--color-surface) 72%);
+  box-shadow: var(--shadow-sm);
+}
+
+.hero h1 {
+  color: var(--color-brand-900);
+}
+
 .progress {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.progress p {
   margin: 0;
-  color: var(--color-muted);
+  color: var(--color-brand-800);
   font-weight: 700;
+}
+
+.progressTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-100);
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand-600);
+  transition: width 180ms var(--ease);
 }
 
 .steps {
@@ -25,6 +60,21 @@
   gap: var(--space-4);
 }
 
+.stepCard.stepComplete {
+  border-color: var(--color-neutral-100);
+  background: var(--color-surface-subtle);
+  box-shadow: var(--shadow-xs);
+}
+
+.stepCard.stepCurrent {
+  border-color: var(--color-brand-200);
+  box-shadow: 0 0 0 3px var(--color-brand-50), var(--shadow-sm);
+}
+
+.stepComplete .stepContent p {
+  color: var(--color-neutral-600);
+}
+
 .completeIcon,
 .pendingIcon {
   display: grid;
@@ -36,8 +86,8 @@
 }
 
 .completeIcon {
-  background: #dcfce7;
-  color: var(--color-success-700);
+  background: var(--color-success-700);
+  color: var(--color-surface);
 }
 
 .pendingIcon {

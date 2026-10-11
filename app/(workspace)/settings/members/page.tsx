@@ -15,10 +15,10 @@ export default async function MembersSettingsPage() {
       {members.length ? <DataTable caption="Organization members" className={styles.table}>
         <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Active</th></tr></thead>
         <tbody>{members.map((member) => <tr key={member.id}>
-          <td>{member.email ?? "Unknown"}{member.is_self ? " (you)" : ""}</td>
+          <td>{member.email ?? "Email unavailable"}{member.is_self ? " (you)" : ""}</td>
           <MembershipControls editable={membership.role === "owner"} member={member} />
         </tr>)}</tbody>
-      </DataTable> : <EmptyState message="No organization members are available." />}
+      </DataTable> : <EmptyState icon="users" message="No organization members are available." />}
     </main>
   );
 }

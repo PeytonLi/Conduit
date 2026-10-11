@@ -63,12 +63,26 @@ export default async function OnboardingPage() {
   const firstIncomplete = steps.findIndex((step) => !step.complete);
   return (
     <main className={styles.page}>
-      <PageHeader title="Get started" description="A few clear steps to get Conduit ready for your team." />
-      <p className={styles.progress} role="status">{completedSteps} of {steps.length} done</p>
+      <section className={styles.hero}>
+        <PageHeader title="Welcome to Conduit" description="A few clear steps to get your team ready." />
+        <div className={styles.progress}>
+          <p role="status">{completedSteps} of {steps.length} done</p>
+          <div
+            aria-label="Setup progress"
+            aria-valuemax={steps.length}
+            aria-valuemin={0}
+            aria-valuenow={completedSteps}
+            className={styles.progressTrack}
+            role="progressbar"
+          >
+            <span style={{ width: `${(completedSteps / steps.length) * 100}%` }} />
+          </div>
+        </div>
+      </section>
       <ol className={styles.steps}>
         {steps.map((step, index) => (
           <li key={step.label}>
-            <Card className={styles.stepCard}>
+            <Card className={`${styles.stepCard} ${step.complete ? styles.stepComplete : index === firstIncomplete ? styles.stepCurrent : ""}`}>
               <span
                 aria-label={step.complete ? "Complete" : `Step ${index + 1} not complete`}
                 className={step.complete ? styles.completeIcon : styles.pendingIcon}

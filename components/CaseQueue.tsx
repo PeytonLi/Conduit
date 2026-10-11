@@ -6,10 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseListQuery } from "@/lib/db/queries/contracts";
 import { formatDateTime, formatQuantity } from "@/lib/db/queries/format";
 import type { CaseListResult, CaseSummary } from "@/lib/db/queries/cases";
-import { humanLabel, labels } from "@/lib/ui/labels";
+import { humanLabel, labels, phaseStage, phaseTone } from "@/lib/ui/labels";
 import { Disclosure } from "./ui/Disclosure";
 import { LiveRegion } from "./LiveRegion";
 import { StatusBadge } from "./StatusBadge";
+import { Icon } from "./ui/Icon";
 import styles from "./case-queue.module.css";
 
 const phaseLabels = labels.phase;
@@ -157,7 +158,7 @@ export function CaseQueue({
   function renderCaseBadges(item: CaseSummary, includePhase = true) {
     return (
       <div className={styles.badges}>
-        {includePhase && <StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge>}
+        {includePhase && <StatusBadge stage={phaseStage(item.phase)} tone={phaseTone(item.phase)}>{humanLabel("phase", item.phase)}</StatusBadge>}
         {item.run_control !== "active" && (
           <StatusBadge tone={item.run_control === "blocked" ? "warning" : "neutral"}>
             {humanLabel("runControl", item.run_control)}{item.block_reason ? `: ${humanLabel("blockReason", item.block_reason)}` : ""}
@@ -173,7 +174,7 @@ export function CaseQueue({
   function renderCaseTitle(item: CaseSummary) {
     return (
       <Link className={styles.caseLink} href={`/cases/${item.id}`}>
-        {item.title || item.item.sku || "Unknown case"}
+        {item.title || item.item.sku || "Case details unavailable"}
       </Link>
     );
   }
@@ -188,10 +189,10 @@ export function CaseQueue({
             <StatusBadge tone={toneForSeverity(item.severity)}>{humanLabel("severity", item.severity)}</StatusBadge>
           </div>
         </td>
-        <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</td>
-        <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</td>
-        <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Unknown"}</td>
-        <td><StatusBadge>{humanLabel("phase", item.phase)}</StatusBadge></td>
+        <td>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Supplier details unavailable"}</td>
+        <td>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Not available"}</td>
+        <td>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Not available"}</td>
+        <td><StatusBadge stage={phaseStage(item.phase)} tone={phaseTone(item.phase)}>{humanLabel("phase", item.phase)}</StatusBadge></td>
         <td>{item.next_action.label}</td>
         <td>{item.assignee?.email ?? "Unassigned"}</td>
         <td>{item.data_stale && <StatusBadge tone="warning">Data stale</StatusBadge>}</td>
@@ -209,39 +210,49 @@ export function CaseQueue({
       </header>
       {replayCase?.replay_clock && (
         <p className={styles.replayClock} role="status">
-          Replay clock: {formatDateTime(replayCase.replay_clock, replayCase.location.timezone)}
+          <Icon name="clock" aria-hidden="true" />
+          <span>Replay clock · {formatDateTime(replayCase.replay_clock, replayCase.location.timezone)}</span>
         </p>
       )}
       <section aria-label="Case summary" className={styles.summaryGrid}>
         {[
           {
             label: "Active shortages",
+            icon: "alert" as const,
+            tone: "accent",
             value: result?.summary.active_shortages ?? 0,
             denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, phase: (Object.keys(phaseLabels) as NonNullable<CaseListQuery["phase"]>).filter((phase) => phase !== "closed"), include_closed: undefined },
           },
           {
             label: "Decisions waiting",
+            icon: "clock" as const,
+            tone: "brand",
             value: result?.summary.decisions_waiting ?? 0,
             denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, needs_my_decision: true },
           },
           {
             label: "Outcome unclear",
+            icon: "help" as const,
+            tone: "warning",
             value: result?.summary.uncertain_actions ?? 0,
             denominator: `of ${result?.summary.active_cases ?? 0} active ${(result?.summary.active_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, uncertain_action: true },
           },
           {
             label: "Recoveries recorded",
+            icon: "checkCircle" as const,
+            tone: "success",
             value: result?.summary.recoveries_recorded ?? 0,
             denominator: `of ${result?.summary.total_cases ?? 0} ${(result?.summary.total_cases ?? 0) === 1 ? "case" : "cases"}`,
             filters: { ...filters, phase: ["monitoring", "closed"] as NonNullable<CaseListQuery["phase"]>, include_closed: true },
           },
-        ].map(({ label, value, denominator, filters: tileFilters }) => (
-          <article className={styles.summaryTile} key={label}>
+        ].map(({ label, icon, tone, value, denominator, filters: tileFilters }) => (
+          <article className={`${styles.summaryTile} ${value > 0 ? styles[`tile_${tone}`] : ""}`} key={label}>
             <button aria-label={`Filter by ${label}`} onClick={() => updateFilters(tileFilters)} type="button">
-              <span>{label}</span><strong>{value}</strong><small>{denominator}</small>
+              <span className={styles.tileHead}><span className={styles.tileIcon}><Icon name={icon} size={16} /></span>{label}</span>
+              <strong>{value}</strong><small>{denominator}</small>
             </button>
           </article>
         ))}
@@ -334,11 +345,12 @@ export function CaseQueue({
         <LiveRegion message={announcement} />
       </div>
       {result?.items.some((item) => item.data_stale) && (
-        <p className={styles.staleBanner} role="status">Some business data is out of date — figures may have changed.</p>
+        <p className={styles.staleBanner} role="status"><Icon name="alert" size={16} />Some business data is out of date — figures may have changed.</p>
       )}
       {refreshError && (
         <p className={styles.refreshBanner} role="status">
-          Couldn’t refresh. Showing the list from {formatDateTime(result?.refreshed_at ?? null, displayTimeZone) ?? "Unknown"}.
+          Couldn’t refresh. Showing the last available list.
+          {result?.refreshed_at && <> Updated {formatDateTime(result.refreshed_at, displayTimeZone)}.</>}
           <button onClick={() => void load(filters, false)} type="button">Retry</button>
         </p>
       )}
@@ -358,6 +370,7 @@ export function CaseQueue({
             </>
           ) : (
             <>
+              <span className={styles.emptyIcon}><Icon name="inbox" size={22} /></span>
               <h2>No supplier delays yet. Conduit opens a case when a supplier reports a delay.</h2>
               <div><Link href="/business-data">Business data</Link></div>
             </>
@@ -380,9 +393,9 @@ export function CaseQueue({
                   <span className={styles.caseId}>Case {item.id.slice(0, 8)}</span>
                   {renderCaseBadges(item)}
                   <dl>
-                    <div><dt>Supplier</dt><dd>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Unknown"}</dd></div>
-                    <div><dt>First shortage</dt><dd>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Unknown"}</dd></div>
-                    <div><dt>At risk</dt><dd>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Unknown"}</dd></div>
+                    <div><dt>Supplier</dt><dd>{item.suppliers.map((supplier) => supplier.name).join(", ") || "Supplier details unavailable"}</dd></div>
+                    <div><dt>First shortage</dt><dd>{formatDateTime(item.first_shortage_at, item.location.timezone) ?? item.shortage_label ?? "Not available"}</dd></div>
+                    <div><dt>At risk</dt><dd>{formatQuantity(item.bridge_quantity, item.item.unit) ?? "Not available"}</dd></div>
                     <div><dt>Next action</dt><dd>{item.next_action.label}</dd></div>
                     <div><dt>Assignee</dt><dd>{item.assignee?.email ?? "Unassigned"}</dd></div>
                   </dl>

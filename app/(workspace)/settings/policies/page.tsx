@@ -4,6 +4,7 @@ import { formatDateTime, formatMoney } from "@/lib/db/queries/format";
 import { getOrganization } from "@/lib/db/queries/organization";
 import { policySettingsSchema } from "@/lib/policies/schema";
 import { PolicyEditor } from "@/components/PolicyEditor";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import styles from "./policies.module.css";
 
@@ -34,7 +35,7 @@ export default async function PoliciesSettingsPage() {
               <h2 id="current-policy-heading">Current policy · version {policy.version}</h2>
               <p>{policy.reason}</p>
             </div>
-            <p>Effective {formatDateTime(policy.effective_from, organization.timezone) ?? "Unknown"}</p>
+            {policy.effective_from && <p>Effective {formatDateTime(policy.effective_from, organization.timezone)}</p>}
           </div>
           <dl className={styles.summary}>
             <div><dt>Dispatch</dt><dd>{settings.dispatch_paused ? "Paused" : "Active"}</dd></div>
@@ -48,7 +49,7 @@ export default async function PoliciesSettingsPage() {
             <div><dt>Commitment authority</dt><dd>Owner · autonomous commitment {formatMoney("0", organization.currency)}</dd></div>
           </dl>
         </section>
-      ) : <p className={styles.empty}>No current policy is configured.</p>}
+      ) : <EmptyState className={styles.empty} icon="shield" message="No current policy is configured." />}
       {membership.role === "owner"
         ? <PolicyEditor currency={organization.currency} initialSettings={settings} version={policy?.version ?? 0} />
         : <p className={styles.readOnly}>Only an owner can edit organization policies. This page is read-only for your role.</p>}

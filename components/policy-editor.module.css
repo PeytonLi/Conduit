@@ -1,6 +1,6 @@
 .form {
   display: grid;
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .group {
@@ -10,15 +10,15 @@
   min-width: 0;
   margin: 0;
   padding: 16px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 10px;
-  background: var(--surface, #fff);
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius-lg);
+  background: var(--surface, var(--color-surface));
 }
 
 .group legend,
 .days legend {
   padding-inline: 6px;
-  color: var(--text, #20251f);
+  color: var(--text, var(--color-text));
   font-weight: 700;
 }
 
@@ -34,7 +34,7 @@
 .weekday input {
   width: 17px;
   height: 17px;
-  accent-color: #1d4ed8;
+  accent-color: var(--color-brand-700);
 }
 
 .days {
@@ -44,8 +44,8 @@
   gap: 8px 16px;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 8px;
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius);
 }
 
 .weekday {
@@ -70,10 +70,10 @@
   min-width: 0;
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 7px;
-  background: var(--surface, #fff);
-  color: var(--text, #20251f);
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: var(--surface, var(--color-surface));
+  color: var(--text, var(--color-text));
   font: inherit;
 }
 
@@ -85,17 +85,17 @@
 .note {
   margin: 0;
   align-self: center;
-  color: var(--muted, #5b636e);
+  color: var(--muted, var(--color-muted));
 }
 
 .error {
   margin: 0;
-  color: #a21d14;
+  color: var(--color-danger-700);
 }
 
 .result {
   margin: 0;
-  color: #166534;
+  color: var(--color-success-700);
   font-weight: 700;
 }
 
@@ -104,12 +104,13 @@
   min-height: 40px;
   padding: 9px 14px;
   border: 0;
-  border-radius: 7px;
-  background: #1d4ed8;
-  color: #fff;
+  border-radius: var(--radius);
+  background: var(--color-brand-700);
+  color: var(--color-surface);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 140ms var(--ease), transform 140ms var(--ease);
 }
 
 .submit:disabled {
@@ -117,12 +118,17 @@
   opacity: 0.55;
 }
 
+.submit:not(:disabled):hover {
+  background: var(--color-brand-800);
+  transform: translateY(-1px);
+}
+
 .field input:focus-visible,
 .field textarea:focus-visible,
 .checkField input:focus-visible,
 .weekday input:focus-visible,
 .submit:focus-visible {
-  outline: 2px solid var(--focus, #1d4ed8);
+  outline: 2px solid var(--focus, var(--color-brand-700));
   outline-offset: 2px;
 }
 

@@ -9,6 +9,7 @@ import { humanLabel } from "@/lib/db/queries/labels";
 import { StatusBadge } from "./StatusBadge";
 import { postJson, WorkspaceApiError, workspaceErrorMessage } from "./client-api";
 import { LiveRegion } from "./LiveRegion";
+import { Disclosure } from "./ui/Disclosure";
 import styles from "./approval-card.module.css";
 
 function wait(milliseconds: number): Promise<void> {
@@ -151,7 +152,7 @@ export function ApprovalCard({
       approvalSucceeded = true;
       intentKey.current = null;
       confirmDialog.current?.close();
-      setMessage(`Plan approved. Approval valid until ${formatDateTime(result.expires_at, timeZone) ?? "Unknown"}.`);
+      setMessage(`Plan approved. Approval valid until ${formatDateTime(result.expires_at, timeZone) ?? "Not available"}.`);
       router.refresh();
       const response = await fetch(`/api/v1/cases/${caseSummary.id}`, { cache: "no-store" });
       if (response.ok) {
@@ -227,24 +228,26 @@ export function ApprovalCard({
         <div><p className={styles.eyebrow}>Decision</p><h2 id="approval-title">Approve recovery plan v{plan.plan_version}</h2></div>
         <StatusBadge tone={plan.status === "approved" ? "success" : "info"}>{humanLabel("planStatus", plan.status)}</StatusBadge>
       </div>
-      <dl className={styles.terms}>
-        <div><dt>Supplier</dt><dd>{plan.supplier?.name ?? "Unknown"}</dd></div>
-        <div><dt>Additional commitment</dt><dd>{commitment ?? "Unknown"}</dd></div>
-        <div><dt>Gross commitment</dt><dd>{gross ?? "Unknown"}</dd></div>
-        <div><dt>Original order treatment</dt><dd>{originalOrderTreatment || "Unknown"}</dd></div>
+      <Disclosure summary="Plan details">
+        <dl className={styles.terms}>
+        <div><dt>Supplier</dt><dd>{plan.supplier?.name ?? "Supplier details unavailable"}</dd></div>
+        <div><dt>Additional commitment</dt><dd>{commitment ?? "Not available"}</dd></div>
+        <div><dt>Gross commitment</dt><dd>{gross ?? "Not available"}</dd></div>
+        <div><dt>Original order treatment</dt><dd>{originalOrderTreatment || "Not specified"}</dd></div>
         <div><dt>Dependencies</dt><dd>{plan.dependencies.length ? plan.dependencies.join(", ") : "None"}</dd></div>
-        <div><dt>Approval expiry</dt><dd>{plan.expires_at ? `Expires ${formatDateTime(plan.expires_at, timeZone)}` : "Unknown"}</dd></div>
-      </dl>
-      <h3>Recovery steps</h3>
-      <ol className={styles.steps}>
-        {plan.steps.map((step) => (
-          <li key={step.step_id}>
-            <strong>{step.summary}</strong>
-            {step.quantity !== null && <span>{formatQuantity(step.quantity, step.unit) ?? "Unknown"}</span>}
-            <span>{humanLabel("executionMode", step.execution_mode)}</span>
-          </li>
-        ))}
-      </ol>
+        <div><dt>Approval expiry</dt><dd>{plan.expires_at ? `Expires ${formatDateTime(plan.expires_at, timeZone)}` : "Not set"}</dd></div>
+        </dl>
+        <h3>Recovery steps</h3>
+        <ol className={styles.steps}>
+          {plan.steps.map((step) => (
+            <li key={step.step_id}>
+              <strong>{step.summary}</strong>
+              {step.quantity !== null && <span>{formatQuantity(step.quantity, step.unit) ?? "Not available"}</span>}
+              <span>{humanLabel("executionMode", step.execution_mode)}</span>
+            </li>
+          ))}
+        </ol>
+      </Disclosure>
       <p className={styles.replayNotice}>
         {caseSummary.data_label === "Replay" ||
         (caseSummary.data_label === null && environmentMode === "replay")
@@ -293,7 +296,7 @@ export function ApprovalCard({
         ref={confirmDialog}
       >
         <h2 id="confirm-approval-title" ref={confirmHeading} tabIndex={-1}>Confirm recovery plan approval</h2>
-        <p>Approve plan version {plan.plan_version} with an additional commitment of {commitment ?? "Unknown"}?</p>
+        <p>Approve plan version {plan.plan_version} with an additional commitment of {commitment ?? "Not available"}?</p>
         <p>This action is recorded for case {caseSummary.id}.</p>
         <div className={styles.confirmActions}>
           <button disabled={submitting} onClick={() => confirmDialog.current?.close()} type="button">Cancel</button>

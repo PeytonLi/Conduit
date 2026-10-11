@@ -1,3 +1,5 @@
+import type { CasePhase } from "@/lib/schemas/enums";
+
 export const labels = {
   phase: {
     new: "New",
@@ -266,6 +268,30 @@ export const labels = {
   },
 } as const;
 
+export function phaseStage(phase: CasePhase): { current: number; total: 5; stuck?: boolean } {
+  switch (phase) {
+    case "new":
+      return { current: 1, total: 5 };
+    case "needs_review":
+      return { current: 1, total: 5, stuck: true };
+    case "assessing":
+      return { current: 2, total: 5 };
+    case "recovering":
+    case "awaiting_supplier":
+      return { current: 3, total: 5 };
+    case "awaiting_approval":
+      return { current: 4, total: 5 };
+    case "executing":
+    case "monitoring":
+    case "closed":
+      return { current: 5, total: 5 };
+    default: {
+      const exhaustive: never = phase;
+      return exhaustive;
+    }
+  }
+}
+
 export type LabelCategory = keyof typeof labels;
 
 const safeFallbacks: Partial<Record<LabelCategory, string>> = {
@@ -302,4 +328,23 @@ export function actorLabel(
     return "User";
   }
   return isReplay ? "Conduit (replay)" : "Conduit";
+}
+
+export function phaseTone(phase: CasePhase): "neutral" | "success" | "warning" | "danger" | "info" {
+  switch (phase) {
+    case "needs_review":
+      return "danger";
+    case "awaiting_approval":
+      return "warning";
+    case "closed":
+    case "monitoring":
+      return "success";
+    case "new":
+      return "neutral";
+    case "assessing":
+    case "recovering":
+    case "awaiting_supplier":
+    case "executing":
+      return "info";
+  }
 }

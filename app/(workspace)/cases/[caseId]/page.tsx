@@ -13,10 +13,12 @@ import { getOrganization } from "@/lib/db/queries/organization";
 
 export default async function CasePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ caseId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { caseId } = await params;
+  const [{ caseId }, { tab }] = await Promise.all([params, searchParams]);
   const membership = await requireMembership();
   let result;
   try {
@@ -41,6 +43,7 @@ export default async function CasePage({
       role={membership.role}
       timeline={timeline}
       organizationTimeZone={organization.timezone}
+      initialTab={typeof tab === "string" ? tab : undefined}
     />
   );
 }

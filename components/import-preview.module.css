@@ -1,9 +1,10 @@
 .section {
   margin-block: 24px;
   padding: 20px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 12px;
-  background: var(--surface, #fff);
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius-lg);
+  background: var(--surface, var(--color-surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .section h2,
@@ -33,8 +34,8 @@
 .files input {
   min-width: 0;
   padding: 9px;
-  border: 1px solid var(--border, #d9dde3);
-  border-radius: 6px;
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius);
   font: inherit;
 }
 
@@ -55,6 +56,16 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+
+.fileRow:focus-within {
+  border-color: var(--color-brand-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.fileRow:hover {
+  border-color: var(--color-brand-200);
 }
 
 .fileLabel {
@@ -71,7 +82,7 @@
 }
 
 .fileChosen {
-  background: #dcfce7;
+  background: var(--color-success-50);
   color: var(--color-success-700);
 }
 
@@ -85,6 +96,24 @@
   width: 100%;
   min-width: 0;
   font-size: var(--text-xs);
+}
+
+.fileRow input::file-selector-button {
+  margin-inline-end: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--color-brand-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+}
+
+.fileRow input::file-selector-button:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-100);
 }
 
 .fileName {
@@ -102,8 +131,8 @@
   padding: 10px 14px;
   border: 0;
   border-radius: 6px;
-  background: #1d4ed8;
-  color: #fff;
+  background: var(--color-brand-700);
+  color: var(--color-surface);
   font: inherit;
   font-weight: 700;
 }
@@ -114,10 +143,24 @@
   opacity: 0.55;
 }
 
+.form button:not(:disabled):hover,
+.result button:not(:disabled):hover {
+  background: var(--color-brand-800);
+}
+
+.form button:focus-visible,
+.result button:focus-visible,
+.metadata input:focus-visible,
+.files input:focus-visible,
+.confirmation input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .result {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid var(--border, #d9dde3);
+  border-top: 1px solid var(--border, var(--color-border));
 }
 
 .counts {
@@ -139,7 +182,7 @@
 }
 
 .error {
-  color: #a21d14;
+  color: var(--color-danger-700);
 }
 
 @media (max-width: 700px) {

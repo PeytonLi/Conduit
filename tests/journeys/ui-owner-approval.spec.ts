@@ -19,21 +19,28 @@ test("AT-28/J owner approval result survives a delayed stale detail poll", async
   await login(page, "owner@harbor.example");
   await page.goto("/cases");
   await expect(page.getByText("Replay").first()).toBeVisible();
-  await expect(page.getByText("Replay clock: Mon, Oct 12, 8:00 AM PDT")).toBeVisible();
+  await expect(page.getByText("Replay clock · Mon, Oct 12, 8:00 AM PDT")).toBeVisible();
   await expect(page.getByText("Wed, Oct 14, 9:00 AM PDT").first()).toBeVisible();
   await expect(page.getByText("600 cartons").first()).toBeVisible();
   await page.locator(`a[href="/cases/${caseId}"]`).first().click();
   await expect(page.getByRole("heading", { name: /600 cartons are needed/i })).toBeVisible();
-  const optionDetails = page.locator('section[aria-labelledby="options-heading"] details').first();
+  await page.getByRole("tab", { name: /^Options \(/ }).click();
+  const optionPanel = page.getByRole("tabpanel", { name: /^Options \(/ });
+  const optionDetails = optionPanel.locator("details").first();
   await optionDetails.locator("summary").click();
   await expect(optionDetails.getByText("Specification status")).toBeVisible();
-  await expect(page.getByText(/Replay clock Mon, Oct 12, 8:00 AM PDT/)).toBeVisible();
-  await expect(page.getByRole("table", { name: "Sources linked to this case" })).toBeVisible();
+  await expect(optionPanel.getByText(/Bay Carton/).first()).toBeVisible();
+  await expect(optionPanel.getByText(/North Packaging/).first()).toBeVisible();
   await expect(page.getByText("Ready for approval").first()).toBeVisible();
   await expect(page.getByText("Replay: approving records the decision in the demo only; no supplier or business system is contacted.")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await expect(page.getByText(/Replay clock Mon, Oct 12, 8:00 AM PDT/)).toBeVisible();
+  await page.getByText("Show as table", { exact: true }).click();
   await expect(page.getByRole("table", { name: /Projected usable stock/i }).getByText("−200")).toBeVisible();
-  await expect(page.getByText(/Bay Carton/).first()).toBeVisible();
-  await expect(page.getByText(/North Packaging/).first()).toBeVisible();
+
+  await page.getByRole("tab", { name: /^History \(/ }).click();
+  await expect(page.getByRole("table", { name: "Sources linked to this case" })).toBeVisible();
   const detailResponse = await page.request.get(`/api/v1/cases/${caseId}`);
   const detailEnvelope = await detailResponse.json() as {
     data?: {
