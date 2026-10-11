@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   gmailPollEnabled,
   syncGmailConnection,
@@ -130,6 +130,37 @@ describe("AT-20 gmail sync", () => {
 });
 
 describe("AT-22 gmail sync failure statuses", () => {
+  it("logs classified provider failures once without exposing sensitive error values", async () => {
+    const store = memStore();
+    store.cursor = "C1";
+    const providerError = Object.assign(
+      new Error("Toolkit version required: Bearer super-secret-token"),
+      { code: "TS-SDK::TOOL_VERSION_REQUIRED" },
+    );
+    providerError.name = "ComposioToolVersionRequiredError";
+    const api = fakeGmail([], {
+      async listHistory() {
+        throw providerError;
+      },
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const result = await syncGmailConnection({ ...base, api, store });
+
+      expect(result.status).toBe("degraded");
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog).toHaveBeenCalledWith("gmail poll failed", {
+        kind: "transient",
+        name: "ComposioToolVersionRequiredError",
+        code: "TS-SDK::TOOL_VERSION_REQUIRED",
+        message: "Toolkit version required: Bearer [redacted]",
+      });
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
   it("AT-22 invalid_grant sets revoked, ok:false, cursor unchanged", async () => {
     const store = memStore();
     store.cursor = "C1";

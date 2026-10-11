@@ -1,5 +1,7 @@
 import { Composio } from "@composio/core";
 
+export const COMPOSIO_GMAIL_TOOLKIT_VERSION = "20261010_00";
+
 export interface ComposioGmailClient {
   connectedAccounts: {
     link(
@@ -35,5 +37,9 @@ export interface ComposioGmailClient {
 }
 
 export function createComposioClient(apiKey: string): ComposioGmailClient {
-  return new Composio({ apiKey, logLevel: "error" }) as unknown as ComposioGmailClient;
+  return new Composio({
+    apiKey,
+    logLevel: "error",
+    toolkitVersions: { gmail: COMPOSIO_GMAIL_TOOLKIT_VERSION },
+  }) as unknown as ComposioGmailClient;
 }
