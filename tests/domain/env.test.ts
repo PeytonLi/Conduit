@@ -26,16 +26,29 @@ describe("server environment", () => {
       DEEPSEEK_API_KEY: "never-return-this",
       DEEPSEEK_MODEL: "model-x",
       EXA_API_KEY: "never-return-this-either",
+      NEATLOGS_API_KEY: "never-return-this-either",
     });
     const status = capabilities(env);
 
     expect(status.deepseek).toEqual({ ready: true, missing: [] });
     expect(status.exa).toEqual({ ready: true, missing: [] });
+    expect(status.neatlogs).toEqual({ ready: true, missing: [] });
     expect(status.gmail).toEqual({
       ready: false,
       missing: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
     });
     expect(JSON.stringify(status)).not.toContain("never-return-this");
+  });
+
+  it("requires only the neatlogs API key", () => {
+    expect(capabilities(parseServerEnv(requiredEnvironment)).neatlogs).toEqual({
+      ready: false,
+      missing: ["NEATLOGS_API_KEY"],
+    });
+    expect(capabilities(parseServerEnv({
+      ...requiredEnvironment,
+      NEATLOGS_API_KEY: "key",
+    })).neatlogs).toEqual({ ready: true, missing: [] });
   });
 
   it("requires a phone number for SIP but bridge URL and secret for media bridge", () => {
