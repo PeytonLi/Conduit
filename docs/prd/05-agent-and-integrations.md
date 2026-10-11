@@ -134,13 +134,17 @@ Provider acceptance and Sent-folder evidence complete the send record. An ambigu
 
 ## 5. SignalWire and ElevenLabs
 
-### Chosen communication path
+### Current communication path
 
-App starts ElevenLabs SIP outbound call -> configured SignalWire SIP connection -> supplier's telephone. ElevenLabs handles the voice conversation; DeepSeek supplies the proposed custom language-model responses. The app uses authenticated tools and receives the call result.
+SignalWire REST initiates the outbound call and `<Connect><Stream>` sends media to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`). ElevenLabs handles the voice conversation; DeepSeek supplies the proposed custom language-model responses. The app uses authenticated tools and receives the call result.
+
+This supersedes native ElevenLabs SIP-trunk outbound via SignalWire: it failed with `SIP 404 Domain unavailable` because that SignalWire host serves registered devices only.
 
 SignalWire is the current interpretation of the user's wording. If the user actually wants the separate Signal and Wire apps, stop this telephony implementation and revise decision D-003; those are different channels.
 
-### Configuration and feasibility proof
+### Superseded native SIP configuration plan (historical)
+
+The steps below describe the original SIP route only; they are not the current voice path.
 
 1. Configure a SignalWire number and supported SIP authentication/routing.
 2. Import/configure that number's SIP connection in ElevenLabs and assign the supplier agent.
@@ -263,11 +267,11 @@ Names below are proposed application configuration, not existing secrets. Keep a
 | INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY | Internal workflow publication and verification |
 | DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL | Server-side planner identity and exact model |
 | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI | Gmail OAuth application |
-| ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID, ELEVENLABS_PHONE_NUMBER_ID | Voice agent and SIP number |
+| ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID, ELEVENLABS_PHONE_NUMBER_ID | Voice agent and legacy native SIP number |
 | ELEVENLABS_WEBHOOK_SECRET | Post-call signature verification |
 | EXA_API_KEY | Optional until live public supplier discovery is exercised |
 | NEATLOGS_API_KEY, NEATLOGS_ENDPOINT | Runtime traces and configured ingestion region |
-| SIGNALWIRE_SPACE_URL, SIGNALWIRE_PROJECT_ID, SIGNALWIRE_API_TOKEN | Only needed if direct carrier health/reconciliation APIs are implemented |
+| SIGNALWIRE_SPACE_URL, SIGNALWIRE_PROJECT_ID, SIGNALWIRE_API_TOKEN, SIGNALWIRE_PHONE_NUMBER | SignalWire REST call initiation; also used for direct carrier health/reconciliation APIs |
 | Entire / CFO.ai account setup | Development/business tools; no runtime key required by this architecture |
 
 SignalWire SIP credentials and the voice agent's DeepSeek secret may be stored in ElevenLabs/provider configuration rather than duplicated in application environment variables. Document that configuration without exporting secret values.

@@ -20,6 +20,7 @@ export interface NeatlogsModule {
 export interface TelemetryEnv {
   NEATLOGS_API_KEY?: string;
   NEATLOGS_ENDPOINT?: string;
+  [key: string]: string | undefined;
 }
 
 let neatlogsModule: NeatlogsModule | null = null;
