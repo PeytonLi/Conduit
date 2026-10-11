@@ -24,23 +24,25 @@ test("F1 imports: owner stages and activates a multipart CSV import through the 
   await page.getByLabel(/Source data as of/).fill(
     `${localParts.year}-${localParts.month}-${localParts.day}T${localParts.hour}:${localParts.minute}`,
   );
-  for (const [label, file] of [
-    ["Suppliers CSV", "suppliers.csv"],
-    ["Items CSV", "items.csv"],
-    ["Purchase orders CSV", "purchase_orders.csv"],
-    ["Purchase order lines CSV", "purchase_order_lines.csv"],
-    ["Receipt schedules CSV", "receipt_schedules.csv"],
-    ["Inventory CSV", "inventory.csv"],
-    ["Demand CSV", "demand.csv"],
-  ]) {
+  const files = [
+    "suppliers.csv",
+    "items.csv",
+    "purchase_orders.csv",
+    "purchase_order_lines.csv",
+    "receipt_schedules.csv",
+    "inventory.csv",
+    "demand.csv",
+  ].map((file) => {
     const contents = readFileSync(join(process.cwd(), "tests/fixtures/harbor-pack", file), "utf8")
       .replaceAll("2026-10-12T15:00:00Z", sourceAsOf);
-    await page.getByLabel(label).setInputFiles({
+    return {
       name: file,
       mimeType: "text/csv",
       buffer: Buffer.from(contents),
-    });
-  }
+    };
+  });
+  await page.getByLabel("Upload CSV files").setInputFiles(files);
+  await expect(page.getByText("suppliers.csv", { exact: true })).toBeVisible();
 
   const stageResponse = page.waitForResponse((response) =>
     response.url().endsWith("/api/v1/imports") && response.request().method() === "POST",
