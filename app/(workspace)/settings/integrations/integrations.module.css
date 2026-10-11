@@ -26,10 +26,6 @@
   padding-inline: var(--space-4);
 }
 
-.grid > .card:has([aria-label="Gmail disconnect confirmation"]) {
-  grid-column: 1 / -1;
-}
-
 .card h2,
 .card p {
   margin: 0;

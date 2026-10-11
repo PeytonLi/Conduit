@@ -33,9 +33,7 @@
 
 .message {
   color: var(--color-neutral-700);
-  font-size: 0.6rem;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
+  font-size: var(--text-sm);
 }
 
 .actions {
@@ -47,11 +45,4 @@
 
 .error {
   color: var(--color-danger-700);
-}
-
-@media (min-width: 601px) {
-  .message {
-    font-size: var(--text-xs);
-    letter-spacing: normal;
-  }
 }
