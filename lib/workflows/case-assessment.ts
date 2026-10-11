@@ -127,8 +127,20 @@ export async function runCaseAssessment(
     else if ((result.assessment.bridge_qty ?? 0) > 0) target = "recovering";
     else target = "monitoring";
 
+    let reached = c.phase;
     if (transitionAllowed(c.phase, target)) {
-      if (target !== c.phase) await store.updateCasePhase(orgId, c.id, target);
+      if (target !== c.phase) {
+        await store.updateCasePhase(orgId, c.id, target);
+        reached = target;
+      }
+    } else if (
+      (c.phase === "new" || c.phase === "monitoring") &&
+      transitionAllowed(c.phase, "assessing") &&
+      transitionAllowed("assessing", target)
+    ) {
+      await store.updateCasePhase(orgId, c.id, "assessing");
+      await store.updateCasePhase(orgId, c.id, target);
+      reached = target;
     } else {
       await store.insertAudit?.({
         org_id: orgId,
@@ -140,7 +152,7 @@ export async function runCaseAssessment(
         reason: `${c.phase} -> ${target} not allowed`,
       });
     }
-    return target;
+    return reached;
   });
 
   if (phase === "recovering") {

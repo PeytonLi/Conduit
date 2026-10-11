@@ -57,6 +57,16 @@ function assessmentDeps(store = harborStore(), result = projectionResult()) {
   };
 }
 
+function trackPhaseWrites(deps: ReturnType<typeof assessmentDeps>) {
+  const writes: string[] = [];
+  const updateCasePhase = deps.store.updateCasePhase.bind(deps.store);
+  deps.store.updateCasePhase = async (orgId, caseId, phase, nextCheckAt) => {
+    writes.push(phase);
+    await updateCasePhase(orgId, caseId, phase, nextCheckAt);
+  };
+  return writes;
+}
+
 /** Make the seeded current assessment fingerprint match the real facts
  * fingerprint so the reuse path triggers. */
 function matchFingerprint(store: ReturnType<typeof harborStore>) {
@@ -88,16 +98,81 @@ describe("case-assessment workflow", () => {
 
   it("insufficient quality -> needs_review", async () => {
     const deps = assessmentDeps(
-      harborStore(),
+      harborStore({ phase: "new" }),
       projectionResult({
         quality: "insufficient",
         bridgeQuantity: 0,
         inputFingerprint: "fp-insufficient",
       }),
     );
+    const phaseWrites = trackPhaseWrites(deps);
     await runCaseAssessment(deps, { case_id: CASE_A });
     const c = await deps.store.getCase(ctx.orgId, CASE_A);
     expect(c?.phase).toBe("needs_review");
+    expect(phaseWrites).toEqual(["needs_review"]);
+    expect(deps.step.sends.some((s) => s.name === "case.recovery.requested")).toBe(false);
+  });
+
+  it("new case with a bridge routes through assessing before requesting recovery", async () => {
+    const deps = assessmentDeps(harborStore({ phase: "new" }));
+    const phaseWrites = trackPhaseWrites(deps);
+
+    await runCaseAssessment(deps, { case_id: CASE_A });
+
+    const c = await deps.store.getCase(ctx.orgId, CASE_A);
+    expect(phaseWrites).toEqual(["assessing", "recovering"]);
+    expect(c?.phase).toBe("recovering");
+    expect(deps.step.sends.some((s) => s.name === "case.recovery.requested")).toBe(true);
+  });
+
+  it("new case without a bridge routes through assessing to monitoring", async () => {
+    const deps = assessmentDeps(
+      harborStore({ phase: "new" }),
+      projectionResult({
+        firstShortageAt: null,
+        bridgeQuantity: 0,
+        requirements: [],
+        inputFingerprint: "fp-new-no-bridge",
+      }),
+    );
+    const phaseWrites = trackPhaseWrites(deps);
+
+    await runCaseAssessment(deps, { case_id: CASE_A });
+
+    const c = await deps.store.getCase(ctx.orgId, CASE_A);
+    expect(phaseWrites).toEqual(["assessing", "monitoring"]);
+    expect(c?.phase).toBe("monitoring");
+    expect(deps.step.sends.some((s) => s.name === "case.recovery.requested")).toBe(false);
+  });
+
+  it("monitoring case with a bridge routes through assessing before requesting recovery", async () => {
+    const deps = assessmentDeps(harborStore({ phase: "monitoring" }));
+    const phaseWrites = trackPhaseWrites(deps);
+
+    await runCaseAssessment(deps, { case_id: CASE_A });
+
+    const c = await deps.store.getCase(ctx.orgId, CASE_A);
+    expect(phaseWrites).toEqual(["assessing", "recovering"]);
+    expect(c?.phase).toBe("recovering");
+    expect(deps.step.sends.some((s) => s.name === "case.recovery.requested")).toBe(true);
+  });
+
+  it("needs_review case stays in review when recovery transition is denied", async () => {
+    const deps = assessmentDeps(harborStore({ phase: "needs_review" }));
+    const phaseWrites = trackPhaseWrites(deps);
+
+    await runCaseAssessment(deps, { case_id: CASE_A });
+
+    const c = await deps.store.getCase(ctx.orgId, CASE_A);
+    expect(phaseWrites).toEqual([]);
+    expect(c?.phase).toBe("needs_review");
+    expect(deps.store.audits).toContainEqual(
+      expect.objectContaining({
+        event_name: "phase_transition_denied",
+        entity_type: "case",
+      }),
+    );
+    expect(deps.step.sends.some((s) => s.name === "case.recovery.requested")).toBe(false);
   });
 
   it("no shortage -> monitoring", async () => {
