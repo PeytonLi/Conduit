@@ -436,11 +436,15 @@ function CaseHistory({
                     <td>{humanLabel("evidencePurpose", entry.purpose)}</td>
                     <td>{formatDateTime(entry.source_time, detail.case.location.timezone) ?? "Not available"}</td>
                     <td>
-                      <EvidenceDrawer
-                        evidence={entry}
-                        label={entry.source_expired ? "Source expired" : "Open"}
-                        timeZone={detail.case.location.timezone}
-                      />
+                      {entry.source_expired ? (
+                        <StatusBadge tone="neutral">Expired</StatusBadge>
+                      ) : (
+                        <EvidenceDrawer
+                          evidence={entry}
+                          label="Open"
+                          timeZone={detail.case.location.timezone}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

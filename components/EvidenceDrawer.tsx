@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import type { CaseEvidence } from "@/lib/db/queries/cases";
 import { formatDateTime } from "@/lib/db/queries/format";
 import { humanLabel } from "@/lib/db/queries/labels";
+import { Icon } from "@/components/ui/Icon";
 import styles from "./evidence-drawer.module.css";
+
+type FileMessage =
+  | { kind: "expired" }
+  | { kind: "text"; text: string };
+
+const expiredNoticeText =
+  "Source expired. The original file was deleted under your retention policy; the excerpt above is kept.";
 
 export function EvidenceDrawer({
   evidence,
@@ -18,13 +26,13 @@ export function EvidenceDrawer({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [fileMessage, setFileMessage] = useState("");
+  const [fileMessage, setFileMessage] = useState<FileMessage | null>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     const onClose = () => {
-      setFileMessage("");
+      setFileMessage(null);
       triggerRef.current?.focus();
     };
     dialog.addEventListener("close", onClose);
@@ -38,27 +46,38 @@ export function EvidenceDrawer({
   }
 
   async function openOriginal() {
-    setFileMessage("");
+    setFileMessage(null);
     try {
       const response = await fetch(`/api/v1/evidence/${evidence.id}/access`);
       const envelope = await response.json().catch(() => null) as { data?: { url?: string } } | null;
       if (response.status === 410) {
-        setFileMessage("Source expired");
+        setFileMessage({ kind: "expired" });
         return;
       }
       if (response.status === 404) {
-        setFileMessage("The original file isn’t retained for this evidence; the excerpt above is the stored source.");
+        setFileMessage({
+          kind: "text",
+          text: "The original file isn’t retained for this evidence; the excerpt above is the stored source.",
+        });
         return;
       }
       if (!response.ok || !envelope?.data?.url) {
-        setFileMessage("The original file couldn’t be opened. The excerpt above remains available.");
+        setFileMessage({
+          kind: "text",
+          text: "The original file couldn’t be opened. The excerpt above remains available.",
+        });
         return;
       }
       window.open(envelope.data.url, "_blank", "noopener,noreferrer");
     } catch {
-      setFileMessage("The original file couldn’t be opened. The excerpt above remains available.");
+      setFileMessage({
+        kind: "text",
+        text: "The original file couldn’t be opened. The excerpt above remains available.",
+      });
     }
   }
+
+  const showExpiredNotice = evidence.source_expired || fileMessage?.kind === "expired";
 
   return (
     <>
@@ -84,14 +103,17 @@ export function EvidenceDrawer({
           </dl>
           <h3>Stored excerpt</h3>
           <blockquote>{evidence.supported_excerpt ?? "No excerpt was retained for this source."}</blockquote>
-          {evidence.source_expired ? (
-            <p>Source expired</p>
+          {showExpiredNotice ? (
+            <div className={styles.expiredNotice} role="status">
+              <Icon name="file" size={17} />
+              <span>{expiredNoticeText}</span>
+            </div>
           ) : evidence.has_file && (
             <button className={styles.openFile} onClick={() => void openOriginal()} type="button">
               Open original file
             </button>
           )}
-          {fileMessage && <p role="status">{fileMessage}</p>}
+          {fileMessage?.kind === "text" && <p role="status">{fileMessage.text}</p>}
         </div>
       </dialog>
     </>

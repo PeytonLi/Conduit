@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("AT-38 evidence and connection controls", () => {
-  it("shows Source expired instead of the open-file action", () => {
+  it("shows the retained-excerpt notice instead of the open-file action", () => {
     const html = renderToStaticMarkup(createElement(EvidenceDrawer, {
       evidence: {
         id: "evidence-1",
@@ -25,7 +25,10 @@ describe("AT-38 evidence and connection controls", () => {
       },
       timeZone: "UTC",
     }));
-    expect(html).toContain("Source expired");
+    expect(html).toContain(
+      "Source expired. The original file was deleted under your retention policy; the excerpt above is kept.",
+    );
+    expect(html).toContain('role="status"');
     expect(html).not.toContain("Open original file");
     expect(html).toContain("Supplier email summary");
   });

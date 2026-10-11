@@ -1,6 +1,5 @@
 import { requireMembership } from "@/lib/auth";
 import { listConnections } from "@/lib/db/queries/connections";
-import { formatDateTime } from "@/lib/db/queries/format";
 import { getOrganization } from "@/lib/db/queries/organization";
 import { humanLabel } from "@/lib/db/queries/labels";
 import { parseServerEnv } from "@/lib/env";
@@ -12,6 +11,20 @@ import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import styles from "./integrations.module.css";
 import { DisconnectGmailButton } from "@/components/DisconnectGmailButton";
+
+function formatLastSynced(value: string | null, timeZone: string): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(date);
+}
 
 const purposeByCapability: Record<string, string> = {
   deepseek: "Reads supplier emails and drafts recovery plans.",
@@ -79,30 +92,46 @@ export default async function IntegrationsSettingsPage() {
                 <div className={styles.connectionDetails}>
                   {connection && (
                     <>
-                      {provider === "gmail" && connected && membership.role === "owner" && (
-                        <DisconnectGmailButton />
-                      )}
-                      <p>Last successful sync: {formatDateTime(connection.last_success_at, organization.timezone) ?? "No successful sync yet"}</p>
+                      <p className={styles.syncLine}>
+                        Last synced {formatLastSynced(connection.last_success_at, organization.timezone)}
+                      </p>
                       {connection.last_error_message && <p className={styles.error}>{connection.last_error_message}</p>}
-                      <ul className={styles.capabilities}>
-                        {Object.entries(connection.capabilities).map(([name, available]) => (
-                          <li key={name}>{humanLabel("capability", name)}: {available ? "Ready" : "Unavailable"}</li>
-                        ))}
-                      </ul>
+                      <div className={styles.capabilities}>
+                        {Object.entries(connection.capabilities).map(([name, available]) => {
+                          const normalizedName = name.toLowerCase();
+                          const isRead = provider === "gmail" && normalizedName.includes("read");
+                          const isSend = provider === "gmail" && normalizedName.includes("send");
+                          const label = isRead
+                            ? `Read ${available ? "✓" : "—"}`
+                            : isSend
+                              ? `Send ${available ? "✓" : "—"}`
+                              : `${humanLabel("capability", name)}: ${available ? "Ready" : "Unavailable"}`;
+                          return (
+                            <StatusBadge key={name} tone={available ? "success" : "warning"}>
+                              {label}
+                            </StatusBadge>
+                          );
+                        })}
+                      </div>
                     </>
                   )}
                 </div>
-                <Disclosure className={styles.setupDetails} summary="Setup details">
-                  {notNeededInReplay ? (
-                    <p>No provider setup is needed for replay.</p>
-                  ) : membership.role === "owner" && readiness?.missing.length ? (
-                    <ul>{readiness.missing.map((name) => <li key={name}>{name}</li>)}</ul>
-                  ) : !ready ? (
-                    <p>Ask an owner to review this provider’s environment configuration.</p>
-                  ) : (
-                    <p>No missing environment configuration was reported.</p>
+                <div className={styles.cardFooter}>
+                  <Disclosure className={styles.setupDetails} summary="Setup details">
+                    {notNeededInReplay ? (
+                      <p>No provider setup is needed for replay.</p>
+                    ) : membership.role === "owner" && readiness?.missing.length ? (
+                      <ul>{readiness.missing.map((name) => <li key={name}>{name}</li>)}</ul>
+                    ) : !ready ? (
+                      <p>Ask an owner to review this provider’s environment configuration.</p>
+                    ) : (
+                      <p>No missing environment configuration was reported.</p>
+                    )}
+                  </Disclosure>
+                  {provider === "gmail" && connected && membership.role === "owner" && (
+                    <DisconnectGmailButton />
                   )}
-                </Disclosure>
+                </div>
               </Card>
             );
           })}

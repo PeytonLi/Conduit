@@ -30,13 +30,18 @@ test("AT-38 expired evidence keeps its summary and shows Source expired", async 
       "update public.evidence set retention_until = $2 where id = $1",
       [evidenceId, new Date(Date.now() - 60_000).toISOString()],
     );
-    await page.goto(`/cases/${caseId}`);
-    await page.getByRole("tab", { name: /History/ }).click();
-    const sourceButton = page.getByRole("button", { name: "Source expired", exact: true }).first();
+    await page.goto(`/cases/${caseId}?tab=history`);
+    await expect(page.getByRole("tab", { name: /History/ })).toHaveAttribute("aria-selected", "true");
+    const expiredTag = page.getByText("Expired", { exact: true }).first();
+    await expect(expiredTag).toBeVisible();
+    await expect(expiredTag.locator("xpath=ancestor::tr").getByRole("button", { name: "Open" })).toHaveCount(0);
+    const sourceButton = page.getByRole("button", { name: /^Source \d+$/ }).first();
     await expect(sourceButton).toBeVisible();
     await sourceButton.click();
     const dialog = page.getByRole("dialog", { name: "Evidence source" });
-    await expect(dialog).toContainText("Source expired");
+    await expect(dialog).toContainText(
+      "Source expired. The original file was deleted under your retention policy; the excerpt above is kept.",
+    );
     await expect(dialog).not.toContainText("Open original file");
   } finally {
     if (originalRetention !== undefined) {
