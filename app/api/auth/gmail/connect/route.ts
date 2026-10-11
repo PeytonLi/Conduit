@@ -47,10 +47,7 @@ export async function POST(request: Request) {
         env.COMPOSIO_GMAIL_AUTH_CONFIG_ID,
         { callbackUrl: callback.toString() },
       );
-      const response = new Response(null, {
-        status: 302,
-        headers: { location: link.redirectUrl },
-      });
+      const response = ok({ authorization_url: link.redirectUrl });
       response.headers.append(
         "set-cookie",
         `gmail_oauth_nonce=${nonce}; Path=/api/auth/gmail; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,

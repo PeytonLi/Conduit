@@ -50,7 +50,7 @@ describe("Composio Gmail auth routes", () => {
     vi.clearAllMocks();
   });
 
-  it("creates an org-scoped Composio link with a signed callback and redirects", async () => {
+  it("returns an org-scoped Composio authorization URL with a signed callback", async () => {
     mocks.link.mockResolvedValue({
       id: "link-1",
       redirectUrl: "https://connect.composio.dev/link-1",
@@ -61,8 +61,11 @@ describe("Composio Gmail auth routes", () => {
     }));
     const callback = new URL(mocks.link.mock.calls[0][2].callbackUrl);
 
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("https://connect.composio.dev/link-1");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect((await response.json()).data.authorization_url).toBe(
+      "https://connect.composio.dev/link-1",
+    );
     expect(mocks.link).toHaveBeenCalledWith(
       membership.orgId,
       "ac_gmail",

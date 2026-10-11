@@ -11,6 +11,33 @@ import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import styles from "./integrations.module.css";
 import { DisconnectGmailButton } from "@/components/DisconnectGmailButton";
+import { ConnectGmailButton } from "@/components/ConnectGmailButton";
+
+type IntegrationsSearchParams = {
+  gmail?: string | string[];
+  code?: string | string[];
+};
+
+const gmailErrorReasons: Record<string, string> = {
+  gmail_not_configured: "The Gmail integration is not configured.",
+  connection_failed: "The authorization was not completed.",
+  connection_verification_failed: "The connected account could not be verified.",
+  missing_code: "Google did not return an authorization code.",
+  exchange_failed: "Google could not complete the authorization.",
+  unauthorized: "Sign in as an organization owner to connect Gmail.",
+  bad_signature: "The authorization request could not be verified.",
+  expired: "The connection request expired. Start again.",
+  nonce_mismatch: "The connection request could not be verified. Start again.",
+  user_mismatch: "Sign in with the account that started the connection.",
+  org_mismatch: "The request belongs to a different organization.",
+  not_owner: "Only an organization owner can connect Gmail.",
+  redirect_mismatch: "The callback URL did not match the connection request.",
+  malformed: "The authorization request was invalid.",
+};
+
+function firstParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
 
 function formatLastSynced(value: string | null, timeZone: string): string {
   if (!value) return "—";
@@ -44,7 +71,14 @@ const iconByCapability = {
   inngest: "clock",
 } as const;
 
-export default async function IntegrationsSettingsPage() {
+export default async function IntegrationsSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<IntegrationsSearchParams>;
+}) {
+  const query = await searchParams;
+  const gmailStatus = firstParam(query.gmail);
+  const gmailError = firstParam(query.code);
   const membership = await requireMembership();
   const appEnvironment = parseServerEnv(process.env).APP_ENV;
   const [result, organization] = await Promise.all([
@@ -63,6 +97,16 @@ export default async function IntegrationsSettingsPage() {
   return (
     <div className={styles.page}>
       <PageHeader description="Check provider readiness and setup needs." title="Integrations" />
+      {gmailStatus === "connected" && (
+        <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
+          Gmail connected. Conduit will start reading supplier emails within a few minutes.
+        </p>
+      )}
+      {gmailStatus === "error" && (
+        <p className={`${styles.notice} ${styles.noticeError}`} role="alert">
+          Gmail couldn’t be connected. {gmailErrorReasons[gmailError] ?? "Please try again or ask an owner to review the setup."}
+        </p>
+      )}
       {providers.length ? (
         <section aria-label="Provider status" className={styles.grid}>
           {providers.map((provider) => {
@@ -70,9 +114,24 @@ export default async function IntegrationsSettingsPage() {
             const readiness = readinessByProvider[provider];
             const connected = Boolean(connection && ["healthy", "degraded"].includes(connection.status));
             const ready = readiness
-              ? readiness.ready && (!connection || connected)
+              ? readiness.ready && (provider === "gmail" ? connected : (!connection || connected))
               : connected;
             const notNeededInReplay = appEnvironment === "replay";
+            const notConnectedGmail = provider === "gmail" && !connected;
+            const statusLabel = notNeededInReplay
+              ? "Not needed in replay"
+              : notConnectedGmail
+                ? "Not connected"
+                : ready
+                  ? "Ready"
+                  : "Needs setup";
+            const statusTone = notNeededInReplay
+              ? "neutral"
+              : notConnectedGmail
+                ? "warning"
+                : ready
+                  ? "success"
+                  : "warning";
             return (
               <Card className={styles.card} key={provider}>
                 <div className={styles.cardHeading}>
@@ -84,8 +143,8 @@ export default async function IntegrationsSettingsPage() {
                   </div>
                 </div>
                 <div className={styles.cardStatus}>
-                  <StatusBadge tone={notNeededInReplay ? "neutral" : ready ? "success" : "warning"}>
-                    {notNeededInReplay ? "Not needed in replay" : ready ? "Ready" : "Needs setup"}
+                  <StatusBadge tone={statusTone}>
+                    {statusLabel}
                   </StatusBadge>
                 </div>
                 <p className={styles.purpose}>{purposeByCapability[provider] ?? "Connect this provider to Conduit."}</p>
@@ -128,9 +187,18 @@ export default async function IntegrationsSettingsPage() {
                       <p>No missing environment configuration was reported.</p>
                     )}
                   </Disclosure>
-                  {provider === "gmail" && connected && membership.role === "owner" && (
+                  {provider === "gmail" &&
+                    connected &&
+                    membership.role === "owner" && (
                     <DisconnectGmailButton />
                   )}
+                  {provider === "gmail" &&
+                    !connected &&
+                    !notNeededInReplay &&
+                    readiness?.ready &&
+                    membership.role === "owner" && (
+                      <ConnectGmailButton />
+                    )}
                 </div>
               </Card>
             );
