@@ -82,6 +82,16 @@
   color: var(--muted, var(--color-muted));
 }
 
+@media (min-width: 641px) {
+  .dialog .metadata > div {
+    grid-template-columns: minmax(130px, max-content) minmax(0, 1fr);
+  }
+
+  .dialog .metadata dt {
+    white-space: nowrap;
+  }
+}
+
 .metadata dd {
   min-width: 0;
   margin: 0;

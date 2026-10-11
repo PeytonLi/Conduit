@@ -19,10 +19,9 @@
 
 .confirmation {
   display: grid;
-  flex: 1 1 190px;
+  flex: 0 0 100%;
   gap: var(--space-2);
-  min-width: 190px;
-  max-width: 270px;
+  min-width: 0;
 }
 
 .message,
@@ -34,11 +33,15 @@
 
 .message {
   color: var(--color-neutral-700);
+  font-size: 0.6rem;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-start;
   gap: var(--space-2);
 }
 
@@ -46,9 +49,9 @@
   color: var(--color-danger-700);
 }
 
-@media (max-width: 420px) {
-  .confirmation {
-    flex-basis: 180px;
-    min-width: 180px;
+@media (min-width: 601px) {
+  .message {
+    font-size: var(--text-xs);
+    letter-spacing: normal;
   }
 }

@@ -22,6 +22,14 @@
   gap: var(--space-3);
 }
 
+.card:has([aria-label="Gmail disconnect confirmation"]) {
+  padding-inline: var(--space-4);
+}
+
+.grid > .card:has([aria-label="Gmail disconnect confirmation"]) {
+  grid-column: 1 / -1;
+}
+
 .card h2,
 .card p {
   margin: 0;
@@ -79,6 +87,7 @@
 
 .cardFooter {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
