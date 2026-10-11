@@ -105,6 +105,7 @@ export async function processSourceMessage({
   }
 
   const effectiveModeOfOrg = effectiveMode(deps.mode, loaded.org_environment_mode);
+  const sentAt = message.sent_at ? new Date(message.sent_at) : now();
 
   let facts: ExtractionV1 | null = null;
   let extractionVersion: number | null = null;
@@ -133,6 +134,8 @@ export async function processSourceMessage({
           message: {
             rfcMessageId: message.rfc_message_id,
             bodyHash: "",
+            sentAt,
+            timezone: loaded.org_timezone,
             segments: loaded.segments.map((s) => ({
               kind: s.kind as "body" | "quoted" | "forwarded",
               index: s.index,
@@ -217,7 +220,8 @@ export async function processSourceMessage({
       content: s.content,
       evidence_id: s.evidence_id,
     })),
-    sentAt: message.sent_at ? new Date(message.sent_at) : now(),
+    sentAt,
+    sentTimezone: loaded.org_timezone,
     timezone: defaultTz,
   });
   for (const vl of verify.lines) {
@@ -489,6 +493,7 @@ export async function resolveMessageMatch({
       evidence_id: s.evidence_id,
     })),
     sentAt: loaded.message.sent_at ? new Date(loaded.message.sent_at) : now(),
+    sentTimezone: loaded.org_timezone,
     timezone: defaultTz,
   });
   for (const vl of verify.lines) {
