@@ -18,6 +18,7 @@ test("replay integrations show neutral provider status", async ({ page }) => {
   const providers = page.getByRole("region", { name: "Provider status" });
   await expect(providers.getByText("Not needed in replay").first()).toBeVisible();
   await expect(providers.getByText("Needs setup")).toHaveCount(0);
+  await expect(providers.getByRole("button", { name: "Connect Gmail" })).toHaveCount(0);
 });
 
 test("connected Gmail asks for inline confirmation before disconnecting", async ({ page }) => {
