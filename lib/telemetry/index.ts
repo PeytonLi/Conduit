@@ -15,6 +15,7 @@ export interface NeatlogsModule {
   ): Promise<T>;
   flush(): Promise<unknown>;
   shutdown(reason?: string, timeoutMs?: number): Promise<unknown>;
+  wrapOpenAI?: <T>(client: T) => T;
 }
 
 export interface TelemetryEnv {

@@ -60,16 +60,17 @@ afterEach(() => {
 
 describe("AT-29 telemetry", () => {
   it("no NEATLOGS_API_KEY -> disabled, business fn still runs once", async () => {
-    const { mod } = fakeNeatlogs();
+    const { mod, spans } = fakeNeatlogs();
     await initTelemetry({}, { neatlogs: mod });
     expect(isTelemetryEnabled()).toBe(false);
     let ran = 0;
-    const result = await withBusinessSpan("matching", {}, async () => {
+    const result = await withBusinessSpan("message_extraction", {}, async () => {
       ran += 1;
       return "ok";
     });
     expect(result).toBe("ok");
     expect(ran).toBe(1);
+    expect(spans).toHaveLength(0);
   });
 
   it("init failure -> degraded with one safe warn, fn runs", async () => {
@@ -116,6 +117,37 @@ describe("AT-29 telemetry", () => {
     expect(span.attrs["conduit.provider_request_id"]).toBe("req-1");
     expect(span.attrs["conduit.conversation_id"]).toBe("conv-1");
     expect(String(span.attrs["conduit.org_pseudonym"])).toMatch(/^org_[0-9a-f]{12}$/);
+  });
+
+  it("message extraction records its AGENT span and correlation attributes", async () => {
+    const { mod, spans } = fakeNeatlogs();
+    await initTelemetry({ NEATLOGS_API_KEY: "k" }, { neatlogs: mod });
+
+    await withBusinessSpan(
+      "message_extraction",
+      {
+        org_pseudonym: orgPseudonym("00000000-0000-4000-8000-000000000001"),
+        model: "deepseek-chat",
+        prompt_version: "extract-v1",
+        source_message_id: "84683f50-6467-4bdb-9f32-7d3366df13ad",
+      },
+      async () => "done",
+    );
+
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({
+      name: "conduit.message_extraction",
+      kind: "AGENT",
+      input: undefined,
+      attrs: {
+        "conduit.org_pseudonym": orgPseudonym(
+          "00000000-0000-4000-8000-000000000001",
+        ),
+        "conduit.model": "deepseek-chat",
+        "conduit.prompt_version": "extract-v1",
+        "conduit.source_message_id": "84683f50-6467-4bdb-9f32-7d3366df13ad",
+      },
+    });
   });
 
   it("trace throwing before fn -> fn result unaffected and runs once", async () => {

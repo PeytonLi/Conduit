@@ -12,7 +12,8 @@ export type BusinessSpanName =
   | "approval_check"
   | "execution"
   | "reconciliation"
-  | "planner_inference";
+  | "planner_inference"
+  | "message_extraction";
 
 export interface CorrelationAttrs {
   org_pseudonym?: string;
@@ -23,12 +24,14 @@ export interface CorrelationAttrs {
   action_id?: string;
   model?: string;
   prompt_version?: string;
+  source_message_id?: string;
   provider_request_id?: string;
   conversation_id?: string;
 }
 
 const KINDS: Record<BusinessSpanName, string> = {
   planner_inference: "AGENT",
+  message_extraction: "AGENT",
   approval_check: "GUARDRAIL",
   matching: "TOOL",
   inventory_calc: "TOOL",

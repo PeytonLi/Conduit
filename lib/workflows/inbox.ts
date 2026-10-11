@@ -15,6 +15,7 @@ import { google } from "googleapis";
 import { ingestMessage } from "@/lib/db/messages";
 import { parseServerEnv } from "@/lib/env";
 import { createDeepSeekClient } from "@/lib/agent/extraction";
+import { flushTelemetry } from "@/lib/telemetry";
 
 export const inboxGmailPoll = inngest.createFunction(
   {
@@ -155,7 +156,7 @@ export const inboxProcessMessage = inngest.createFunction(
     const env = parseServerEnv(process.env);
     const client = createServiceClient();
     const rpc = supabaseRpcClient(client);
-    return step.run("process-message", async () => {
+    const result = await step.run("process-message", async () => {
       const deepseek = createDeepSeekClient(env);
       return processSourceMessage({
         rpc,
@@ -170,5 +171,7 @@ export const inboxProcessMessage = inngest.createFunction(
         now: () => new Date(),
       });
     });
+    await step.run("flush-telemetry", () => flushTelemetry());
+    return result;
   },
 );
