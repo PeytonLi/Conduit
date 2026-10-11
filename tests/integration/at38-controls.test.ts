@@ -87,6 +87,10 @@ describe("AT-38 disconnect and evidence retention controls", () => {
   });
 
   it("disconnects Gmail, removes credentials, and blocks prepared email claims", async () => {
+    await client.query(
+      "update public.organizations set environment_mode = 'sandbox' where id = $1",
+      [harbor.orgId],
+    );
     const connectionId = await addGmailConnection(harbor);
     const actionId = await prepareEmail(harbor);
     await client.query(
@@ -116,6 +120,27 @@ describe("AT-38 disconnect and evidence retention controls", () => {
     expect(connection.rows[0].status).toBe("disconnected");
     expect(credentials.rows[0].count).toBe(0);
     expect(audit.rows[0].count).toBe(1);
+  });
+
+  it("allows replay email claims without Gmail while blocking sandbox claims", async () => {
+    await client.query(
+      "update public.connections set status = 'disconnected' where org_id = $1 and provider = 'gmail'",
+      [harbor.orgId],
+    );
+    const replayActionId = await prepareEmail(harbor);
+    await expect(claim(harbor, replayActionId)).resolves.toMatchObject({ ok: true });
+
+    const sandboxHarbor = await seedHarbor(client, { mode: "sandbox" });
+    await client.query(
+      "update public.connections set status = 'disconnected' where org_id = $1 and provider = 'gmail'",
+      [sandboxHarbor.orgId],
+    );
+    const sandboxActionId = await prepareEmail(sandboxHarbor);
+    await expect(claim(sandboxHarbor, sandboxActionId)).resolves.toMatchObject({
+      ok: false,
+      code: "failed_precondition",
+      reason: "connection_unavailable",
+    });
   });
 
   it("blocks dispatch after the action preparer is deactivated", async () => {

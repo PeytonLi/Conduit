@@ -114,7 +114,9 @@ begin
       jsonb_build_object('action', private.action_json(p_org_id, p_action_id)));
   end if;
   select * into v_case from public.cases where id = v_action.case_id and org_id = p_org_id;
-  if v_action.kind = 'supplier_email' and not exists (
+  if v_action.kind = 'supplier_email'
+    and v_action.mode <> 'replay'
+    and not exists (
     select 1
     from public.connections c
     where c.org_id = p_org_id
