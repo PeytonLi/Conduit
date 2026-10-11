@@ -9,6 +9,7 @@ import type {
 } from "@/lib/db/queries/cases";
 import { formatDateTime, formatDateTimeRange, formatMoney, formatQuantity, formatQuantityChange } from "@/lib/db/queries/format";
 import { humanLabel, originalOrderTreatmentLabel, phaseStage, phaseTone } from "@/lib/ui/labels";
+import { projectionEmptyMessage } from "@/lib/ui/projection-empty-message";
 import { Disclosure } from "./ui/Disclosure";
 import { RequestReassessmentButton } from "./RequestReassessmentButton";
 import { CaseControls } from "./CaseControls";
@@ -197,7 +198,7 @@ function ImpactSummary({
           ) : null}
           {!detail.assessment?.points.length && (
             <p className={styles.projectionEmpty}>
-              Stock projection appears once inventory and demand data are loaded.
+              {projectionEmptyMessage(detail.assessment)}
             </p>
           )}
         </div>

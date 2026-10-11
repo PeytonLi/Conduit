@@ -5,6 +5,7 @@ import { listCases } from "@/lib/db/queries/cases";
 import { caseListQuerySchema } from "@/lib/db/queries/contracts";
 import { getCurrentPolicy } from "@/lib/db/queries/policies";
 import { listSuppliers } from "@/lib/db/queries/suppliers";
+import { getStartedCompletion } from "@/lib/ui/get-started";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -20,28 +21,28 @@ export default async function OnboardingPage() {
     getCurrentPolicy(membership),
     listCases(membership, caseListQuerySchema.parse({ limit: 1 }), new Date()),
   ]);
+  const completion = getStartedCompletion(connections.connections, business, suppliers);
   const steps = [
     {
-      label: "Connect an integration",
-      description: "Connect a data source so Conduit can keep your business information current.",
+      label: "Connect Gmail",
+      description: "Conduit reads supplier emails and sends only the replies you approve.",
       href: "/settings/integrations",
       linkLabel: "Open integrations",
-      complete: connections.connections.some((entry) => entry.status === "connected") ||
-        Object.values(connections.environment_capabilities).some((entry) => entry.ready),
+      complete: completion.gmail,
     },
     {
       label: "Load business data",
       description: "Import inventory, demand, purchase orders, and supplier information.",
       href: "/business-data",
       linkLabel: "Open business data",
-      complete: business.datasets.length > 0,
+      complete: completion.businessData,
     },
     {
       label: "Verify supplier contacts",
       description: "Confirm the contacts Conduit may reach when a delay needs attention.",
       href: "/suppliers",
       linkLabel: "Review suppliers",
-      complete: suppliers.some((supplier) => supplier.contacts.some((contact) => contact.identity_verified)),
+      complete: completion.supplierContacts,
     },
     {
       label: "Review your policy",

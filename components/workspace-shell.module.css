@@ -12,6 +12,7 @@
   grid-template-columns: 252px minmax(0, 1fr);
   color: var(--text);
   background:
+    linear-gradient(90deg, #0f3530 0 252px, transparent 252px),
     radial-gradient(900px 420px at 100% -10%, rgb(229 124 79 / 7%), transparent 70%),
     radial-gradient(700px 380px at 20% -20%, rgb(47 133 119 / 7%), transparent 70%),
     var(--bg);
@@ -30,7 +31,7 @@
   color: var(--accent);
 }
 
-.skipLink:focus {
+.skipLink:focus-visible {
   transform: translateY(0);
 }
 
@@ -42,6 +43,8 @@
   height: 100vh;
   flex-direction: column;
   gap: 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 22px 14px 16px;
   background:
     radial-gradient(240px 200px at 0% 0%, rgb(58 154 137 / 28%), transparent 70%),
@@ -254,6 +257,10 @@
 @media (max-width: 720px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
+    background:
+      radial-gradient(900px 420px at 100% -10%, rgb(229 124 79 / 7%), transparent 70%),
+      radial-gradient(700px 380px at 20% -20%, rgb(47 133 119 / 7%), transparent 70%),
+      var(--bg);
   }
 
   .sidebar {
@@ -266,6 +273,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    overflow-y: visible;
     padding: 12px 14px;
   }
 

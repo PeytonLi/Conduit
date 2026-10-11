@@ -47,6 +47,12 @@
   min-width: 720px;
 }
 
+.table th:last-child,
+.table td:last-child {
+  min-width: 7rem;
+  white-space: nowrap;
+}
+
 @media (max-width: 760px) {
   .filters {
     grid-template-columns: 1fr auto;
