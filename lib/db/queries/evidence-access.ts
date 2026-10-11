@@ -13,7 +13,7 @@ export async function getEvidenceAccess(
 ): Promise<EvidenceAccess> {
   const client = createServiceClient();
   const { data, error } = await client.from("evidence")
-    .select("id,private_object_path")
+    .select("id,private_object_path,retention_until,tombstoned_at")
     .eq("org_id", context.orgId)
     .eq("id", evidenceId)
     .maybeSingle();
@@ -22,6 +22,12 @@ export async function getEvidenceAccess(
   }
   if (!data) {
     throw new QueryError("evidence_file_unavailable", 404, "Evidence file is unavailable");
+  }
+  if (
+    data.tombstoned_at ||
+    (data.retention_until && new Date(data.retention_until).getTime() <= now.getTime())
+  ) {
+    throw new QueryError("source_expired", 410, "Source expired");
   }
   if (!data.private_object_path) {
     throw new QueryError("evidence_file_unavailable", 404, "Evidence file is unavailable");

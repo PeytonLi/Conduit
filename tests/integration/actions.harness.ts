@@ -81,6 +81,7 @@ export function countingAdapter(kind: ActionKind): Counting {
 
 export interface Harbor {
   orgId: string;
+  gmailConnectionId: string;
   ownerId: string;
   operatorId: string;
   viewerId: string;
@@ -157,6 +158,12 @@ export async function seedHarbor(client: Client, opts: { mode?: "replay" | "sand
   ]) {
     await insert(client, "memberships", { org_id: orgId, auth_user_id: uid, role });
   }
+  const gmailConnectionId = await insert(client, "connections", {
+    org_id: orgId,
+    provider: "gmail",
+    external_account_id: `gmail-${randomUUID()}`,
+    status: "healthy",
+  });
   const rpc = pgRpc(client);
   await rpc("policy_create_version", {
     p_org_id: orgId,
@@ -254,6 +261,7 @@ export async function seedHarbor(client: Client, opts: { mode?: "replay" | "sand
   const evidenceId = await insert(client, "evidence", { org_id: orgId, source_type: "email", content_hash: "split-confirmation" });
   return {
     orgId,
+    gmailConnectionId,
     ownerId,
     operatorId,
     viewerId,

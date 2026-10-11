@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import styles from "./integrations.module.css";
+import { DisconnectGmailButton } from "@/components/DisconnectGmailButton";
 
 const purposeByCapability: Record<string, string> = {
   deepseek: "Reads supplier emails and drafts recovery plans.",
@@ -54,9 +55,10 @@ export default async function IntegrationsSettingsPage() {
           {providers.map((provider) => {
             const connection = configured.get(provider);
             const readiness = readinessByProvider[provider];
+            const connected = Boolean(connection && ["healthy", "degraded"].includes(connection.status));
             const ready = readiness
-              ? readiness.ready && (!connection || connection.status === "connected")
-              : connection?.status === "connected";
+              ? readiness.ready && (!connection || connected)
+              : connected;
             const notNeededInReplay = appEnvironment === "replay";
             return (
               <Card className={styles.card} key={provider}>
@@ -77,6 +79,9 @@ export default async function IntegrationsSettingsPage() {
                 <div className={styles.connectionDetails}>
                   {connection && (
                     <>
+                      {provider === "gmail" && connected && membership.role === "owner" && (
+                        <DisconnectGmailButton />
+                      )}
                       <p>Last successful sync: {formatDateTime(connection.last_success_at, organization.timezone) ?? "No successful sync yet"}</p>
                       {connection.last_error_message && <p className={styles.error}>{connection.last_error_message}</p>}
                       <ul className={styles.capabilities}>

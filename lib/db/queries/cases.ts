@@ -198,6 +198,7 @@ export interface CaseEvidence {
   source_time: string | null;
   captured_at: string;
   has_file: boolean;
+  source_expired: boolean;
   verified_at: string | null;
   purpose: string;
 }
@@ -1114,6 +1115,11 @@ export async function getCaseEvidence(
       source_time: row.source_time,
       captured_at: row.captured_at,
       has_file: Boolean(row.private_object_path),
+      source_expired:
+        Boolean(row.tombstoned_at) ||
+        (row.retention_until !== null &&
+          row.retention_until !== undefined &&
+          new Date(row.retention_until).getTime() <= Date.now()),
       verified_at: row.verified_at,
       purpose: link.purpose,
     }];

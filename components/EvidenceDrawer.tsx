@@ -42,6 +42,10 @@ export function EvidenceDrawer({
     try {
       const response = await fetch(`/api/v1/evidence/${evidence.id}/access`);
       const envelope = await response.json().catch(() => null) as { data?: { url?: string } } | null;
+      if (response.status === 410) {
+        setFileMessage("Source expired");
+        return;
+      }
       if (response.status === 404) {
         setFileMessage("The original file isn’t retained for this evidence; the excerpt above is the stored source.");
         return;
@@ -80,7 +84,9 @@ export function EvidenceDrawer({
           </dl>
           <h3>Stored excerpt</h3>
           <blockquote>{evidence.supported_excerpt ?? "No excerpt was retained for this source."}</blockquote>
-          {evidence.has_file && (
+          {evidence.source_expired ? (
+            <p>Source expired</p>
+          ) : evidence.has_file && (
             <button className={styles.openFile} onClick={() => void openOriginal()} type="button">
               Open original file
             </button>
