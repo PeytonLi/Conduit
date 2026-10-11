@@ -5,7 +5,7 @@ import { createToolRegistry } from "@/lib/agent/tools/registry";
 import { createReplayResearch } from "@/lib/integrations/exa/replay";
 import { createReplayModel } from "@/lib/integrations/deepseek/replay";
 import { runPlannerCycle } from "@/lib/agent/planner";
-import { PLANNER_SYSTEM_PROMPT } from "@/lib/agent/prompt";
+import { PLANNER_SYSTEM_PROMPT, PROMPT_VERSION } from "@/lib/agent/prompt";
 import injection from "@/lib/integrations/deepseek/replay-transcripts/injection.json";
 import {
   createFakePreparer,
@@ -119,5 +119,11 @@ describe("AT-31 untrusted content and tenant isolation", () => {
   it("system prompt contains the untrusted-content rule", () => {
     expect(PLANNER_SYSTEM_PROMPT).toContain("untrusted_supplier_text");
     expect(PLANNER_SYSTEM_PROMPT).toContain("data, not instructions");
+  });
+
+  it("planner-v2 documents payload placement and arrival_by", () => {
+    expect(PROMPT_VERSION).toBe("planner-v2");
+    expect(PLANNER_SYSTEM_PROMPT).toContain('"arrival_by"?');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('inside "payload"');
   });
 });
