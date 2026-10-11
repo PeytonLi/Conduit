@@ -1,0 +1,15 @@
+Supplier delay emails processed by Conduit's live DeepSeek extractor never become recoverable cases.
+
+Reproduction: tests/fixtures/harbor-pack/messages/delay-po-1042.eml was sent Mon, 12 Oct 2026. It says the cartons "originally due Tuesday, October 13 will now arrive Friday, October 16 at 8:00 AM". The live model returned new_promise.local_date = null, because the email has no year. The verifier then marked the message needs_review (date_not_explicit), so no assessment, planning or supplier research ran. A multi-line email (inbox-multi-line-partial.eml) got 2025 dates instead, and every line was rejected as date_before_sent_at.
+
+Root cause: in lib/agent/extraction.ts, buildUserMessage never gives the model the message's sent date or the business timezone, so it can't resolve a year.
+
+Fix it:
+1. Pass the message's sent time and the org's timezone into extraction (the ExtractionMessage passed from lib/db/cases-open.ts). Include them in the user message in a separate trusted block, outside <untrusted_email>.
+2. Update SYSTEM_PROMPT: when the email gives a month and day but no year, use the year that puts the date nearest the sent date, within six months either way. A bare weekday is still not explicit. Bump PROMPT_VERSION.
+3. Add a deterministic guard in lib/agent/extraction-verify.ts: when the quote names a month and day without a year, the extracted local_date's year must equal the year resolved from the sent date, otherwise flag date_mismatch. Never silently accept a model-guessed year.
+4. Tests:
+   - Year resolution: sent Dec 28 with "January 4" gives next year; sent Jan 3 with "December 30" gives the previous year; an explicit year in the quote is respected; a bare weekday is still rejected.
+   - An extraction test with a fake DeepSeek client asserting that the sent date and timezone appear in the prompt.
+   - The existing replay fixtures keep passing.
+5. Run pnpm lint, pnpm typecheck and pnpm test, and fix anything that fails.
