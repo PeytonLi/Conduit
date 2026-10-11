@@ -62,7 +62,7 @@ export default async function OnboardingPage() {
   const allComplete = completedSteps === steps.length;
   const firstIncomplete = steps.findIndex((step) => !step.complete);
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <section className={styles.hero}>
         <PageHeader title="Welcome to Conduit" description="A few clear steps to get your team ready." />
         <div className={styles.progress}>
@@ -102,6 +102,6 @@ export default async function OnboardingPage() {
         ))}
       </ol>
       {allComplete && <ButtonLink href="/cases">Go to cases</ButtonLink>}
-    </main>
+    </div>
   );
 }

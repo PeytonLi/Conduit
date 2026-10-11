@@ -1,6 +1,6 @@
 # Conduit — Build status
 
-Last updated: October 10, 2026
+Last updated: October 12, 2026
 Specification baseline: PRD v1.0
 Current phase: Phase 1 foundation implemented and locally verified; provider feasibility remains open
 
@@ -20,12 +20,12 @@ Current phase: Phase 1 foundation implemented and locally verified; provider fea
 | --- | --- | --- |
 | Specification | Complete | PRD.md and docs/prd/ |
 | M0 — Setup and feasibility | In progress | Pinned: Next 16.4.0, React 19.3.0, Supabase JS 2.117.3, SSR 0.12.7, Inngest 4.22.0, Zod 4.6.5, OpenAI 7.31.0, neatlogs 1.1.28, Vitest 5.0.3, Playwright 1.64.0, Supabase CLI 2.120.0. Passed locally: `pnpm install --frozen-lockfile`, `pnpm db:start`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (5 tests), `pnpm db:reset && pnpm test:db` (3 tests), `pnpm build`, `pnpm exec playwright install chromium`, `pnpm test:e2e` (2 tests), and `pnpm seed:demo`. Local Supabase remains running. Live provider proofs, CI, and Entire agent setup remain incomplete. |
-| M1 — Domain, data and permissions | Not started | None |
-| M2 — Inbox to shortage | Not started | None |
-| M3 — Research, email and voice | Not started | None |
-| M4 — Approval and recovery recording | Not started | None |
-| M5 — Reliability, UX and acceptance | Not started | None |
-| M6 — Partner evidence and submission preparation | Not started | None |
+| M1 — Domain, data and permissions | Done | Schema, tenant controls, deterministic inventory, action ledger, and integration hardening landed in [#1](https://github.com/PeytonLi/Conduit/pull/1), [#3](https://github.com/PeytonLi/Conduit/pull/3), and [#7](https://github.com/PeytonLi/Conduit/pull/7). |
+| M2 — Inbox to shortage | Done | Inbox ingestion and case workflow delivered in [#6](https://github.com/PeytonLi/Conduit/pull/6), with UI and integration work in [#7](https://github.com/PeytonLi/Conduit/pull/7) and [#13](https://github.com/PeytonLi/Conduit/pull/13). |
+| M3 — Research, email and voice | Done | Planner, call contracts, provider wiring, and media bridge delivered in [#5](https://github.com/PeytonLi/Conduit/pull/5), [#9](https://github.com/PeytonLi/Conduit/pull/9), [#10](https://github.com/PeytonLi/Conduit/pull/10), [#11](https://github.com/PeytonLi/Conduit/pull/11), and [#12](https://github.com/PeytonLi/Conduit/pull/12). Live voice-provider success remains unverified; see the M0 gate and voice investigation below. |
+| M4 — Approval and recovery recording | Done | Versioned recovery, owner/operator approval flows, ledger recording, and voice/action integration landed in [#3](https://github.com/PeytonLi/Conduit/pull/3), [#8](https://github.com/PeytonLi/Conduit/pull/8), [#12](https://github.com/PeytonLi/Conduit/pull/12), and [#14](https://github.com/PeytonLi/Conduit/pull/14). |
+| M5 — Reliability, UX and acceptance | In progress | Reliability and UX work landed in [#7](https://github.com/PeytonLi/Conduit/pull/7), [#13](https://github.com/PeytonLi/Conduit/pull/13), and [#14](https://github.com/PeytonLi/Conduit/pull/14). Acceptance gaps remain: AT-30 Development evidence, AT-32 Business model, AT-33 Replay isolation, AT-37 Real connector, and AT-38 Retention/disconnect. |
+| M6 — Partner evidence and submission preparation | In progress | A measured inventory before/after performance run and repository setup/docs exist; Entire is not enabled, and the CFO.ai model/scenarios, complete evidence bundle, and demo video/submission artifacts remain outstanding. See [#14](https://github.com/PeytonLi/Conduit/pull/14) for the inventory performance work and the open M0/Entire gate below. |
 
 ## Next action
 

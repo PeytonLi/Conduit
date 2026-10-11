@@ -6,6 +6,7 @@ test("AT-36 keyboard-only narrow owner journey", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
   await page.goto("/cases");
+  await expect(page.getByRole("main")).toHaveCount(1);
 
   const caseHref = `/cases/${caseId}`;
   const caseLink = page.locator(`a[href="${caseHref}"]:visible`).first();
@@ -29,6 +30,7 @@ test("AT-36 keyboard-only narrow owner journey", async ({ page }) => {
   await expect(caseLink).toBeFocused();
 
   await page.keyboard.press("Enter");
+  await expect(page.getByRole("main")).toHaveCount(1);
   const overviewTab = page.getByRole("tab", { name: "Overview" });
   await overviewTab.focus();
   await page.keyboard.press("ArrowRight");
@@ -70,7 +72,12 @@ test("case detail tabs support history deep links", async ({ page }) => {
   await login(page, "owner@harbor.example");
   const caseId = await resetDemo(page);
   await page.goto(`/cases/${caseId}?tab=history`);
+  await expect(page.getByRole("main")).toHaveCount(1);
 
   await expect(page.getByRole("tab", { name: /^History \(/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
+  await page.goto("/business-data");
+  await expect(page.getByRole("main")).toHaveCount(1);
+  await page.goto("/settings/policies");
+  await expect(page.getByRole("main")).toHaveCount(1);
 });

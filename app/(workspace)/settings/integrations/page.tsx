@@ -47,7 +47,7 @@ export default async function IntegrationsSettingsPage() {
     missing: string[];
   }>;
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <PageHeader description="Check provider readiness and setup needs." title="Integrations" />
       {providers.length ? (
         <section aria-label="Provider status" className={styles.grid}>
@@ -103,6 +103,6 @@ export default async function IntegrationsSettingsPage() {
           })}
         </section>
       ) : <EmptyState icon="plug" message="No provider connections are configured." />}
-    </main>
+    </div>
   );
 }

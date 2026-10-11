@@ -18,7 +18,7 @@ export default async function SuppliersPage() {
     getOrganization(membership),
   ]);
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <PageHeader description="Review supplier status, approved contacts, and linked items." title="Suppliers" />
       {suppliers.length ? suppliers.map((supplier) => (
         <Card className={styles.card} key={supplier.id}>
@@ -56,6 +56,6 @@ export default async function SuppliersPage() {
           </Disclosure>
         </Card>
       )) : <EmptyState icon="truck" message="No suppliers are available." />}
-    </main>
+    </div>
   );
 }
