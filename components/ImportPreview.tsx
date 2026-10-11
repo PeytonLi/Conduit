@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import type { MembershipContext } from "@/lib/auth";
+import { detectImportType } from "@/lib/domain/import-detect";
+import type { ImportFile } from "@/lib/domain/import-schema";
 import { DateTimeField, TextField } from "./ui/Field";
 import styles from "./import-preview.module.css";
 
@@ -14,8 +16,12 @@ const fileFields = [
   { field: "inventory.csv", label: "Inventory CSV" },
   { field: "demand.csv", label: "Demand CSV" },
 ] as const;
+const supportedTimeZones = typeof Intl.supportedValuesOf === "function"
+  ? Intl.supportedValuesOf("timeZone")
+  : ["America/Los_Angeles"];
 
-type FileField = (typeof fileFields)[number]["field"];
+type FileField = ImportFile;
+type UploadedFile = { file: File; type: FileField | null };
 type ImportStatus = "staged" | "invalid" | "active" | "superseded";
 type ValidationIssue = {
   file: string | null;
@@ -139,7 +145,7 @@ function issueLabel(issue: ValidationIssue): string {
 }
 
 export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
-  const [files, setFiles] = useState<Partial<Record<FileField, File>>>({});
+  const [files, setFiles] = useState<UploadedFile[]>([]);
   const [timezone, setTimezone] = useState("America/Los_Angeles");
   const [sourceAsOf, setSourceAsOf] = useState(() => dateTimeLocalValue(new Date(), "America/Los_Angeles"));
   const [currency, setCurrency] = useState("USD");
@@ -148,10 +154,39 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const canImport = role === "owner" || role === "operator";
-  const selectedFiles = fileFields.flatMap(({ field }) => files[field] ? [files[field]!] : []);
+  const selectedFiles = files.map(({ file }) => file);
   const selectedBytes = selectedFiles.reduce((sum, file) => sum + file.size, 0);
   const oversizedFile = selectedFiles.some((file) => file.size > maxFileBytes);
   const oversizedBatch = selectedBytes > maxTotalBytes;
+
+  async function addFiles(fileList: FileList | File[]) {
+    const additions = await Promise.all(
+      Array.from(fileList)
+        .filter((file) => file.name.toLowerCase().endsWith(".csv"))
+        .map(async (file) => ({
+          file,
+          type: detectImportType(file.name, await file.text()).type,
+        })),
+    );
+    setFiles((current) => {
+      const assignedTypes = new Set<FileField>();
+      return [...current, ...additions].map((entry) => {
+        if (!entry.type) return entry;
+        if (assignedTypes.has(entry.type)) return { ...entry, type: null };
+        assignedTypes.add(entry.type);
+        return entry;
+      });
+    });
+    setError("");
+  }
+
+  function changeFileType(file: File, type: FileField | null) {
+    setFiles((current) => current.map((entry) => {
+      if (entry.file === file) return { ...entry, type };
+      if (type && entry.type === type) return { ...entry, type: null };
+      return entry;
+    }));
+  }
 
   async function stageImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -160,7 +195,11 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
       setError("Only owners and operators can import business data.");
       return;
     }
-    if (fileFields.some(({ field }) => !files[field])) {
+    const assignedTypes = files.flatMap(({ type }) => type ? [type] : []);
+    if (
+      fileFields.some(({ field }) => !assignedTypes.includes(field)) ||
+      new Set(assignedTypes).size !== assignedTypes.length
+    ) {
       setError("Choose one CSV file for each file type.");
       return;
     }
@@ -183,7 +222,10 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
         timezone: timezone.trim(),
         currency,
       }));
-      for (const { field } of fileFields) form.append(field, files[field]!);
+      for (const { field } of fileFields) {
+        const file = files.find((entry) => entry.type === field)?.file;
+        if (file) form.append(field, file);
+      }
       const staged = await responseData<{
         import_id?: string | null;
         status: ImportStatus;
@@ -266,7 +308,7 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
   return (
     <section aria-labelledby="import-heading" className={styles.section}>
       <h2 id="import-heading">Import business data</h2>
-      <p>Upload one CSV for each data type. Each file can be up to 5 MB; the complete upload can be up to 20 MB.</p>
+      <p>Upload CSV files for all seven data types. Each file can be up to 5 MB; the complete upload can be up to 20 MB.</p>
       {!canImport ? (
         <p role="status">Only owners and operators can import business data.</p>
       ) : (
@@ -278,12 +320,13 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
               required
               value={sourceAsOf}
             />
-            <TextField
-              label="Timezone"
-              onChange={(event) => setTimezone(event.target.value)}
-              required
-              value={timezone}
-            />
+            <label className={styles.timezoneField}>
+              <span>Timezone</span>
+              <select onChange={(event) => setTimezone(event.target.value)} required value={timezone}>
+                {!supportedTimeZones.includes(timezone) && <option value={timezone}>{timezone}</option>}
+                {supportedTimeZones.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
             <TextField
               label="Currency"
               maxLength={3}
@@ -292,25 +335,65 @@ export function ImportPreview({ role }: { role: MembershipContext["role"] }) {
               value={currency}
             />
           </div>
-          <div className={styles.files}>
-            {fileFields.map(({ field, label }) => (
-              <label className={styles.fileRow} key={field}>
-                <span className={styles.fileLabel}>{label}</span>
-                <span className={files[field] ? styles.fileChosen : styles.fileMissing}>
-                  {files[field] ? "Chosen" : "Missing"}
-                </span>
-                <input
-                  aria-label={label}
-                  accept=".csv,text/csv"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    setFiles((current) => ({ ...current, [field]: file }));
-                    setError("");
-                  }}
-                  type="file"
-                />
-                {files[field] && <span className={styles.fileName}>{files[field]!.name}</span>}
-              </label>
+          <label
+            className={styles.dropzone}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void addFiles(event.dataTransfer.files);
+            }}
+          >
+            <span>Drop CSV files here or click to browse</span>
+            <input
+              accept=".csv,text/csv"
+              aria-label="Upload CSV files"
+              multiple
+              onChange={(event) => {
+                if (event.target.files) void addFiles(event.target.files);
+                event.target.value = "";
+              }}
+              type="file"
+            />
+          </label>
+          <div className={styles.files} aria-label="Import file types">
+            {fileFields.map(({ field, label }) => {
+              const assigned = files.find((entry) => entry.type === field);
+              return (
+                <div className={styles.fileRow} key={field}>
+                  <span className={styles.fileLabel}>{label}</span>
+                  {assigned ? (
+                    <>
+                      <span className={styles.fileName}>{assigned.file.name}</span>
+                      <label className={styles.typeOverride}>
+                        Change type
+                        <select
+                          aria-label={`Change type for ${assigned.file.name}`}
+                          onChange={(event) => changeFileType(assigned.file, event.target.value as FileField)}
+                          value={field}
+                        >
+                          {fileFields.map((option) => <option key={option.field} value={option.field}>{option.label}</option>)}
+                        </select>
+                      </label>
+                    </>
+                  ) : <span className={styles.fileMissing}>Missing</span>}
+                </div>
+              );
+            })}
+            {files.filter((entry) => entry.type === null).map(({ file }) => (
+              <div className={styles.fileRow} key={`${file.name}-${file.lastModified}`}>
+                <span className={styles.fileName}>{file.name}</span>
+                <label className={styles.typeOverride}>
+                  Change type
+                  <select
+                    aria-label={`Change type for ${file.name}`}
+                    onChange={(event) => changeFileType(file, event.target.value as FileField)}
+                    value=""
+                  >
+                    <option value="">Choose type…</option>
+                    {fileFields.map((option) => <option key={option.field} value={option.field}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
             ))}
           </div>
           {(oversizedFile || oversizedBatch) && (

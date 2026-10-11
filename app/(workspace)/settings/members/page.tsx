@@ -10,7 +10,7 @@ export default async function MembersSettingsPage() {
   const membership = await requireMembership();
   const members = await listMemberships(membership);
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <PageHeader description="Manage organization roles and access." title="Members" />
       {members.length ? <DataTable caption="Organization members" className={styles.table}>
         <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Active</th></tr></thead>
@@ -19,6 +19,6 @@ export default async function MembersSettingsPage() {
           <MembershipControls editable={membership.role === "owner"} member={member} />
         </tr>)}</tbody>
       </DataTable> : <EmptyState icon="users" message="No organization members are available." />}
-    </main>
+    </div>
   );
 }

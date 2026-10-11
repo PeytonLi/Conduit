@@ -165,7 +165,7 @@ function ImpactSummary({
     <section aria-labelledby="impact-summary-heading" className={styles.impactSummary}>
       <h2 id="impact-summary-heading">Impact</h2>
       {sourceTimes.length > 0 && <p className={styles.sourceTimes}>{sourceTimes.join(" · ")}</p>}
-      <div className={styles.impactGrid}>
+      <div className={`${styles.impactGrid} ${!detail.assessment?.points.length ? styles.impactGridNoProjection : ""}`}>
         <div className={styles.impactFacts}>
           <dl className={styles.factList}>
             <div><dt>Shortage quantity</dt><dd>{quantityLabel(assessment?.bridge_quantity ?? null, detail.case.item.unit)} {sourceLink(source, detail.case.location.timezone)}</dd></div>
@@ -195,8 +195,13 @@ function ImpactSummary({
               <ul>{assessment.missing_facts.map((fact) => <li key={fact}>{humanLabel("missingQuoteTerm", fact)}: Needs confirmation</li>)}</ul>
             </div>
           ) : null}
+          {!detail.assessment?.points.length && (
+            <p className={styles.projectionEmpty}>
+              Stock projection appears once inventory and demand data are loaded.
+            </p>
+          )}
         </div>
-        <StockProjection detail={detail} />
+        {detail.assessment?.points.length ? <StockProjection detail={detail} /> : null}
       </div>
     </section>
   );
@@ -226,16 +231,21 @@ function SupplierOptionTable({
     ["Total cash outlay", "total_cash_outlay_minor"],
     ["Net incremental", "net_incremental_minor"],
   ];
+  const populatedGroups = groups
+    .map(([feasibility, label]) => ({
+      feasibility,
+      label,
+      options: options.filter((option) => option.feasibility === feasibility),
+    }))
+    .filter((group) => group.options.length > 0);
 
   return (
     <section aria-labelledby="options-heading" className={styles.options}>
       <h2 id="options-heading">Recovery options</h2>
-      {groups.map(([feasibility, label]) => {
-        const groupOptions = options.filter((option) => option.feasibility === feasibility);
-        return (
+      {populatedGroups.length ? populatedGroups.map(({ feasibility, label, options: groupOptions }) => (
           <section aria-labelledby={`option-group-${feasibility}`} className={styles.optionGroup} key={feasibility}>
             <h3 id={`option-group-${feasibility}`}>{label}</h3>
-            {groupOptions.length === 0 ? <p>No {label.toLowerCase()} options.</p> : groupOptions.map((option) => (
+            {groupOptions.map((option) => (
               <article className={styles.optionCard} key={option.id}>
                 <header className={styles.optionHeader}>
                   <div><h4>{option.supplier.name || "Supplier name unavailable"}</h4><StatusBadge tone={feasibility === "feasible" ? "success" : feasibility === "rejected" ? "danger" : "warning"}>{label}</StatusBadge></div>
@@ -297,8 +307,7 @@ function SupplierOptionTable({
               </article>
             ))}
           </section>
-        );
-      })}
+        )) : <p className={styles.emptyOptions}>No recovery options are available yet.</p>}
     </section>
   );
 }
@@ -321,7 +330,15 @@ function SupplierContact({
     <section aria-labelledby="calls-heading" className={styles.calls}>
       <h2 id="calls-heading">Supplier outreach</h2>
       {callActions.length ? (
-        <ul>{callActions.map((call) => <li key={call.id}>{call.title} · {call.actor.label} · {timelineStatusLabel(call.status)}</li>)}</ul>
+        <ul>{callActions.map((call) => (
+          <li key={call.id}>
+            Phone call · {formatDateTime(call.at, detail.case.location.timezone) ?? "Time unavailable"} · {
+              call.call_outcome
+                ? humanLabel("callOutcome", call.call_outcome)
+                : timelineStatusLabel(call.status)
+            }
+          </li>
+        ))}</ul>
       ) : <p>No calls for this case.</p>}
       {canOutreach && detail.supplier_contacts.length > 0
         ? <OutreachForm
@@ -359,13 +376,16 @@ function CaseHistory({
   const renderEntries = (entries: TimelineEntry[]) => (
     <ol>
       {entries.map((entry) => {
-        const status = timelineStatusLabel(entry.status);
+        const status = entry.call_outcome ? "Recorded" : timelineStatusLabel(entry.status);
         const tone = status === "Failed" ? "danger" : status === "Needs review" ? "warning" : "neutral";
+        const title = entry.call_outcome
+          ? humanLabel("callOutcome", entry.call_outcome)
+          : entry.title;
         return (
           <li key={entry.id}>
             <div className={styles.timelineHeading}>
-              <h3>{entry.title}</h3>
-              <StatusBadge tone={tone}>{status}</StatusBadge>
+              <h3>{title}</h3>
+              {status !== "Recorded" && <StatusBadge tone={tone}>{status}</StatusBadge>}
             </div>
             <dl>
               <div><dt>Time</dt><dd>{formatDateTime(entry.at, organizationTimeZone) ?? "Not available"}</dd></div>
@@ -600,6 +620,7 @@ export function CaseDetailView({
           <p className={styles.eyebrow}>Next action</p>
           <h2>{detail.case.next_action.label}</h2>
           {detail.case.next_action.due_at && <p>Due: {formatDateTime(detail.case.next_action.due_at, detail.case.location.timezone)}</p>}
+          {!detail.plan && <p className={styles.secondaryAction}>No recovery plan is awaiting approval.</p>}
         </div>
         {detail.plan ? (
           <ApprovalCard
@@ -613,7 +634,7 @@ export function CaseDetailView({
             plan={detail.plan}
             role={role}
           />
-        ) : <p>No recovery plan is awaiting approval.</p>}
+        ) : null}
         <CaseControls detail={detail} role={role} />
       </aside>
       <CaseSections

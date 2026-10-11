@@ -7,7 +7,8 @@ export function createServiceRpc(): Rpc {
   return async (fn, args) => {
     const { data, error } = await client.rpc(fn, args);
     if (error) {
-      throw new Error(`Ledger function ${fn} failed: ${error.code ?? "unknown"}`);
+      const details = [error.message, error.hint].filter((value): value is string => Boolean(value)).join("; ");
+      throw new Error(`Ledger function ${fn} failed: ${error.code ?? "unknown"}${details ? `: ${details}` : ""}`);
     }
     return data;
   };

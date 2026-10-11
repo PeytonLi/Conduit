@@ -4,7 +4,8 @@ import type { VoiceStore } from "./voice-store";
 async function rpc<T>(client: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await client.rpc(fn, args);
   if (error) {
-    throw new Error(`voice store ${fn} failed: ${error.code ?? "unknown"}`);
+    const details = [error.message, error.hint].filter((value): value is string => Boolean(value)).join("; ");
+    throw new Error(`voice store ${fn} failed: ${error.code ?? "unknown"}${details ? `: ${details}` : ""}`);
   }
   return data as T;
 }

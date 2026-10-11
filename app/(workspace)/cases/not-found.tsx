@@ -5,8 +5,8 @@ export default function CaseNotFound() {
   return (
     <section className={styles.error}>
       <h1>Case not found</h1>
-      <p>This case isn’t available in your organization.</p>
-      <ButtonLink href="/cases" variant="secondary">Return to cases</ButtonLink>
+      <p>It may have been closed, or you may not have access.</p>
+      <ButtonLink href="/cases" variant="secondary">Back to cases</ButtonLink>
     </section>
   );
 }

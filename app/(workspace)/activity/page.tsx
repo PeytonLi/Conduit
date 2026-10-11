@@ -40,7 +40,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   if (eventFilter) nextPageParams.set("event", eventFilter);
   if (page.next_cursor) nextPageParams.set("cursor", page.next_cursor);
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <PageHeader title="Activity" description="A clear record of changes across your organization." />
       <Card>
         <form className={styles.filters} method="get">
@@ -82,6 +82,6 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
           </ButtonLink>
         </div>
       )}
-    </main>
+    </div>
   );
 }

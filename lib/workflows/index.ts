@@ -7,6 +7,7 @@ import { monitorReceipts } from "./monitoring.inngest";
 import { outboxDrain } from "./outbox.inngest";
 import { reconcileDue, reconcileRequested } from "./reconcile.inngest";
 import { voiceStaleCallSweep } from "./voice-call";
+import { reassessAfterSupplierCallFunction } from "./supplier-call-reassess";
 
 import { caseAssessmentFunction } from "./case-assessment";
 import { caseRecoveryFunction } from "./case-recovery";
@@ -23,5 +24,6 @@ export const functions: InngestFunction.Any[] = [
   monitorReceipts,
   caseAssessmentFunction,
   caseRecoveryFunction,
+  reassessAfterSupplierCallFunction,
 ];
 export { inngest };

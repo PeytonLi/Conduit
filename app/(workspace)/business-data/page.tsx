@@ -17,11 +17,11 @@ export default async function BusinessDataPage() {
     getOrganization(membership),
   ]);
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <PageHeader description="Manage the source data behind inventory, demand, and recovery decisions." title="Business data" />
-      <section aria-labelledby="datasets-heading">
-        <h2 id="datasets-heading">Active datasets</h2>
-        {data.datasets.length ? (
+      {data.datasets.length > 0 && (
+        <section aria-labelledby="datasets-heading">
+          <h2 id="datasets-heading">Active datasets</h2>
           <ul className={styles.datasetGrid}>{data.datasets.map((dataset) => (
             <li key={dataset.id}>
               <Card className={styles.datasetCard}>
@@ -32,8 +32,8 @@ export default async function BusinessDataPage() {
               </Card>
             </li>
           ))}</ul>
-        ) : <EmptyState icon="database" message="Import a business data file to get started." />}
-      </section>
+        </section>
+      )}
       <ImportPreview role={membership.role} />
       <section aria-labelledby="inventory-heading">
         <h2 id="inventory-heading">Inventory</h2>
@@ -62,6 +62,6 @@ export default async function BusinessDataPage() {
           </Card>
         )) : <EmptyState icon="file" message="No purchase order or receipt data is available yet." />}
       </section>
-    </main>
+    </div>
   );
 }
