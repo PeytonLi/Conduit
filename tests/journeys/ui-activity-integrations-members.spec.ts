@@ -9,6 +9,11 @@ test("activity uses event titles from the labels map", async ({ page }) => {
 
   const activity = page.getByRole("table", { name: "Organization activity" });
   await expect(activity.getByRole("cell", { name: "Plan ready for approval", exact: true }).first()).toBeVisible();
+  await expect(page.getByLabel("Event")).toHaveValue("");
+  await expect(page.getByLabel("Event").locator('option[value="action.submitted"]')).toHaveText(
+    "Supplier call started",
+  );
+  await expect(activity.getByRole("link", { name: "Open case" }).first()).toHaveCSS("white-space", "nowrap");
 });
 
 test("replay integrations show neutral provider status", async ({ page }) => {

@@ -70,7 +70,9 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
             <td>{formatDateTime(entry.at, organization.timezone) ?? "Not available"}</td>
             <td>{entry.event_name}</td>
             <td>{entry.actor.label}</td>
-            <td>{entry.reason ?? "—"}</td>
+            <td>{entry.reason
+              ? labels.callOutcome[entry.reason as keyof typeof labels.callOutcome] ?? entry.reason
+              : "—"}</td>
             <td>{entry.case_id ? <Link href={`/cases/${entry.case_id}`}>Open case</Link> : "—"}</td>
           </tr>)}</tbody>
         </DataTable>
