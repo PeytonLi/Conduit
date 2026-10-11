@@ -46,6 +46,10 @@
   font: inherit;
 }
 
+.form select {
+  padding-right: 36px;
+}
+
 .form textarea {
   min-height: 108px;
   resize: vertical;

@@ -4,7 +4,7 @@ import type { CasePhase } from "@/lib/schemas/enums";
 
 describe("UI labels", () => {
   it("provides plain-language call outcome and quote-term labels", () => {
-    expect(humanLabel("callOutcome", "answered_with_offer")).toBe("Offer received");
+    expect(humanLabel("callOutcome", "answered_with_offer")).toBe("Answered with an offer");
     expect(humanLabel("callOutcome", "no_answer")).toBe("No answer");
     expect(humanLabel("missingQuoteTerm", "nonrecoverable_tax")).toBe("Non-recoverable tax");
     expect(humanLabel("missingQuoteTerm", "arrival_window")).toBe("Arrival time");

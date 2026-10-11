@@ -147,6 +147,10 @@
   color: var(--muted, var(--color-muted));
 }
 
+.secondaryAction {
+  font-size: 0.9rem;
+}
+
 .impactSummary {
   display: grid;
   gap: 0;
@@ -164,6 +168,16 @@
   align-items: start;
   gap: var(--space-5);
   min-width: 0;
+}
+
+.impactGridNoProjection {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.projectionEmpty {
+  margin: 14px 0 0;
+  color: var(--muted, var(--color-muted));
+  font-size: 0.9rem;
 }
 
 .impactFacts {
@@ -297,6 +311,11 @@
 .optionContext {
   margin: 0 0 var(--space-3);
   color: var(--color-muted);
+}
+
+.emptyOptions {
+  margin: 0;
+  color: var(--muted, var(--color-muted));
 }
 
 .factList > div,

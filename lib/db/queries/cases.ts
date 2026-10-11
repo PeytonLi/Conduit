@@ -217,6 +217,7 @@ export interface TimelineEntry {
     | "receipt"
     | "control";
   title: string;
+  call_outcome?: string | null;
   actor: { type: string; label: string };
   status: "intended" | "submitted" | "confirmed" | "failed" | "unknown" | "info";
   action_ref: string | null;
@@ -1143,6 +1144,18 @@ export async function getCaseTimeline(
         .eq("org_id", context.orgId).eq("case_id", caseId),
     ),
   ]);
+  const callActionIds = actionRows
+    .filter((action) => action.kind === "supplier_call")
+    .map((action) => action.id);
+  const callOutcomeRows = callActionIds.length
+    ? await selectRows(
+        createServiceClient().from("voice_call_outcomes").select("action_id,outcome")
+          .eq("org_id", context.orgId).in("action_id", callActionIds),
+      )
+    : [];
+  const callOutcomes = new Map(
+    callOutcomeRows.map((outcome) => [String(outcome.action_id), String(outcome.outcome)]),
+  );
   const evidenceByPurpose = new Map<string, string[]>();
   for (const link of evidenceLinks) {
     const evidenceIds = evidenceByPurpose.get(link.purpose) ?? [];
@@ -1218,6 +1231,7 @@ export async function getCaseTimeline(
       at: action.created_at,
       group: action.kind === "supplier_call" ? "call_outcome" : "request_sent",
       title: humanLabel("actionKind", action.kind),
+      call_outcome: callOutcomes.get(String(action.id)) ?? null,
       actor: { type: "system", label: actorLabel("system", action.mode === "replay") },
       status,
       action_ref: action.id,

@@ -99,7 +99,11 @@ export function OutreachForm({
         >
           {contacts.map((contact) => (
             <option key={contact.id} value={contact.id}>
-              {contact.supplier_name} — {contact.display_name ?? contact.masked_address} ({humanLabel("outreachChannel", contact.channel)})
+              {contact.supplier_name}
+              {contact.display_name
+                ? contact.display_name === contact.supplier_name ? "" : ` · ${contact.display_name}`
+                : ` · ${contact.masked_address}`}
+              {" · "}{humanLabel("outreachChannel", contact.channel)}
             </option>
           ))}
         </select>
