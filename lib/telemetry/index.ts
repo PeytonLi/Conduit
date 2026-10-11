@@ -24,20 +24,33 @@ export interface TelemetryEnv {
   [key: string]: string | undefined;
 }
 
-let neatlogsModule: NeatlogsModule | null = null;
-let enabled = false;
-let initialized = false;
-let warned = false;
+interface TelemetryState {
+  neatlogsModule: NeatlogsModule | null;
+  enabled: boolean;
+  initialized: boolean;
+  warned: boolean;
+}
+
+const telemetryStateKey = Symbol.for("conduit.telemetry.state");
+// Next loads instrumentation and route bundles as separate module instances.
+const state = (
+  globalThis as unknown as { [key: symbol]: TelemetryState | undefined }
+)[telemetryStateKey] ??= {
+  neatlogsModule: null,
+  enabled: false,
+  initialized: false,
+  warned: false,
+};
 
 export async function initTelemetry(
   env: TelemetryEnv,
   deps?: { neatlogs?: NeatlogsModule },
 ): Promise<void> {
-  if (initialized) return;
-  initialized = true;
+  if (state.initialized) return;
+  state.initialized = true;
   const apiKey = env.NEATLOGS_API_KEY;
   if (!apiKey) {
-    enabled = false;
+    state.enabled = false;
     return;
   }
   try {
@@ -50,29 +63,29 @@ export async function initTelemetry(
       mask: maskTelemetry,
       registerShutdownHandlers: false,
     });
-    neatlogsModule = mod;
-    enabled = true;
+    state.neatlogsModule = mod;
+    state.enabled = true;
   } catch {
-    enabled = false;
-    if (!warned) {
-      warned = true;
+    state.enabled = false;
+    if (!state.warned) {
+      state.warned = true;
       console.warn("[telemetry] neatlogs initialization failed; telemetry disabled");
     }
   }
 }
 
 export function isTelemetryEnabled(): boolean {
-  return enabled && neatlogsModule !== null;
+  return state.enabled && state.neatlogsModule !== null;
 }
 
 export function getNeatlogs(): NeatlogsModule | null {
-  return neatlogsModule;
+  return state.neatlogsModule;
 }
 
 export async function flushTelemetry(): Promise<void> {
-  if (!enabled || !neatlogsModule) return;
+  if (!state.enabled || !state.neatlogsModule) return;
   try {
-    await neatlogsModule.flush();
+    await state.neatlogsModule.flush();
   } catch {
     // Telemetry failures never affect business results.
   }
@@ -84,10 +97,10 @@ export function orgPseudonym(orgId: string): string {
 
 /** Test hook: reset module state. */
 export function _resetTelemetryForTests(): void {
-  neatlogsModule = null;
-  enabled = false;
-  initialized = false;
-  warned = false;
+  state.neatlogsModule = null;
+  state.enabled = false;
+  state.initialized = false;
+  state.warned = false;
 }
 
 export { maskTelemetry };
