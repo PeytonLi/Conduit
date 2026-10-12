@@ -1,0 +1,11 @@
+{
+  "rfc_message_id": "<supplier-reply-noterms@baycarton.example.com>",
+  "recorded_model": "replay-fixture",
+  "response": {
+    "schema_version": 1,
+    "is_delay_notice": false,
+    "lines": [],
+    "offer": null,
+    "notes_for_reviewer": "Acknowledgement only; no offer terms stated."
+  }
+}

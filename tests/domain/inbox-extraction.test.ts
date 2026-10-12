@@ -106,7 +106,7 @@ describe("inbox-extraction: deepseek request params", () => {
     const result = await extractDelayFacts({
       mode: "live", message, deps: { deepseek: client, model: "m1" },
     });
-    expect(result.promptVersion).toBe("inbox-extraction-v2");
+    expect(result.promptVersion).toBe("inbox-extraction-v3");
     const user = calls[0].messages[1].content;
     const context = user.match(/<trusted_message_context>([\s\S]*?)<\/trusted_message_context>/)![1];
     expect(context).toContain(`sent_at: ${message.sentAt.toISOString()}`);
