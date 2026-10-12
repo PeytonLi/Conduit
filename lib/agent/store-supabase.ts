@@ -120,22 +120,56 @@ export class SupabasePlannerStore implements PlannerStore {
     orgId: string,
     itemId: string,
   ): Promise<{ supplier: SupplierRecord; contacts: ContactRecord[] }[]> {
-    const { data: links, error } = await (await this.db())
+    const db = await this.db();
+    const { data: links, error } = await db
       .from("supplier_items")
       .select("supplier_id")
       .eq("org_id", orgId)
       .eq("item_id", itemId);
     must(links, error);
-    const supplierIds = (links ?? []).map((l: Row) => l.supplier_id as string);
+
+    const { data: poLines, error: poLinesError } = await db
+      .from("purchase_order_lines")
+      .select("purchase_order_id")
+      .eq("org_id", orgId)
+      .eq("item_id", itemId);
+    must(poLines, poLinesError);
+    const purchaseOrderIds = [
+      ...new Set(
+        ((poLines ?? []) as Row[]).map(
+          (line) => line.purchase_order_id as string,
+        ),
+      ),
+    ];
+    let purchaseOrderSupplierIds: string[] = [];
+    if (purchaseOrderIds.length > 0) {
+      const { data: purchaseOrders, error: purchaseOrdersError } = await db
+        .from("purchase_orders")
+        .select("supplier_id, status")
+        .eq("org_id", orgId)
+        .in("id", purchaseOrderIds);
+      must(purchaseOrders, purchaseOrdersError);
+      purchaseOrderSupplierIds = ((purchaseOrders ?? []) as Row[])
+        .filter((purchaseOrder) =>
+          !["cancelled", "closed"].includes(purchaseOrder.status as string),
+        )
+        .map((purchaseOrder) => purchaseOrder.supplier_id as string);
+    }
+    const supplierIds = [
+      ...new Set([
+        ...((links ?? []) as Row[]).map((link) => link.supplier_id as string),
+        ...purchaseOrderSupplierIds,
+      ]),
+    ];
     if (!supplierIds.length) return [];
-    const { data: suppliers, error: e2 } = await (await this.db())
+    const { data: suppliers, error: e2 } = await db
       .from("suppliers")
       .select("*")
       .eq("org_id", orgId)
       .eq("purchasing_status", "approved")
       .in("id", supplierIds);
     must(suppliers, e2);
-    const { data: contacts, error: e3 } = await (await this.db())
+    const { data: contacts, error: e3 } = await db
       .from("supplier_contacts")
       .select("*")
       .eq("org_id", orgId)

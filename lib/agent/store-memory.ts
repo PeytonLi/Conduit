@@ -37,12 +37,27 @@ export function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+export interface MemoryPurchaseOrderRecord {
+  id: string;
+  org_id: string;
+  supplier_id: string;
+  status: string;
+}
+
+export interface MemoryPurchaseOrderLineRecord {
+  org_id: string;
+  purchase_order_id: string;
+  item_id: string;
+}
+
 export interface MemorySeed {
   cases?: CaseRecord[];
   items?: ItemRecord[];
   locations?: LocationRecord[];
   suppliers?: SupplierRecord[];
   supplierItems?: SupplierItemRecord[];
+  purchaseOrders?: MemoryPurchaseOrderRecord[];
+  purchaseOrderLines?: MemoryPurchaseOrderLineRecord[];
   contacts?: ContactRecord[];
   assessments?: AssessmentRecord[];
   casePoLines?: CasePoLine[];
@@ -76,6 +91,8 @@ export class MemoryPlannerStore implements PlannerStore {
   locations = new Map<string, LocationRecord>();
   suppliers = new Map<string, SupplierRecord>();
   supplierItems: SupplierItemRecord[] = [];
+  purchaseOrders: MemoryPurchaseOrderRecord[] = [];
+  purchaseOrderLines: MemoryPurchaseOrderLineRecord[] = [];
   contacts = new Map<string, ContactRecord>();
   assessments = new Map<string, AssessmentRecord>();
   casePoLines: CasePoLine[] = [];
@@ -110,6 +127,8 @@ export class MemoryPlannerStore implements PlannerStore {
     for (const l of seed.locations ?? []) this.locations.set(l.id, l);
     for (const s of seed.suppliers ?? []) this.suppliers.set(s.id, s);
     this.supplierItems = [...(seed.supplierItems ?? [])];
+    this.purchaseOrders = [...(seed.purchaseOrders ?? [])];
+    this.purchaseOrderLines = [...(seed.purchaseOrderLines ?? [])];
     for (const c of seed.contacts ?? []) this.contacts.set(c.id, c);
     for (const a of seed.assessments ?? []) this.assessments.set(a.id, a);
     this.casePoLines = [...(seed.casePoLines ?? [])];
@@ -194,6 +213,19 @@ export class MemoryPlannerStore implements PlannerStore {
         .filter((si) => si.org_id === orgId && si.item_id === itemId)
         .map((si) => si.supplier_id),
     );
+    for (const line of this.purchaseOrderLines) {
+      if (line.org_id !== orgId || line.item_id !== itemId) continue;
+      const purchaseOrder = this.purchaseOrders.find(
+        (order) =>
+          order.id === line.purchase_order_id && order.org_id === orgId,
+      );
+      if (
+        purchaseOrder &&
+        !["cancelled", "closed"].includes(purchaseOrder.status)
+      ) {
+        supplierIds.add(purchaseOrder.supplier_id);
+      }
+    }
     const out: { supplier: SupplierRecord; contacts: ContactRecord[] }[] = [];
     for (const supplier of this.suppliers.values()) {
       if (supplier.org_id !== orgId) continue;
