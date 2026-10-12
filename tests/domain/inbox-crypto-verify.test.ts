@@ -257,8 +257,75 @@ describe("inbox-verify: deterministic verification", () => {
   });
 
   it("quoteSupportsDate accepts month name + day and ISO numerics", () => {
-    expect(quoteSupportsDate("friday, october 16", "2026-10-16")).toBe("ok");
-    expect(quoteSupportsDate("on 10/16", "2026-10-16")).toBe("ok");
-    expect(quoteSupportsDate("october 17", "2026-10-16")).toBe("date_mismatch");
+    expect(quoteSupportsDate("friday, october 16", "2026-10-16", sentAt, "UTC")).toBe("ok");
+    expect(quoteSupportsDate("on 10/16", "2026-10-16", sentAt, "UTC")).toBe("ok");
+    expect(quoteSupportsDate("on 2026-10-16", "2026-10-16", sentAt, "UTC")).toBe("ok");
+    expect(quoteSupportsDate("october 17", "2026-10-16", sentAt, "UTC")).toBe("date_mismatch");
+  });
+
+  it.each([
+    ["2026-12-28", "January 4", "2027-01-04", "ok"],
+    ["2026-12-28", "January 4", "2026-01-04", "date_mismatch"],
+    ["2026-12-28", "January 4", "2028-01-04", "date_mismatch"],
+    ["2026-01-03", "December 30", "2025-12-30", "ok"],
+    ["2026-01-03", "December 30", "2026-12-30", "date_mismatch"],
+    ["2026-12-28", "January 4, 2028", "2028-01-04", "ok"],
+    ["2026-12-28", "January 4,2028", "2028-01-04", "ok"],
+    ["2026-12-28", "January 4, 2028", "2027-01-04", "date_mismatch"],
+    ["2026-12-28", "4th of January 2028", "2028-01-04", "ok"],
+    ["2026-12-28", "4 Jan.", "2027-01-04", "ok"],
+    ["2026-12-28", "01/04", "2027-01-04", "ok"],
+    ["2026-12-28", "01/04/2028", "2027-01-04", "date_mismatch"],
+    ["2026-12-28", "01/04/28", "2028-01-04", "ok"],
+    ["2026-12-28", "2028-01-04", "2028-01-04", "ok"],
+    ["2026-12-28", "Friday", "2027-01-01", "date_not_explicit"],
+    ["2026-03-01", "September 1", "2025-09-01", "ok"],
+    ["2026-03-01", "September 1", "2026-09-01", "date_mismatch"],
+    ["2026-08-31", "February 28", "2027-02-28", "ok"],
+    ["2027-12-28", "February 29", "2028-02-29", "ok"],
+    ["2026-10-12", "February 29", "2027-02-29", "date_mismatch"],
+    ["2026-12-28", "February 30, 2027", "2027-02-30", "date_mismatch"],
+    ["2026-12-28", "2027-13-01", "2027-13-01", "date_mismatch"],
+  ])("resolves %s / %s against extracted %s as %s", (sent, quote, localDate, expected) => {
+    expect(quoteSupportsDate(quote, localDate, new Date(`${sent}T12:00:00Z`), "UTC")).toBe(expected);
+  });
+
+  it.each(["2025-10-16", "2027-10-16"])("flags a guessed promise year %s as date_mismatch", (localDate) => {
+    const result = verifyExtraction({
+      extraction: extraction([{
+        new_promise: {
+          quote: "October 16", local_date: localDate,
+          local_time: "08:00", promise_state: "confirmed",
+        },
+      }]),
+      segments: [seg("October 16")], sentAt, timezone: "America/Los_Angeles",
+    });
+    expect(result.lines[0].new_promise).toBeNull();
+    expect(result.unresolved).toEqual([{ line_index: 0, field: "new_promise.date", reason: "date_mismatch" }]);
+  });
+
+  it("checks old promise years without rejecting dates before the message", () => {
+    const result = verifyExtraction({
+      extraction: extraction([
+        { old_promise: { quote: "December 30", local_date: "2025-12-30", local_time: null } },
+        { old_promise: { quote: "December 30", local_date: "2026-12-30", local_time: null } },
+      ]),
+      segments: [seg("December 30")], sentAt: new Date("2026-01-03T12:00:00Z"), timezone: "UTC",
+    });
+    expect(result.unresolved).toEqual([{ line_index: 1, field: "old_promise.date", reason: "date_mismatch" }]);
+  });
+
+  it("resolves years using the business timezone while preserving destination date conversion", () => {
+    const result = verifyExtraction({
+      extraction: extraction([{
+        new_promise: {
+          quote: "July 2", local_date: "2026-07-02",
+          local_time: null, promise_state: "confirmed",
+        },
+      }]),
+      segments: [seg("July 2")], sentAt: new Date("2026-01-01T00:30:00Z"),
+      timezone: "UTC", sentTimezone: "America/Los_Angeles",
+    });
+    expect(result.unresolved).toEqual([{ line_index: 0, field: "new_promise.date", reason: "date_mismatch" }]);
   });
 });
