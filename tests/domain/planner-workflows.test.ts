@@ -184,7 +184,7 @@ describe("case-recovery workflow", () => {
     );
     expect(emails.length).toBe(1);
     expect(emails[0].state).toBe("prepared");
-    expect(emails[0].payload.recipient).toBe("sales@baycarton.example.com");
+    expect(emails[0].payload.to).toBe("sales@baycarton.example.com");
     // waitForEvent ticks were attempted and bounded by the tick cap.
     expect(step.waits.length).toBe(120);
     expect(step.waits.every((w) => w.opts.timeout === "60s")).toBe(true);

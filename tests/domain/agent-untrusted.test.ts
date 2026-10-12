@@ -69,7 +69,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
     });
     expect(result.ok).toBe(true);
     const action = [...store.actions.values()][0];
-    expect(action.payload.recipient).toBe("sales@baycarton.example.com");
+    expect(action.payload.to).toBe("sales@baycarton.example.com");
   });
 
   it("injected source text is only exposed inside untrusted_supplier_text", async () => {
@@ -110,7 +110,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
     // No action may target attacker or org B; email call was invalid args.
     for (const action of store.actions.values()) {
       expect(action.org_id).toBe(ctx.orgId);
-      expect(String(action.payload.recipient ?? "")).not.toContain("attacker");
+      expect(String(action.payload.to ?? "")).not.toContain("attacker");
     }
     expect(store.actions.size).toBe(0);
     expect(["needs_review", "blocked", "waiting", "no_action"]).toContain(outcome.status);

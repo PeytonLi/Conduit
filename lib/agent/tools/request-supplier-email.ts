@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  QUOTE_FIELDS,
+  type SupplierEmailPayload,
+} from "@/lib/integrations/gmail/outbound";
 import type { AgentTool } from "./types";
 import { fail, limitsOf, ok, uuid, type ToolDeps } from "./deps";
 
@@ -16,6 +20,21 @@ const REQUIRED_FIELDS = [
   "order_cutoff",
   "written_confirmation",
 ] as const;
+type RequiredField = (typeof REQUIRED_FIELDS)[number];
+type QuoteField = (typeof QUOTE_FIELDS)[number];
+
+const QUOTE_FIELD_MAP: Partial<Record<RequiredField, QuoteField>> = {
+  quantity: "quantity_available",
+  arrival: "arrival_date",
+  freight: "freight",
+  quote_validity: "valid_until",
+};
+
+const QUESTION_MAP: Partial<Record<RequiredField, string>> = {
+  split_delivery: "whether a split delivery is possible",
+  order_cutoff: "the latest order cutoff for that arrival",
+  written_confirmation: "written confirmation of the delivery date",
+};
 
 interface Input {
   contact_id: string;
@@ -80,30 +99,105 @@ export function createRequestSupplierEmailTool(
 
       const assessment = await deps.store.getCurrentAssessment(ctx.orgId, ctx.caseId);
       const item = await deps.store.getItem(ctx.orgId, c.item_id);
+      const location = await deps.store.getLocation(ctx.orgId, c.location_id);
+      if (
+        !assessment ||
+        !item ||
+        !location ||
+        assessment.bridge_qty === null ||
+        !Number.isInteger(assessment.bridge_qty) ||
+        assessment.bridge_qty <= 0 ||
+        !assessment.first_shortage_at
+      ) {
+        return fail(
+          "insufficient_facts",
+          "item, positive bridge quantity, shortage time, and destination location required",
+        );
+      }
+      const timeZone = await deps.store.getOrgTimezone(ctx.orgId);
+      if (!timeZone) {
+        return fail("insufficient_facts", "organization business timezone unavailable");
+      }
+      const connectionId = await deps.store.getActiveGmailConnectionId(ctx.orgId);
+      if (!connectionId) {
+        return fail("channel_unavailable", "no connected Gmail account");
+      }
+
+      const template =
+        input.purpose === "written_confirmation"
+          ? "delivery_confirmation"
+          : "quote_request";
+      const quoteFieldSet = new Set<QuoteField>();
+      if (template === "quote_request") quoteFieldSet.add("unit_price");
+      for (const field of input.required_fields) {
+        const mapped = QUOTE_FIELD_MAP[field];
+        if (mapped) quoteFieldSet.add(mapped);
+      }
+      const quoteFields = Array.from(quoteFieldSet);
+      const additionalQuestions = Array.from(
+        new Set(
+          input.required_fields.flatMap((field) => {
+            const mapped = QUESTION_MAP[field];
+            return mapped ? [mapped] : [];
+          }),
+        ),
+      );
+      const question = additionalQuestions.length
+        ? `Please also confirm: ${additionalQuestions.join("; ")}.`
+        : "";
+      const subjectPrefix =
+        template === "delivery_confirmation"
+          ? "Delivery confirmation"
+          : "Availability request";
+      const subject = `${subjectPrefix}: ${item.description} (${item.sku})`.slice(
+        0,
+        200,
+      );
+      const neededByLocal = new Intl.DateTimeFormat("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+        timeZone,
+      }).format(new Date(assessment.first_shortage_at));
+      const specification = Object.fromEntries(
+        Object.entries(item.specification).filter(
+          (entry): entry is [string, string | number] =>
+            typeof entry[1] === "string" || typeof entry[1] === "number",
+        ),
+      );
+      const payload: SupplierEmailPayload = {
+        template,
+        connection_id: connectionId,
+        contact_id: contact.id,
+        to: contact.normalized_address,
+        subject,
+        thread: null,
+        facts: {
+          item_sku: item.sku,
+          item_description: item.description,
+          specification,
+          quantity: assessment.bridge_qty,
+          unit: item.base_unit,
+          destination_name: location.name,
+          needed_by_local: neededByLocal,
+          quote_fields: quoteFields,
+        },
+        question,
+        supplier_id: supplier.id,
+        episode: c.episode,
+        purpose: input.purpose,
+      };
       const prepared = await deps.preparer.prepare({
         orgId: ctx.orgId,
         caseId: ctx.caseId,
         kind: "supplier_email",
         idempotencyKey: `${ctx.caseId}:${c.episode}:email:${contact.id}:${input.purpose}`,
         contactId: contact.id,
-        payload: {
-          recipient: contact.normalized_address,
-          contact_id: contact.id,
-          supplier_id: supplier.id,
-          episode: c.episode,
-          purpose: input.purpose,
-          required_fields: input.required_fields,
-          item: item
-            ? {
-                sku: item.sku,
-                description: item.description,
-                specification: item.specification,
-                base_unit: item.base_unit,
-              }
-            : null,
-          needed_qty: assessment?.bridge_qty ?? null,
-          deadline: assessment?.first_shortage_at ?? null,
-        },
+        payload,
       });
       if (!prepared.ok) return fail(prepared.code, prepared.safeMessage);
       return ok({
