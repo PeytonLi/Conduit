@@ -145,6 +145,7 @@ function extraction(lines: Partial<ExtractionV1["lines"][0]>[]): ExtractionV1 {
   return {
     schema_version: 1,
     is_delay_notice: true,
+    offer: null,
     lines: lines.map((l) => ({
       order_ref: null,
       line_ref: null,

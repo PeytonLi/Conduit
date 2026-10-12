@@ -1,0 +1,46 @@
+{
+  "rfc_message_id": "<supplier-reply-split@baycarton.example.com>",
+  "recorded_model": "replay-fixture",
+  "response": {
+    "schema_version": 1,
+    "is_delay_notice": true,
+    "lines": [
+      {
+        "order_ref": "PO-1042",
+        "line_ref": null,
+        "item_ref": "CARTON-302015",
+        "affected_quantity": 600,
+        "quantity_scope": "partial",
+        "unit": "carton",
+        "old_promise": null,
+        "new_promise": {
+          "quote": "Wednesday, October 14",
+          "local_date": "2026-10-14",
+          "local_time": null,
+          "promise_state": "confirmed"
+        },
+        "quantity_quote": "600 cartons",
+        "order_quote": "PO-1042"
+      },
+      {
+        "order_ref": "PO-1042",
+        "line_ref": null,
+        "item_ref": "CARTON-302015",
+        "affected_quantity": 3400,
+        "quantity_scope": "partial",
+        "unit": "carton",
+        "old_promise": null,
+        "new_promise": {
+          "quote": "Friday, October 16",
+          "local_date": "2026-10-16",
+          "local_time": null,
+          "promise_state": "confirmed"
+        },
+        "quantity_quote": "3,400 cartons",
+        "order_quote": "PO-1042"
+      }
+    ],
+    "offer": null,
+    "notes_for_reviewer": "Split delivery offer on PO-1042: 600 Oct 14 plus 3,400 Oct 16."
+  }
+}

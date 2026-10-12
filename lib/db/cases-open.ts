@@ -6,6 +6,7 @@ import {
 } from "@/lib/agent/extraction-schema";
 import {
   verifyExtraction,
+  verifyOfferTerms,
   type UnresolvedFact,
 } from "@/lib/agent/extraction-verify";
 import { extractDelayFacts, type ExtractDeps } from "@/lib/agent/extraction";
@@ -14,6 +15,10 @@ import {
   type MatchContext,
   type MatchOutcome,
 } from "@/lib/domain/matching";
+import {
+  buildResponseQuotes,
+  type SupplierResponseQuote,
+} from "@/lib/domain/supplier-response";
 import { findQuote } from "@/lib/agent/extraction-verify";
 import type { RpcClient } from "./messages";
 import { loadMessage } from "./messages";
@@ -53,6 +58,48 @@ export interface ProcessDeps extends ExtractDeps {
   mode: "replay" | "sandbox" | "live";
 }
 
+interface SupplierResponseRecord {
+  status: "recorded" | "replayed" | "none";
+  case_id: string | null;
+  offer_id: string | null;
+  quote_ids: string[];
+  evidence_id: string | null;
+}
+
+/**
+ * Route a non-delay supplier reply to the durable supplier_response wait on a
+ * case, when one exists. The RPC itself enforces attribution (sender must be a
+ * supplier contact tied to a pending wait) and idempotency; "none" means the
+ * message continues down the normal delay/ignore path.
+ */
+async function recordSupplierResponse(
+  rpc: RpcClient,
+  args: {
+    orgId: string;
+    sourceMessageId: string;
+    excerpt: string;
+    contentHash: string | null;
+    quotes: SupplierResponseQuote[];
+    extractionVersion: number | null;
+  },
+): Promise<ProcessResult | null> {
+  const res = await rpc.rpc<SupplierResponseRecord>("inbox_record_supplier_response", {
+    org_id: args.orgId,
+    source_message_id: args.sourceMessageId,
+    excerpt: args.excerpt,
+    content_hash: args.contentHash,
+    quotes: args.quotes,
+  });
+  if (res.status !== "recorded" && res.status !== "replayed") return null;
+  return {
+    status: "supplier_response",
+    case_ids: res.case_id ? [res.case_id] : [],
+    review_id: null,
+    replayed: res.status === "replayed",
+    extraction_version: args.extractionVersion,
+  };
+}
+
 export type EffectiveMode = "replay" | "sandbox" | "live";
 
 /**
@@ -87,9 +134,28 @@ export async function processSourceMessage({
   const loaded = await loadMessage(rpc, orgId, sourceMessageId);
   const message = loaded.message;
 
-  // Already processed (e.g. duplicate event delivery): inbox_open_cases
-  // replays the recorded result; skip extraction entirely.
+  const bodySegment =
+    loaded.segments.find(
+      (s) => s.kind === "body" && s.evidence_id === message.body_evidence_id,
+    ) ??
+    loaded.segments.find((s) => s.kind === "body") ??
+    null;
+  const responseExcerpt = (bodySegment?.content ?? "").slice(0, 280);
+  const responseContentHash = bodySegment?.content_hash ?? null;
+
+  // Already processed (e.g. duplicate event delivery): replay the recorded
+  // result; skip extraction entirely. A message routed to the supplier
+  // response path replays its recorded response, not inbox_open_cases.
   if (mode === "auto" && message.processing_state !== "pending") {
+    const response = await recordSupplierResponse(rpc, {
+      orgId,
+      sourceMessageId,
+      excerpt: responseExcerpt,
+      contentHash: responseContentHash,
+      quotes: [],
+      extractionVersion: loaded.latest_extraction?.version ?? null,
+    });
+    if (response) return response;
     const out = await callOpenCases(rpc, {
       org_id: orgId,
       source_message_id: sourceMessageId,
@@ -169,6 +235,17 @@ export async function processSourceMessage({
     extractionVersion = recorded.version;
 
     if (!result.facts) {
+      // Extraction failed; a supplier reply can still be recorded as a
+      // response (no quote terms) so the wait wakes on the raw message.
+      const response = await recordSupplierResponse(rpc, {
+        orgId,
+        sourceMessageId,
+        excerpt: responseExcerpt,
+        contentHash: responseContentHash,
+        quotes: [],
+        extractionVersion,
+      });
+      if (response) return response;
       // invalid or unavailable extraction -> needs_review with no candidates
       const out = await callOpenCases(rpc, {
         org_id: orgId,
@@ -238,6 +315,30 @@ export async function processSourceMessage({
   if (outcome.unresolved.length > 0 && outcome.status === "matched") {
     outcome.status = "needs_review";
     outcome.lines = [];
+  }
+
+  if (outcome.status !== "matched") {
+    // A reply that didn't cleanly match as a delay notice may answer an
+    // outstanding availability request. Record it as a supplier response and
+    // wake the case; the RPC is a no-op ("none") when no matching wait exists.
+    // This path never produces match reviews, so split/multi-line offers
+    // bypass matchDelay's duplicate_line trap.
+    const offerDates = verifyOfferTerms(
+      facts.offer,
+      bodySegment?.content ?? "",
+      sentAt,
+      loaded.org_timezone,
+      defaultTz,
+    );
+    const response = await recordSupplierResponse(rpc, {
+      orgId,
+      sourceMessageId,
+      excerpt: responseExcerpt,
+      contentHash: responseContentHash,
+      quotes: buildResponseQuotes(facts, verify, offerDates),
+      extractionVersion,
+    });
+    if (response) return response;
   }
 
   const out = await callOpenCases(rpc, {

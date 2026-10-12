@@ -1,0 +1,40 @@
+{
+  "rfc_message_id": "<supplier-reply-offer@baycarton.example.com>",
+  "recorded_model": "replay-fixture",
+  "response": {
+    "schema_version": 1,
+    "is_delay_notice": false,
+    "lines": [
+      {
+        "order_ref": "PO-1042",
+        "line_ref": null,
+        "item_ref": "CARTON-302015",
+        "affected_quantity": 600,
+        "quantity_scope": "partial",
+        "unit": "carton",
+        "old_promise": null,
+        "new_promise": {
+          "quote": "Wednesday, October 14",
+          "local_date": "2026-10-14",
+          "local_time": null,
+          "promise_state": "confirmed"
+        },
+        "quantity_quote": "600 cartons",
+        "order_quote": "PO-1042"
+      }
+    ],
+    "offer": {
+      "unit_price_minor": null,
+      "currency": "USD",
+      "freight_minor": 7500,
+      "fees_minor": null,
+      "valid_until": {
+        "quote": "valid until Thursday, October 15",
+        "local_date": "2026-10-15",
+        "local_time": null
+      },
+      "order_cutoff": null
+    },
+    "notes_for_reviewer": "Supplier reply offering 600 cartons on Oct 14 with $75 freight, valid until Oct 15."
+  }
+}

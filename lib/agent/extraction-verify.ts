@@ -1,4 +1,4 @@
-import type { ExtractionV1 } from "./extraction-schema";
+import type { ExtractionOffer, ExtractionV1 } from "./extraction-schema";
 
 export interface VerifySegment {
   kind: "body" | "quoted" | "forwarded";
@@ -332,6 +332,49 @@ export function verifyExtraction(input: VerifyInput): VerifyResult {
   });
 
   return { lines, unresolved };
+}
+
+export interface VerifiedOfferDates {
+  valid_until: string | null; // ISO UTC
+  latest_order_at: string | null; // ISO UTC
+}
+
+/**
+ * Resolve an extracted offer's stated deadlines to UTC instants. A term is only
+ * trusted when its quote appears verbatim in the body and the quoted text
+ * supports the model-resolved calendar date — same rules as line promises.
+ * Date-only deadlines resolve to end of day; deadlines already past at sent_at
+ * are dropped.
+ */
+export function verifyOfferTerms(
+  offer: ExtractionOffer | null | undefined,
+  bodyText: string,
+  sentAt: Date,
+  sentTimezone: string,
+  timezone: string,
+): VerifiedOfferDates {
+  const resolve = (
+    term: { quote: string; local_date: string | null; local_time: string | null } | null,
+  ): string | null => {
+    if (!term?.local_date) return null;
+    if (findQuote(bodyText, term.quote) === -1) return null;
+    if (quoteSupportsDate(term.quote, term.local_date, sentAt, sentTimezone) !== "ok") {
+      return null;
+    }
+    const [y, m, d] = term.local_date.split("-").map(Number);
+    let at: Date;
+    if (term.local_time) {
+      const [hh, mi] = term.local_time.split(":").map(Number);
+      at = localToUtc(y, m, d, hh, mi, 0, 0, timezone);
+    } else {
+      at = localToUtc(y, m, d, 23, 59, 59, 999, timezone);
+    }
+    return at.getTime() >= sentAt.getTime() ? at.toISOString() : null;
+  };
+  return {
+    valid_until: resolve(offer?.valid_until ?? null),
+    latest_order_at: resolve(offer?.order_cutoff ?? null),
+  };
 }
 
 /** Resolve a quoted "Month D" (no year) into the YYYY-MM-DD closest to sentAt. */
