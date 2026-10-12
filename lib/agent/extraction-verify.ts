@@ -67,48 +67,83 @@ const MONTHS: Record<string, number> = {
 const WEEKDAYS = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
 const VAGUE = /\b(next week|next month|soon|later|asap|end of (the )?week)\b/i;
 
+function resolveDateYear(month: number, day: number, sentAt: Date, timezone: string): number | null {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone, year: "numeric", month: "numeric", day: "numeric",
+    }).formatToParts(sentAt).map((p) => [p.type, p.value]),
+  );
+  const sentYear = Number(parts.year);
+  const sentMonth = Number(parts.month) - 1;
+  const sentDay = Number(parts.day);
+  const sentDate = Date.UTC(sentYear, sentMonth, sentDay);
+  const [lower, upper] = [-6, 6].map((offset) => {
+    const bound = new Date(Date.UTC(sentYear, sentMonth + offset, 1));
+    const lastDay = new Date(Date.UTC(bound.getUTCFullYear(), bound.getUTCMonth() + 1, 0)).getUTCDate();
+    bound.setUTCDate(Math.min(sentDay, lastDay));
+    return bound.getTime();
+  });
+  const candidates = [sentYear - 1, sentYear, sentYear + 1]
+    .map((year) => new Date(Date.UTC(year, month - 1, day)))
+    .filter((date) =>
+      date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+      && date.getTime() >= lower && date.getTime() <= upper,
+    )
+    .sort((a, b) => Math.abs(a.getTime() - sentDate) - Math.abs(b.getTime() - sentDate));
+  return candidates[0]?.getUTCFullYear() ?? null;
+}
+
 /**
  * A quote supports an explicit calendar date if it names a month (word or
- * numeric) plus the matching day number, or an ISO-style date. A bare weekday
- * or vague phrase is rejected.
+ * numeric) plus the matching day and explicit or sent-date-resolved year.
+ * A bare weekday or vague phrase is rejected.
  */
 export function quoteSupportsDate(
   quote: string,
   localDate: string,
+  sentAt: Date,
+  timezone: string,
 ): "ok" | "date_not_explicit" | "date_mismatch" {
   const q = normalizeText(quote);
   const day = Number(localDate.slice(8, 10));
 
   // ISO / numeric forms in the quote
-  const numeric = q.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/g) ?? [];
+  const numeric = q.match(/\b(\d{1,4})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/g) ?? [];
   const monthNamed = q.match(
-    /(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?/,
+    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:[,\s]+(\d{4})\b)?/,
   );
   const dayThenMonth = q.match(
-    /(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)/,
+    /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\b\.?(?:[,\s]+(\d{4})\b)?/,
   );
 
   const targetMonth = Number(localDate.slice(5, 7));
+  const targetYear = Number(localDate.slice(0, 4));
+  const supports = (month: number, quotedDay: number, year?: number): "ok" | "date_mismatch" => {
+    const date = new Date(Date.UTC(targetYear, month - 1, day));
+    if (month !== targetMonth || quotedDay !== day
+      || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "date_mismatch";
+    const expectedYear = year ?? resolveDateYear(month, day, sentAt, timezone);
+    return targetYear === expectedYear ? "ok" : "date_mismatch";
+  };
 
-  for (const n of numeric) {
-    const parts = n.split(/[\/\-.]/).map(Number);
-    if (parts.length >= 2) {
-      const [a, b] = parts;
-      // month/day or day/month — accept if some permutation matches
-      if ((a === targetMonth && b === day) || (a === day && b === targetMonth)) return "ok";
-    }
-  }
   if (monthNamed) {
     const m = MONTHS[monthNamed[1].replace(/\.$/, "")];
     const d = Number(monthNamed[2]);
-    if (m === targetMonth && d === day) return "ok";
-    return "date_mismatch";
+    return supports(m, d, monthNamed[3] ? Number(monthNamed[3]) : undefined);
   }
   if (dayThenMonth) {
     const d = Number(dayThenMonth[1]);
     const m = MONTHS[dayThenMonth[2]];
-    if (m === targetMonth && d === day) return "ok";
-    return "date_mismatch";
+    return supports(m, d, dayThenMonth[3] ? Number(dayThenMonth[3]) : undefined);
+  }
+  for (const n of numeric) {
+    const parts = n.split(/[\/\-.]/);
+    const [a, b, c] = parts.map(Number);
+    if (parts[0].length === 4) {
+      if (b === targetMonth && c === day) return supports(b, c, a);
+    } else if ((a === targetMonth && b === day) || (a === day && b === targetMonth)) {
+      return supports(targetMonth, day, c === undefined ? undefined : c < 100 ? 2000 + c : c);
+    }
   }
   if (numeric.length === 0) {
     if (WEEKDAYS.test(q) || VAGUE.test(q) || /\d/.test(q) === false) {
@@ -176,11 +211,12 @@ export interface VerifyInput {
   extraction: ExtractionV1;
   segments: VerifySegment[];
   sentAt: Date;
+  sentTimezone?: string;
   timezone: string;
 }
 
 export function verifyExtraction(input: VerifyInput): VerifyResult {
-  const { extraction, segments, sentAt, timezone } = input;
+  const { extraction, segments, sentAt, timezone, sentTimezone = timezone } = input;
   const body = segments.find((s) => s.kind === "body");
   const bodyText = body?.content ?? "";
   const unresolved: UnresolvedFact[] = [];
@@ -202,6 +238,14 @@ export function verifyExtraction(input: VerifyInput): VerifyResult {
     checkQuote(i, "quantity_quote", line.quantity_quote);
     checkQuote(i, "new_promise.quote", line.new_promise?.quote);
     checkQuote(i, "old_promise.quote", line.old_promise?.quote);
+    if (line.old_promise?.local_date) {
+      const support = quoteSupportsDate(
+        line.old_promise.quote, line.old_promise.local_date, sentAt, sentTimezone,
+      );
+      if (support !== "ok") {
+        unresolved.push({ line_index: i, field: "old_promise.date", reason: support });
+      }
+    }
 
     let affected: number | null = line.affected_quantity;
     if (affected != null) {
@@ -225,7 +269,7 @@ export function verifyExtraction(input: VerifyInput): VerifyResult {
           reason: "date_not_explicit",
         });
       } else {
-        const support = quoteSupportsDate(np.quote, np.local_date);
+        const support = quoteSupportsDate(np.quote, np.local_date, sentAt, sentTimezone);
         if (support !== "ok") {
           unresolved.push({
             line_index: i,

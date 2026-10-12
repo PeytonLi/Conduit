@@ -49,7 +49,12 @@ export async function runCaseAssessment(
     const built = await store.loadProjectionInput(orgId, c.id);
     const mode = (await store.getOrgMode(orgId)) ?? "replay";
     if (!built.input || built.missingFacts.length > 0) {
-      return { insufficient: true as const, missingFacts: built.missingFacts, fingerprint: assessmentFingerprint(built) };
+      return {
+        insufficient: true as const,
+        missingFacts: built.missingFacts,
+        fingerprint: assessmentFingerprint(built),
+        sourceAsOf: null,
+      };
     }
     const result = await withBusinessSpan(
       "inventory_calc",
@@ -65,6 +70,7 @@ export async function runCaseAssessment(
       insufficient: false as const,
       result,
       fingerprint: assessmentFingerprint(built),
+      sourceAsOf: built.input.t0,
     };
   });
 
@@ -86,7 +92,7 @@ export async function runCaseAssessment(
         projection: { missing_facts: projected.missingFacts },
         dated_requirements: [],
         evidence_ids: [],
-        source_as_of: deps.clock.now().toISOString(),
+        source_as_of: projected.sourceAsOf,
         horizon_start: null,
         horizon_end: null,
       });
@@ -113,7 +119,7 @@ export async function runCaseAssessment(
         cumulative_quantity: r.cumulativeQuantity,
       })),
       evidence_ids: [],
-      source_as_of: deps.clock.now().toISOString(),
+      source_as_of: projected.sourceAsOf,
       horizon_start: null,
       horizon_end: null,
     });

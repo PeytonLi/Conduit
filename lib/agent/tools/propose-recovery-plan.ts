@@ -1,29 +1,10 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { proposePlanPayloadSchema } from "../decision";
 import type { AgentTool } from "./types";
-import { fail, ok, uuid, type ToolDeps } from "./deps";
+import { fail, ok, type ToolDeps } from "./deps";
 import { evaluateQuote } from "../quote-evaluation";
 
-const STEP_KINDS = [
-  "amend_delivery_schedule",
-  "purchase_bridge",
-  "transfer_stock",
-  "cancel_original_quantity",
-] as const;
-
-interface StepInput {
-  step_id: string;
-  kind: (typeof STEP_KINDS)[number];
-  quantity: number;
-  quote_id?: string;
-  arrival_by?: string;
-  depends_on_step_ids?: string[];
-}
-
-interface Input {
-  assessment_id: string;
-  steps: StepInput[];
-  evidence_ids: string[];
-}
+type Input = z.infer<typeof proposePlanPayloadSchema>;
 
 export function createProposeRecoveryPlanTool(
   deps: ToolDeps,
@@ -33,27 +14,7 @@ export function createProposeRecoveryPlanTool(
     spanName: "quote_validation",
     description:
       "Propose a versioned draft/ready recovery plan after deterministic validation. Never approves.",
-    input: z
-      .object({
-        assessment_id: uuid,
-        steps: z
-          .array(
-            z
-              .object({
-                step_id: z.string(),
-                kind: z.enum(STEP_KINDS),
-                quantity: z.number().int().positive(),
-                quote_id: uuid.optional(),
-                arrival_by: z.string().datetime().optional(),
-                depends_on_step_ids: z.array(z.string()).optional(),
-              })
-              .strict(),
-          )
-          .min(1)
-          .max(5),
-        evidence_ids: z.array(uuid),
-      })
-      .strict(),
+    input: proposePlanPayloadSchema,
     async run(ctx, input) {
       const c = await deps.store.getCase(ctx.orgId, ctx.caseId);
       if (!c) return fail("not_found", "case not found");

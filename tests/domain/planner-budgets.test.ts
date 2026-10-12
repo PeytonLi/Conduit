@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { runPlannerCycle } from "@/lib/agent/planner";
 import { createToolRegistry } from "@/lib/agent/tools/registry";
-import { ModelCallError } from "@/lib/agent/model";
+import { ModelCallError, type PlannerModel } from "@/lib/agent/model";
+import { PROMPT_VERSION } from "@/lib/agent/prompt";
 import {
   createFakePreparer,
   ctx,
@@ -56,7 +57,7 @@ describe("AT-35 planner budgets and NFR-011", () => {
         provider: "deepseek",
         provider_request_id: `r${i}`,
         model: "m",
-        prompt_version: "planner-v1",
+        prompt_version: PROMPT_VERSION,
         estimated_cost: null,
       });
     }
@@ -109,6 +110,63 @@ describe("AT-35 planner budgets and NFR-011", () => {
     );
     expect(requests.length).toBe(2);
     expect(requests.map((r) => r.kind)).toEqual(["inference", "repair"]);
+  });
+
+  it("repair inference receives the inference tools and exact payload guidance", async () => {
+    const store = harborStore();
+    const { tools } = deps(store);
+    const requests: Parameters<PlannerModel["complete"]>[0][] = [];
+    const model: PlannerModel = {
+      async complete(request) {
+        requests.push(request);
+        const requestId = `request-${requests.length}`;
+        const content =
+          requests.length === 1
+            ? JSON.stringify({
+                schema_version: 1,
+                decision_type: "tool_request",
+                tool_name: "calculate_shortage",
+                arguments: {},
+              })
+            : JSON.stringify({
+                schema_version: 1,
+                decision_type: "no_action",
+                concise_reason: "Complete the cycle.",
+                supporting_evidence_ids: [],
+                missing_facts: [],
+                payload: {},
+              });
+        return {
+          providerRequestId: requestId,
+          model: "deepseek-test",
+          message: { content },
+          usage: {
+            provider: "deepseek",
+            request_id: requestId,
+            model: "deepseek-test",
+            raw_units: {},
+            estimated_cost: null,
+            actual_cost: null,
+            billing_currency: null,
+            rate_version: null,
+          },
+        };
+      },
+    };
+    const step = new FakeStep();
+
+    const outcome = await runPlannerCycle(
+      { model, tools, store, clock, step },
+      { ...ctx, episode: 1, assessmentVersion: 1, cycleId: "cyc-repair-tools" },
+    );
+
+    expect(outcome.status).toBe("no_action");
+    expect(requests).toHaveLength(2);
+    expect(requests[0].tools.length).toBeGreaterThan(0);
+    expect(requests[1].tools).toEqual(requests[0].tools);
+    expect(requests[1].messages[2]?.content).toMatch(
+      /^Your previous output was invalid: .+\. Reply with exactly one tool call, or with one decision JSON object in the format from the system prompt, with every decision-specific field inside "payload"\.$/,
+    );
   });
 
   it("repeated 429 with Retry-After -> 3 attempts with backoff, then blocked provider_unavailable", async () => {

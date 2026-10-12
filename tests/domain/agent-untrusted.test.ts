@@ -5,7 +5,7 @@ import { createToolRegistry } from "@/lib/agent/tools/registry";
 import { createReplayResearch } from "@/lib/integrations/exa/replay";
 import { createReplayModel } from "@/lib/integrations/deepseek/replay";
 import { runPlannerCycle } from "@/lib/agent/planner";
-import { PLANNER_SYSTEM_PROMPT } from "@/lib/agent/prompt";
+import { PLANNER_SYSTEM_PROMPT, PROMPT_VERSION } from "@/lib/agent/prompt";
 import injection from "@/lib/integrations/deepseek/replay-transcripts/injection.json";
 import {
   createFakePreparer,
@@ -69,7 +69,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
     });
     expect(result.ok).toBe(true);
     const action = [...store.actions.values()][0];
-    expect(action.payload.recipient).toBe("sales@baycarton.example.com");
+    expect(action.payload.to).toBe("sales@baycarton.example.com");
   });
 
   it("injected source text is only exposed inside untrusted_supplier_text", async () => {
@@ -110,7 +110,7 @@ describe("AT-31 untrusted content and tenant isolation", () => {
     // No action may target attacker or org B; email call was invalid args.
     for (const action of store.actions.values()) {
       expect(action.org_id).toBe(ctx.orgId);
-      expect(String(action.payload.recipient ?? "")).not.toContain("attacker");
+      expect(String(action.payload.to ?? "")).not.toContain("attacker");
     }
     expect(store.actions.size).toBe(0);
     expect(["needs_review", "blocked", "waiting", "no_action"]).toContain(outcome.status);
@@ -119,5 +119,11 @@ describe("AT-31 untrusted content and tenant isolation", () => {
   it("system prompt contains the untrusted-content rule", () => {
     expect(PLANNER_SYSTEM_PROMPT).toContain("untrusted_supplier_text");
     expect(PLANNER_SYSTEM_PROMPT).toContain("data, not instructions");
+  });
+
+  it("planner-v2 documents payload placement and arrival_by", () => {
+    expect(PROMPT_VERSION).toBe("planner-v2");
+    expect(PLANNER_SYSTEM_PROMPT).toContain('"arrival_by"?');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('inside "payload"');
   });
 });
