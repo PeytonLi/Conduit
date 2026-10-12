@@ -27,6 +27,13 @@ export const requestReviewPayloadSchema = z
   })
   .strict();
 
+export const STEP_KINDS = [
+  "amend_delivery_schedule",
+  "purchase_bridge",
+  "transfer_stock",
+  "cancel_original_quantity",
+] as const;
+
 export const proposePlanPayloadSchema = z
   .object({
     assessment_id: uuid,
@@ -35,14 +42,10 @@ export const proposePlanPayloadSchema = z
         z
           .object({
             step_id: z.string(),
-            kind: z.enum([
-              "amend_delivery_schedule",
-              "purchase_bridge",
-              "transfer_stock",
-              "cancel_original_quantity",
-            ]),
+            kind: z.enum(STEP_KINDS),
             quantity: z.number().int().positive(),
             quote_id: uuid.optional(),
+            arrival_by: z.string().datetime().optional(),
             depends_on_step_ids: z.array(z.string()).optional(),
           })
           .strict(),

@@ -82,11 +82,13 @@ describe("case-assessment workflow", () => {
     const deps = assessmentDeps(harborStore(), projectionResult({ inputFingerprint: "fp-2" }));
     const out = await runCaseAssessment(deps, { case_id: CASE_A });
     expect(out.assessment_version).toBe(2);
+    const assessment = [...deps.store.assessments.values()].find((row) => row.version === 2);
+    expect(assessment?.source_as_of).toBe(buildProjectionInput(harborFacts).input?.t0);
     const c = await deps.store.getCase(ctx.orgId, CASE_A);
     expect(c?.current_assessment_id).not.toBe(ASSESSMENT_A);
   });
 
-  it("insufficient quality -> needs_review", async () => {
+  it("insufficient facts persist a null source-as-of and need review", async () => {
     const deps = assessmentDeps(
       harborStore(),
       projectionResult({
@@ -95,7 +97,10 @@ describe("case-assessment workflow", () => {
         inputFingerprint: "fp-insufficient",
       }),
     );
+    deps.store.projectionFacts = { ...harborFacts, inventory: null };
     await runCaseAssessment(deps, { case_id: CASE_A });
+    const assessment = [...deps.store.assessments.values()].find((row) => row.version === 2);
+    expect(assessment?.source_as_of).toBeNull();
     const c = await deps.store.getCase(ctx.orgId, CASE_A);
     expect(c?.phase).toBe("needs_review");
   });
@@ -179,7 +184,7 @@ describe("case-recovery workflow", () => {
     );
     expect(emails.length).toBe(1);
     expect(emails[0].state).toBe("prepared");
-    expect(emails[0].payload.recipient).toBe("sales@baycarton.example.com");
+    expect(emails[0].payload.to).toBe("sales@baycarton.example.com");
     // waitForEvent ticks were attempted and bounded by the tick cap.
     expect(step.waits.length).toBe(120);
     expect(step.waits.every((w) => w.opts.timeout === "60s")).toBe(true);

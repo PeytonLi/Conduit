@@ -8,7 +8,7 @@ import type {
 import { classifyGmailError, type GmailApi } from "./api";
 import { normalizeAddress } from "./mime";
 
-const QUOTE_FIELDS = [
+export const QUOTE_FIELDS = [
   "unit_price",
   "freight",
   "arrival_date",
@@ -44,6 +44,11 @@ export const supplierEmailPayloadSchema = z
       })
       .strict(),
     question: z.string().max(1000),
+    supplier_id: z.string().uuid().optional(),
+    episode: z.number().int().min(0).optional(),
+    purpose: z
+      .enum(["availability_request", "written_confirmation", "follow_up"])
+      .optional(),
   })
   .strict();
 

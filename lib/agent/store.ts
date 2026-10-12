@@ -38,6 +38,13 @@ export interface LocationRecord {
   timezone: string;
 }
 
+export interface GmailConnectionRecord {
+  id: string;
+  org_id: string;
+  provider: string;
+  status: string;
+}
+
 export interface SupplierRecord {
   id: string;
   org_id: string;
@@ -329,6 +336,8 @@ export interface PlannerStore {
   ): Promise<void>;
   getItem(orgId: string, itemId: string): Promise<ItemRecord | null>;
   getLocation(orgId: string, locationId: string): Promise<LocationRecord | null>;
+  getActiveGmailConnectionId(orgId: string): Promise<string | null>;
+  getOrgTimezone(orgId: string): Promise<string | null>;
   getSupplier(orgId: string, supplierId: string): Promise<SupplierRecord | null>;
   getContact(orgId: string, contactId: string): Promise<ContactRecord | null>;
   listApprovedSuppliers(

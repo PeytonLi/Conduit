@@ -97,6 +97,18 @@ export class SupabasePlannerStore implements PlannerStore {
   getLocation(orgId: string, locationId: string) {
     return this.byId("locations", orgId, locationId);
   }
+  async getActiveGmailConnectionId(orgId: string) {
+    const { data, error } = await (await this.db())
+      .from("connections")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("provider", "gmail")
+      .in("status", ["healthy", "degraded"])
+      .limit(1)
+      .maybeSingle();
+    must(data, error);
+    return (data?.id as string | undefined) ?? null;
+  }
   getSupplier(orgId: string, supplierId: string) {
     return this.byId("suppliers", orgId, supplierId);
   }
@@ -392,6 +404,16 @@ export class SupabasePlannerStore implements PlannerStore {
       .maybeSingle();
     must(data, error);
     return (data?.environment_mode as "replay" | "sandbox" | "live") ?? null;
+  }
+
+  async getOrgTimezone(orgId: string) {
+    const { data, error } = await (await this.db())
+      .from("organizations")
+      .select("timezone")
+      .eq("id", orgId)
+      .maybeSingle();
+    must(data, error);
+    return (data?.timezone as string | undefined) ?? null;
   }
 
   async updateActionState(

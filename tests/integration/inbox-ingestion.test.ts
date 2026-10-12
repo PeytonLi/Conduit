@@ -14,6 +14,7 @@ import {
 import {
   ensureInboxConnection,
   ingestMessage,
+  loadMessage,
 } from "@/lib/db/messages";
 import {
   processSourceMessage,
@@ -76,6 +77,9 @@ describe("AT-03 dedupe and idempotent processing", () => {
       [fixture.orgId, first.source_message_id],
     );
     expect(Number(outbox.rows[0].count)).toBe(1);
+
+    const loaded = await loadMessage(rpc(), fixture.orgId, first.source_message_id);
+    expect(loaded.org_timezone).toBe("America/Los_Angeles");
 
     const r1 = await processSourceMessage({
       rpc: rpc(),

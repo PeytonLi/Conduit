@@ -13,7 +13,7 @@ const PATTERNS: { re: RegExp; replacement: string }[] = [
     replacement: "$1***@$3",
   },
   {
-    re: /\+?[0-9][0-9\s-]{8,}[0-9]/g,
+    re: /(?<![\w-])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g,
     replacement: "[phone]",
   },
 ];

@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseRawEmail } from "@/lib/integrations/gmail/mime";
+import { verifyExtraction } from "@/lib/agent/extraction-verify";
 import {
   _resetTelemetryForTests,
   initTelemetry,
@@ -18,6 +22,8 @@ afterEach(() => {
 const message = {
   rfcMessageId: "<x@y.example>",
   bodyHash: "h",
+  sentAt: new Date("2026-10-12T15:00:00Z"),
+  timezone: "America/Los_Angeles",
   segments: [
     { kind: "body" as const, index: 0, content: "PO-1042 delayed to October 30" },
   ],
@@ -89,6 +95,27 @@ describe("inbox-extraction: deepseek request params", () => {
     if (prev) process.env.DEEPSEEK_MODEL = prev;
   });
 
+  it("includes the sent time and business timezone in a trusted block outside the email", async () => {
+    const calls: Parameters<ChatClient["complete"]>[0][] = [];
+    const client: ChatClient = {
+      async complete(params) {
+        calls.push(params);
+        return { content: validJson };
+      },
+    };
+    const result = await extractDelayFacts({
+      mode: "live", message, deps: { deepseek: client, model: "m1" },
+    });
+    expect(result.promptVersion).toBe("inbox-extraction-v2");
+    const user = calls[0].messages[1].content;
+    const context = user.match(/<trusted_message_context>([\s\S]*?)<\/trusted_message_context>/)![1];
+    expect(context).toContain(`sent_at: ${message.sentAt.toISOString()}`);
+    expect(context).toContain(`business_timezone: ${message.timezone}`);
+    expect(user.indexOf("</trusted_message_context>")).toBeLessThan(user.indexOf("<untrusted_email>"));
+    expect(user.match(/<untrusted_email>([\s\S]*?)<\/untrusted_email>/)![1].trim()).toBe(message.segments[0].content);
+    expect(calls[0].messages[0].content).toContain("within six calendar months before or after");
+  });
+
   it("AT-31 extra keys fail strict zod; one repair attempt then invalid", async () => {
     const bad = JSON.stringify({
       schema_version: 1,
@@ -145,6 +172,7 @@ describe("inbox-extraction: deepseek request params", () => {
     const r = await extractDelayFacts({
       mode: "replay",
       message: {
+        ...message,
         rfcMessageId: "<delay-po-1042@baycarton.example.com>",
         bodyHash: "x",
         segments: message.segments,
@@ -293,6 +321,35 @@ describe("inbox-extraction: deepseek request params", () => {
       },
     );
     expect(JSON.stringify(errorLog.mock.calls)).not.toContain("secret-token");
+  });
+});
+
+describe("inbox-extraction: replay date verification", () => {
+  it.each([
+    ["delay-po-1042", 1],
+    ["inbox-multi-line-partial", 2],
+    ["inbox-prompt-injection", 1],
+    ["inbox-ambiguous-friday", 0],
+  ] as const)("keeps %s promises and review behavior", async (name, promises) => {
+    const parsed = parseRawEmail(readFileSync(join("tests/fixtures/harbor-pack/messages", `${name}.eml`)));
+    const result = await extractDelayFacts({
+      mode: "replay",
+      message: {
+        rfcMessageId: parsed.rfcMessageId,
+        bodyHash: parsed.bodyHash,
+        sentAt: parsed.sentAt!,
+        timezone: message.timezone,
+        segments: parsed.segments,
+      },
+      deps: {},
+    });
+    expect(result.status).toBe("valid");
+    const verified = verifyExtraction({
+      extraction: result.facts!, segments: parsed.segments,
+      sentAt: parsed.sentAt!, timezone: message.timezone,
+    });
+    expect(verified.lines.filter((line) => line.new_promise !== null)).toHaveLength(promises);
+    expect(verified.unresolved.map((fact) => fact.reason)).toEqual(promises === 0 ? ["date_not_explicit"] : []);
   });
 });
 

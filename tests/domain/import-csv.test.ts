@@ -116,7 +116,9 @@ describe("CSV import parsing and validation", () => {
   });
 
   it("canonicalizes content hashes for equal content and CRLF versus LF", () => {
-    const originalFiles = harborFiles();
+    const originalFiles = Object.fromEntries(
+      Object.entries(harborFiles()).map(([name, content]) => [name, content.replace(/\r\n/g, "\n")]),
+    );
     const original = validate(originalFiles);
     expect(validate(originalFiles).contentHash).toBe(original.contentHash);
     const crlf = Object.fromEntries(

@@ -16,6 +16,7 @@ export const CASE_B = "40000000-0000-4000-8000-000000000002";
 export const BAY_CARTON = "50000000-0000-4000-8000-000000000001";
 export const NORTH_PACKAGING = "50000000-0000-4000-8000-000000000002";
 export const BUDGET_BOX = "50000000-0000-4000-8000-000000000003";
+export const GMAIL_CONNECTION_A = "30000000-0000-4000-8000-000000000001";
 export const BAY_EMAIL_CONTACT = "60000000-0000-4000-8000-000000000001";
 export const BAY_PHONE_CONTACT = "60000000-0000-4000-8000-000000000002";
 export const NORTH_EMAIL_CONTACT = "60000000-0000-4000-8000-000000000004";
@@ -98,6 +99,26 @@ export function harborStore(overrides?: {
         id: LOCATION_A,
         org_id: ORG_A,
         name: "Main Warehouse",
+        timezone: "America/Los_Angeles",
+      },
+    ],
+    gmailConnections: [
+      {
+        id: GMAIL_CONNECTION_A,
+        org_id: ORG_A,
+        provider: "gmail",
+        status: "healthy",
+      },
+    ],
+    orgs: [
+      {
+        id: ORG_A,
+        environment_mode: "replay",
+        timezone: "America/Chicago",
+      },
+      {
+        id: ORG_B,
+        environment_mode: "replay",
         timezone: "America/Los_Angeles",
       },
     ],

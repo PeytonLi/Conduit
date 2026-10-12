@@ -8,6 +8,7 @@ import type {
   CallSessionRecord,
   ContactRecord,
   EvidenceRecord,
+  GmailConnectionRecord,
   ItemRecord,
   LocationRecord,
   OfferRecord,
@@ -74,7 +75,12 @@ export interface MemorySeed {
   pageReads?: { org_id: string; case_id: string; episode: number; evidence_id: string }[];
   callSessions?: CallSessionRecord[];
   plans?: RecoveryPlanRecord[];
-  orgs?: { id: string; environment_mode: "replay" | "sandbox" | "live" }[];
+  gmailConnections?: GmailConnectionRecord[];
+  orgs?: {
+    id: string;
+    environment_mode: "replay" | "sandbox" | "live";
+    timezone?: string;
+  }[];
   projectionFacts?: ProjectionFacts;
 }
 
@@ -107,7 +113,12 @@ export class MemoryPlannerStore implements PlannerStore {
   planSteps: (PlanStepInsert & { plan_id: string })[] = [];
   usageEvents: UsageEventInput[] = [];
   audits: { event_name: string; entity_type: string }[] = [];
-  orgs: { id: string; environment_mode: "replay" | "sandbox" | "live" }[] = [];
+  gmailConnections: GmailConnectionRecord[] = [];
+  orgs: {
+    id: string;
+    environment_mode: "replay" | "sandbox" | "live";
+    timezone?: string;
+  }[] = [];
   projectionFacts: ProjectionFacts | null = null;
 
   constructor(seed: MemorySeed = {}) {
@@ -137,6 +148,7 @@ export class MemoryPlannerStore implements PlannerStore {
     this.pageReads = [...(seed.pageReads ?? [])];
     for (const s of seed.callSessions ?? []) this.callSessions.set(s.id, s);
     for (const p of seed.plans ?? []) this.plans.set(p.id, p);
+    this.gmailConnections = [...(seed.gmailConnections ?? [])];
   }
 
   private scoped<T extends { id: string; org_id: string }>(
@@ -174,6 +186,19 @@ export class MemoryPlannerStore implements PlannerStore {
   }
   async getLocation(orgId: string, locationId: string) {
     return this.scoped(this.locations, orgId, locationId);
+  }
+  async getActiveGmailConnectionId(orgId: string) {
+    return (
+      this.gmailConnections.find(
+        (connection) =>
+          connection.org_id === orgId &&
+          connection.provider === "gmail" &&
+          (connection.status === "healthy" || connection.status === "degraded"),
+      )?.id ?? null
+    );
+  }
+  async getOrgTimezone(orgId: string) {
+    return this.orgs.find((org) => org.id === orgId)?.timezone ?? null;
   }
   async getSupplier(orgId: string, supplierId: string) {
     return this.scoped(this.suppliers, orgId, supplierId);

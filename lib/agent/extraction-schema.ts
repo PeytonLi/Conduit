@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROMPT_VERSION = "inbox-extraction-v1";
+export const PROMPT_VERSION = "inbox-extraction-v2";
 
 const localDateSchema = z
   .string()

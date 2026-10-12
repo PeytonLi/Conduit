@@ -82,6 +82,7 @@ export interface LoadResult {
     unresolved: unknown;
   } | null;
   org_environment_mode: "replay" | "sandbox" | "live" | null;
+  org_timezone: string;
 }
 
 export async function ingestMessage({
