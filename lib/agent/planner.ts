@@ -170,6 +170,21 @@ export async function runPlannerCycle(
     if (!caseRow) {
       return finish({ status: "no_action", modelRequests });
     }
+    const toolDefs = allowedTools(caseRow.phase)
+      .map((name) => tools.get(name))
+      .filter((t): t is AgentTool<unknown, unknown> => Boolean(t))
+      .map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: toolInputToJsonSchema(t.input),
+      }));
+    const spanAttrs = {
+      org_pseudonym: orgPseudonym(orgId),
+      case_id: caseId,
+      episode,
+      assessment_version: ctx.assessmentVersion,
+      prompt_version: PROMPT_VERSION,
+    };
 
     let attempt = 0;
     let turn: Awaited<ReturnType<PlannerModel["complete"]>> | null = null;
@@ -191,27 +206,13 @@ export async function runPlannerCycle(
               }),
           ),
         ];
-        const toolDefs = allowedTools(caseRow.phase)
-          .map((name) => tools.get(name))
-          .filter((t): t is AgentTool<unknown, unknown> => Boolean(t))
-          .map((t) => ({
-            name: t.name,
-            description: t.description,
-            parameters: toolInputToJsonSchema(t.input),
-          }));
         // Persisted episode request count determines the replay cursor so a
         // rebuilt replay model resumes at the right transcript entry.
         const sequence = await store.countPlannerRequests(orgId, caseId, episode);
         try {
           const modelTurn = await withBusinessSpan(
             "planner_inference",
-            {
-              org_pseudonym: orgPseudonym(orgId),
-              case_id: caseId,
-              episode,
-              assessment_version: ctx.assessmentVersion,
-              prompt_version: PROMPT_VERSION,
-            },
+            spanAttrs,
             () => deps.model.complete({ messages, tools: toolDefs, sequence }),
           );
           await store.insertPlannerRequest({
@@ -294,12 +295,16 @@ export async function runPlannerCycle(
           { role: "user" as const, content: JSON.stringify(context) },
           {
             role: "user" as const,
-            content: `Your previous output was invalid: ${issues}. Reply with one valid decision JSON or one tool call.`,
+            content: `Your previous output was invalid: ${issues}. Reply with exactly one tool call, or with one decision JSON object in the format from the system prompt, with every decision-specific field inside "payload".`,
           },
         ];
         const sequence = await store.countPlannerRequests(orgId, caseId, episode);
         try {
-          const repairTurn = await deps.model.complete({ messages, tools: [], sequence });
+          const repairTurn = await withBusinessSpan(
+            "planner_inference",
+            spanAttrs,
+            () => deps.model.complete({ messages, tools: toolDefs, sequence }),
+          );
           await store.insertPlannerRequest({
             org_id: orgId,
             case_id: caseId,

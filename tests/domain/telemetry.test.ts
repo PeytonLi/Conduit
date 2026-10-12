@@ -12,6 +12,7 @@ import { maskTelemetry } from "@/lib/telemetry/mask";
 import { extractUsage } from "@/lib/integrations/deepseek/usage";
 import { createDeepSeekModel } from "@/lib/integrations/deepseek/client";
 import { ModelUnavailableError } from "@/lib/agent/model";
+import { PROMPT_VERSION } from "@/lib/agent/prompt";
 
 interface FakeSpan {
   attributes: Record<string, unknown>;
@@ -115,7 +116,7 @@ describe("AT-29 telemetry", () => {
         action_id: "act-1",
         plan_version: 2,
         model: "deepseek-flash",
-        prompt_version: "planner-v1",
+        prompt_version: PROMPT_VERSION,
         provider_request_id: "req-1",
         conversation_id: "conv-1",
       },
@@ -129,7 +130,7 @@ describe("AT-29 telemetry", () => {
     expect(span.attrs["conduit.action_id"]).toBe("act-1");
     expect(span.attrs["conduit.plan_version"]).toBe(2);
     expect(span.attrs["conduit.model"]).toBe("deepseek-flash");
-    expect(span.attrs["conduit.prompt_version"]).toBe("planner-v1");
+    expect(span.attrs["conduit.prompt_version"]).toBe(PROMPT_VERSION);
     expect(span.attrs["conduit.provider_request_id"]).toBe("req-1");
     expect(span.attrs["conduit.conversation_id"]).toBe("conv-1");
     expect(String(span.attrs["conduit.org_pseudonym"])).toMatch(/^org_[0-9a-f]{12}$/);
