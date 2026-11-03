@@ -7,7 +7,6 @@ import { SupabasePlannerStore } from "@/lib/agent/store-supabase";
 import { defaultAssessor, type InventoryAssessor } from "@/lib/agent/ports";
 import { transitionAllowed } from "@/lib/agent/phases";
 import { canonicalJson } from "@/lib/agent/canonical-json";
-import { withBusinessSpan, flushTelemetry, orgPseudonym } from "@/lib/telemetry";
 
 export interface AssessmentStepTools {
   run<T>(id: string, fn: () => Promise<T> | T): Promise<T>;
@@ -56,16 +55,11 @@ export async function runCaseAssessment(
         sourceAsOf: null,
       };
     }
-    const result = await withBusinessSpan(
-      "inventory_calc",
-      { org_pseudonym: orgPseudonym(orgId), case_id: c.id, episode: c.episode },
-      () =>
-        deps.assess(built.input!, {
-          ...built.context,
-          now: deps.clock.now().toISOString(),
-          mode,
-        }),
-    );
+    const result = await deps.assess(built.input!, {
+      ...built.context,
+      now: deps.clock.now().toISOString(),
+      mode,
+    });
     return {
       insufficient: false as const,
       result,
@@ -172,7 +166,6 @@ export async function runCaseAssessment(
     });
   }
 
-  await step.run("flush-telemetry", () => flushTelemetry());
   return { status: "ok", assessment_version: result.assessment.version };
 }
 

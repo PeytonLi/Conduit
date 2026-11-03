@@ -11,7 +11,6 @@ export function createCalculateShortageTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "calculate_shortage",
-    spanName: "inventory_calc",
     description:
       "Return the persisted shortage assessment for this case: projection, first shortage, bridge quantity and dated requirements.",
     input: z

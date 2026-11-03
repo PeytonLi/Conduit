@@ -13,7 +13,6 @@ export function createFindOrderCandidatesTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "find_order_candidates",
-    spanName: "matching",
     description:
       "Match extracted order/item references to exact PO external ids and item SKUs in this org.",
     input: z

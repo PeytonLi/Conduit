@@ -58,7 +58,6 @@ const purposeByCapability: Record<string, string> = {
   gmail: "Receives supplier delay emails and sends approved replies.",
   voice: "Calls approved supplier contacts for quotes.",
   exa: "Finds alternative suppliers.",
-  neatlogs: "Records traces for troubleshooting.",
   inngest: "Runs case workflows in the background.",
 };
 
@@ -67,7 +66,6 @@ const iconByCapability = {
   gmail: "inbox",
   voice: "phone",
   exa: "search",
-  neatlogs: "activity",
   inngest: "clock",
 } as const;
 

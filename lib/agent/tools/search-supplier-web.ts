@@ -37,7 +37,6 @@ export function createSearchSupplierWebTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "search_supplier_web",
-    spanName: "source_retrieval",
     description:
       "Bounded public web search for alternative suppliers. Query is composed by code from the case item spec; results persist as unapproved candidates and research evidence.",
     input: z

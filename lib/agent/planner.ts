@@ -9,7 +9,6 @@ import { parseModelTurn } from "./decision";
 import { PLANNER_SYSTEM_PROMPT, PROMPT_VERSION } from "./prompt";
 import { canonicalJson } from "./canonical-json";
 import { toolInputToJsonSchema } from "./tool-schema";
-import { withBusinessSpan, orgPseudonym } from "@/lib/telemetry";
 
 export interface StepTools {
   run<T>(id: string, fn: () => Promise<T> | T): Promise<T>;
@@ -178,14 +177,6 @@ export async function runPlannerCycle(
         description: t.description,
         parameters: toolInputToJsonSchema(t.input),
       }));
-    const spanAttrs = {
-      org_pseudonym: orgPseudonym(orgId),
-      case_id: caseId,
-      episode,
-      assessment_version: ctx.assessmentVersion,
-      prompt_version: PROMPT_VERSION,
-    };
-
     let attempt = 0;
     let turn: Awaited<ReturnType<PlannerModel["complete"]>> | null = null;
     let lastError: ModelCallError | null = null;
@@ -210,11 +201,7 @@ export async function runPlannerCycle(
         // rebuilt replay model resumes at the right transcript entry.
         const sequence = await store.countPlannerRequests(orgId, caseId, episode);
         try {
-          const modelTurn = await withBusinessSpan(
-            "planner_inference",
-            spanAttrs,
-            () => deps.model.complete({ messages, tools: toolDefs, sequence }),
-          );
+          const modelTurn = await deps.model.complete({ messages, tools: toolDefs, sequence });
           await store.insertPlannerRequest({
             org_id: orgId,
             case_id: caseId,
@@ -300,11 +287,7 @@ export async function runPlannerCycle(
         ];
         const sequence = await store.countPlannerRequests(orgId, caseId, episode);
         try {
-          const repairTurn = await withBusinessSpan(
-            "planner_inference",
-            spanAttrs,
-            () => deps.model.complete({ messages, tools: toolDefs, sequence }),
-          );
+          const repairTurn = await deps.model.complete({ messages, tools: toolDefs, sequence });
           await store.insertPlannerRequest({
             org_id: orgId,
             case_id: caseId,
@@ -421,19 +404,7 @@ export async function runPlannerCycle(
             .join("; "),
         };
       }
-      const spanName = (tool as unknown as { spanName?: import("@/lib/telemetry").BusinessSpanName }).spanName ?? "matching";
-      return withBusinessSpan(
-        spanName,
-        {
-          org_pseudonym: orgPseudonym(orgId),
-          case_id: caseId,
-          episode,
-          assessment_version: ctx.assessmentVersion,
-          prompt_version: PROMPT_VERSION,
-        },
-        () => tool.run(ctx, validated.data),
-        { safeInput: { tool: toolName } },
-      );
+      return tool.run(ctx, validated.data);
     });
 
     if (!toolResult.ok && toolResult.code === "tool_not_allowed") {

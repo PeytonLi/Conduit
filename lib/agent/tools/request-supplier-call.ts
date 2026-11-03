@@ -28,7 +28,6 @@ export function createRequestSupplierCallTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "request_supplier_call",
-    spanName: "call_request",
     description:
       "Prepare (never dispatch) a supplier call action during supplier business hours.",
     input: z

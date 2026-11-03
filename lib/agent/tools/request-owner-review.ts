@@ -14,7 +14,6 @@ export function createRequestOwnerReviewTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "request_owner_review",
-    spanName: "action_prep",
     description: "Raise a visible owner review task. No financial effect.",
     input: z
       .object({

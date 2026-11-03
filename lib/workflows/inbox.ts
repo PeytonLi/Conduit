@@ -15,7 +15,6 @@ import { google } from "googleapis";
 import { ingestMessage } from "@/lib/db/messages";
 import { parseServerEnv } from "@/lib/env";
 import { createDeepSeekClient } from "@/lib/agent/extraction";
-import { flushTelemetry } from "@/lib/telemetry";
 
 export const inboxGmailPoll = inngest.createFunction(
   {
@@ -171,7 +170,6 @@ export const inboxProcessMessage = inngest.createFunction(
         now: () => new Date(),
       });
     });
-    await step.run("flush-telemetry", () => flushTelemetry());
     return result;
   },
 );

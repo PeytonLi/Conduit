@@ -4,14 +4,12 @@ import { join } from "node:path";
 import OpenAI from "openai";
 import { z } from "zod";
 import { safeErrorLogFields } from "@/lib/safe-error";
-import { getNeatlogs, isTelemetryEnabled } from "@/lib/telemetry";
 import { extractionV1Schema, PROMPT_VERSION, type ExtractionV1 } from "./extraction-schema";
 
 export interface DeepSeekEnv {
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_BASE_URL?: string;
   DEEPSEEK_MODEL?: string;
-  NEATLOGS_API_KEY?: string;
 }
 
 /**
@@ -20,18 +18,12 @@ export interface DeepSeekEnv {
  */
 export function createDeepSeekClient(env: DeepSeekEnv): ChatClient | null {
   if (!env.DEEPSEEK_API_KEY || !env.DEEPSEEK_MODEL) return null;
-  let client = new OpenAI({
+  const client = new OpenAI({
     apiKey: env.DEEPSEEK_API_KEY,
     baseURL: env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
     timeout: 60_000,
     maxRetries: 0,
   });
-  if (env.NEATLOGS_API_KEY && isTelemetryEnabled()) {
-    const neatlogs = getNeatlogs();
-    if (neatlogs?.wrapOpenAI) {
-      client = neatlogs.wrapOpenAI(client) as OpenAI;
-    }
-  }
   return {
     async complete(params) {
       const res = await client.chat.completions.create({

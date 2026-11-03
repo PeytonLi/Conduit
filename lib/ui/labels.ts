@@ -212,7 +212,6 @@ export const labels = {
     gmail: "Gmail",
     voice: "Supplier calling",
     exa: "Supplier research",
-    neatlogs: "Operations logging",
     inngest: "Background processing",
   },
   caseOutcome: {

@@ -4,18 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseRawEmail } from "@/lib/integrations/gmail/mime";
 import { verifyExtraction } from "@/lib/agent/extraction-verify";
 import {
-  _resetTelemetryForTests,
-  initTelemetry,
-  type NeatlogsModule,
-} from "@/lib/telemetry";
-import {
   createDeepSeekClient,
   extractDelayFacts,
   type ChatClient,
 } from "@/lib/agent/extraction";
 
 afterEach(() => {
-  _resetTelemetryForTests();
   vi.restoreAllMocks();
 });
 
@@ -371,31 +365,5 @@ describe("effectiveMode and deepseek factory", () => {
     expect(
       createDeepSeekClient({ DEEPSEEK_API_KEY: "k", DEEPSEEK_MODEL: "m" }),
     ).not.toBeNull();
-  });
-
-  it("wraps the extraction OpenAI client when neatlogs is enabled", async () => {
-    const wrapOpenAI = vi.fn(<T>(client: T) => client);
-    const neatlogs = {
-      async init() {},
-      async trace<T>(
-        _options: { name: string; kind?: string; input?: unknown },
-        fn: (span: { setAttribute(key: string, value: unknown): void }) => T | Promise<T>,
-      ) {
-        return fn({ setAttribute() {} });
-      },
-      async flush() {},
-      async shutdown() {},
-      wrapOpenAI,
-    } as unknown as NeatlogsModule;
-    await initTelemetry({ NEATLOGS_API_KEY: "n" }, { neatlogs });
-
-    expect(
-      createDeepSeekClient({
-        DEEPSEEK_API_KEY: "k",
-        DEEPSEEK_MODEL: "m",
-        NEATLOGS_API_KEY: "n",
-      }),
-    ).not.toBeNull();
-    expect(wrapOpenAI).toHaveBeenCalledTimes(1);
   });
 });

@@ -16,7 +16,6 @@ export function createWaitForEvidenceTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "wait_for_evidence",
-    spanName: "action_prep",
     description:
       "Persist a wake condition: wait for supplier response, call result or action outcome until a clamped deadline.",
     input: z

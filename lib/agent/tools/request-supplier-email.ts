@@ -47,7 +47,6 @@ export function createRequestSupplierEmailTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "request_supplier_email",
-    spanName: "action_prep",
     description:
       "Prepare (never dispatch) a supplier outreach email action to an approved contact.",
     input: z

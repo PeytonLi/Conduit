@@ -12,7 +12,6 @@ export function createEvaluateQuoteTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "evaluate_quote",
-    spanName: "quote_validation",
     description:
       "Deterministically evaluate a quote of this case: missing terms, expiry, landed cost and feasibility.",
     input: z.object({ quote_id: uuid }).strict(),

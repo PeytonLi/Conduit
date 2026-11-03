@@ -77,7 +77,6 @@ B0 includes authenticated supplier conversations and bounded negotiation. Autono
 | Email | Gmail API | Read selected supplier inbox, preserve threads, send authorized requests |
 | Public discovery | Proposed Exa REST API | Find candidate suppliers and retrieve public source text |
 | Boundary validation | Proposed Zod | Validate request bodies, tool arguments, extraction results and imports |
-| Runtime evidence | neatlogs | Traces, usage, failures, before/after evidence |
 | Development evidence | Entire | Coding sessions, checkpoints, development explanation |
 | Business plan | CFO.ai | Product pricing, costs, revenue, and runway scenarios |
 
@@ -102,7 +101,6 @@ flowchart TD
     Review --> API
     API --> Commit[Authorized order update or export]
     Commit --> Business[Business system or labeled demo ledger]
-    Flow -.-> Trace[neatlogs]
 ~~~
 
 Entire operates during development. CFO.ai consumes aggregate business assumptions and measured usage for the product's financial model. Neither stores the runtime case state.
@@ -135,7 +133,7 @@ P1 is not complete until a named business system provides fresh data, authorized
 1. Read the handoff and decision register; preserve the user's DeepSeek choice and required partner roles.
 2. Verify the hackathon coding window. Planning artifacts may precede the window; implementation code must follow the event rules if entering.
 3. Initialize the application runtime in the existing repository during the allowed build window, enable Entire, and pin the dependency set.
-4. Prove DeepSeek tool calling and neatlogs tracing with a fixed case.
+4. Prove DeepSeek tool calling with a fixed case.
 5. Prove one ElevenLabs–SignalWire outbound conversation using DeepSeek, including an authenticated tool call and callback.
 6. Build the deterministic shortage engine, storage isolation, durable action ledger, and primary UI.
 7. Add Gmail, evidence gathering, quotes, approval, and recorded recovery; then run the failure matrix.
