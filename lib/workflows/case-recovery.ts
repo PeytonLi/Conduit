@@ -13,7 +13,6 @@ import { runPlannerCycle, type CycleOutcome, type StepTools } from "@/lib/agent/
 import { createLedgerActionPreparer, type ActionPreparer } from "@/lib/agent/ports";
 import type { AgentToolContext } from "@/lib/agent/tools/types";
 import { parseServerEnv } from "@/lib/env";
-import { flushTelemetry } from "@/lib/telemetry";
 import canonicalTranscript from "@/lib/integrations/deepseek/replay-transcripts/canonical-recovery.json";
 
 export interface RecoveryStepTools extends StepTools {
@@ -174,7 +173,6 @@ export async function runCaseRecovery(
     const res = await runWaitLoop(pendingWait);
     if (res === "paused") return { status: "paused" };
     if (res === "continued") {
-      await step.run("flush-telemetry", () => flushTelemetry());
       return { status: "waiting_continued" };
     }
     // satisfied | expired → fall through to planner cycles.
@@ -205,7 +203,6 @@ export async function runCaseRecovery(
         name: "case.recovery.requested",
         data: { case_id: c.id, org_id: orgId, assessment_version: resolvedVersion },
       });
-      await step.run("flush-telemetry", () => flushTelemetry());
       return { status: "waiting_continued" };
     }
 
@@ -223,13 +220,11 @@ export async function runCaseRecovery(
     const res = await runWaitLoop(wait);
     if (res === "paused") return { status: "paused" };
     if (res === "continued") {
-      await step.run("flush-telemetry", () => flushTelemetry());
       return { status: "waiting_continued" };
     }
     // satisfied | expired → next cycle.
   }
 
-  await step.run("flush-telemetry", () => flushTelemetry());
   return { status: outcome.status };
 }
 

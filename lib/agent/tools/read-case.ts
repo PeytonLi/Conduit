@@ -7,7 +7,6 @@ export function createReadCaseTool(
 ): AgentTool<Record<string, never>, unknown> {
   return {
     name: "read_case",
-    spanName: "matching",
     description:
       "Read the current case: phase, run control, versions, next deadline and current assessment summary.",
     input: z.object({}).strict(),

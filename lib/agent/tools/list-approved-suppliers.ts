@@ -12,7 +12,6 @@ export function createListApprovedSuppliersTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "list_approved_suppliers",
-    spanName: "source_retrieval",
     description:
       "List approved suppliers that carry the case item, with outreach-allowed contacts (no raw addresses).",
     input: z

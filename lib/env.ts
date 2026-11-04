@@ -41,8 +41,6 @@ export const serverEnvSchema = z.object({
   ELEVENLABS_PHONE_NUMBER_ID: optionalNonempty,
   ELEVENLABS_WEBHOOK_SECRET: optionalNonempty,
   EXA_API_KEY: optionalNonempty,
-  NEATLOGS_API_KEY: optionalNonempty,
-  NEATLOGS_ENDPOINT: optionalNonempty,
   SIGNALWIRE_SPACE_URL: optionalNonempty,
   SIGNALWIRE_PROJECT_ID: optionalNonempty,
   SIGNALWIRE_API_TOKEN: optionalNonempty,
@@ -54,7 +52,6 @@ export type CapabilityName =
   | "gmail"
   | "voice"
   | "exa"
-  | "neatlogs"
   | "inngest";
 
 export type CapabilityStatus = Record<CapabilityName, { ready: boolean; missing: string[] }>;
@@ -85,7 +82,6 @@ export function capabilities(
         : ["ELEVENLABS_PHONE_NUMBER_ID"]),
     ],
     exa: ["EXA_API_KEY"],
-    neatlogs: ["NEATLOGS_API_KEY"],
     inngest: ["INNGEST_EVENT_KEY", "INNGEST_SIGNING_KEY"],
   };
 

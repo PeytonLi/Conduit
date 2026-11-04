@@ -9,14 +9,12 @@ import {
   type ModelTurn,
   type PlannerModel,
 } from "@/lib/agent/model";
-import { isTelemetryEnabled, getNeatlogs } from "@/lib/telemetry";
 import { extractUsage, type DeepSeekRateCard } from "./usage";
 
 export interface DeepSeekEnv {
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_BASE_URL?: string;
   DEEPSEEK_MODEL?: string;
-  NEATLOGS_API_KEY?: string;
 }
 
 export interface DeepSeekDeps {
@@ -69,7 +67,7 @@ export function createDeepSeekModel(
     );
   }
 
-  let client =
+  const client =
     deps.openaiClient ??
     new OpenAI({
       apiKey,
@@ -78,12 +76,6 @@ export function createDeepSeekModel(
       maxRetries: 0,
     });
 
-  if (env.NEATLOGS_API_KEY && isTelemetryEnabled()) {
-    const neatlogs = getNeatlogs() as { wrapOpenAI?: <T>(client: T) => T } | null;
-    if (neatlogs?.wrapOpenAI) {
-      client = neatlogs.wrapOpenAI(client) as OpenAI;
-    }
-  }
 
   return {
     async complete(req) {

@@ -12,7 +12,7 @@ This register tells a new agent which choices came from the user, which are prop
 | D-002 | Use DeepSeek for reasoning and tool calling | Explicit user choice replacing Claude | Keep DeepSeek as provider; test/pin a current account-available model before implementation |
 | D-003 | Use SignalWire as telephone carrier instead of Twilio | Working interpretation of “Signal and Wire,” retained in the accepted proposed stack | First test is SignalWire + ElevenLabs SIP. If the user meant two messaging apps, revise this decision before channel implementation |
 | D-004 | Use ElevenLabs for supplier voice | Explicit user requirement | B0 includes a real scoped call; live model/SIP compatibility is still a gate |
-| D-005 | Use neatlogs, Entire and CFO.ai | Explicit user requirement and organizer requirement | Runtime traces, development checkpoints and business model must each have visible evidence |
+| D-005 | Use Entire and CFO.ai; neatlogs removed | Explicit user requirement; the user later removed neatlogs from the stack | Development checkpoints and business model must each have visible evidence; runtime evidence comes from the database audit, planner request and usage records |
 | D-006 | TypeScript + Next.js hosted on Vercel | Proposed stack accepted as the working direction | One application with route handlers and UI |
 | D-007 | Supabase Postgres/Auth/private Storage | Proposed working architecture | Tenant-scoped records, explicit grants/RLS, server-only credentials |
 | D-008 | Inngest for durable execution | Proposed working architecture | Persist work and wait for replies; database action/outbox semantics remain required |

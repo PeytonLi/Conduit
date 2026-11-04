@@ -28,7 +28,6 @@ export function createRecordProvisionalOfferTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "record_provisional_offer",
-    spanName: "quote_validation",
     description:
       "Record a sourced supplier offer as a provisional offer + quote. Quotes are always 'provisional'; no status field is accepted.",
     input: inputSchema,

@@ -11,7 +11,6 @@ export function createProposeRecoveryPlanTool(
 ): AgentTool<Input, unknown> {
   return {
     name: "propose_recovery_plan",
-    spanName: "quote_validation",
     description:
       "Propose a versioned draft/ready recovery plan after deterministic validation. Never approves.",
     input: proposePlanPayloadSchema,
