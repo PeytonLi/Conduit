@@ -12,7 +12,7 @@ Conduit watches supplier delay messages, connects them to purchase orders and da
 
 ## Selected direction
 
-- TypeScript + Next.js on Vercel.
+- TypeScript + Next.js on Render (app and voice bridge as separate Starter web services).
 - Supabase Postgres/Auth/private Storage.
 - Inngest for durable work and waits.
 - **DeepSeek** for planning and the proposed ElevenLabs custom LLM. Do not silently change model providers.

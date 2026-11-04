@@ -1,16 +1,27 @@
 # Conduit
 
-Conduit is a planned supplier delay recovery agent. It connects supplier messages with purchase orders, inventory, and dated demand to identify shortages, investigate alternatives, collect quotes, and prepare a recovery plan for business owner approval.
+Conduit is a supplier delay recovery agent. It connects supplier messages with purchase orders, inventory, and dated demand to identify shortages, research alternatives, contact suppliers by email or phone, and prepare a recovery plan for business owner approval. After approval it records the plan and monitors receipts.
 
-The proposed workflow supports email and supplier calls using DeepSeek, ElevenLabs, and SignalWire.
+**Stack:** Next.js 16 and React 19, Supabase (Postgres, Auth, private Storage), Inngest for durable background work, DeepSeek for extraction and planning, Gmail through Composio, Exa for supplier research, and ElevenLabs with SignalWire for calls. Calls run through SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge in `services/voice-bridge` (`VOICE_TRANSPORT=media_bridge`).
 
-The current voice route is SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`). It supersedes native ElevenLabs SIP-trunk outbound: that SignalWire host serves registered devices and returned `SIP 404 Domain unavailable`.
-
-**Status:** The Phase 1 application and local-development foundation has passed local verification. No live provider or supplier workflow is enabled, and Phase 2 business behavior remains unimplemented. See [BUILD_STATUS.md](BUILD_STATUS.md) for evidence and remaining gates.
+**Status:** Inbox ingestion, assessment, research, email and voice outreach, approval, recovery recording, and monitoring are built. The remaining acceptance gap is AT-37 (a real business-system connector). See [BUILD_STATUS.md](BUILD_STATUS.md) for evidence and open gates.
 
 Start with the [product requirements](PRD.md). Implementation agents should read the [compact handoff](AGENT_HANDOFF.md) and [current build status](BUILD_STATUS.md), then load the relevant [reference chapters](docs/prd/). The [research notes](research/neathack-research.md) cover hackathon requirements, precedents, and integration research.
 
-The current milestone and verification evidence are tracked in [BUILD_STATUS.md](BUILD_STATUS.md). The scaffold intentionally leaves Phase 2 business behavior unimplemented.
+## Hosting
+
+Both services run on Render (Starter plan, Oregon region, one instance each). Render deploys a push to `main` only after CI checks pass.
+
+| Service | Root | Build | Start | Health |
+| --- | --- | --- | --- | --- |
+| Conduit app | repo root | `npm install -g pnpm@10.34.6 && pnpm install --frozen-lockfile && CIRCLE_NODE_TOTAL=3 NODE_OPTIONS=--max-old-space-size=4096 pnpm build` | `pnpm start` | `/api/health` |
+| Voice bridge | `services/voice-bridge` | `npm ci` | `node server.mjs` | `/health` |
+
+The app build caps Next.js build workers (`CIRCLE_NODE_TOTAL`) and the heap, because the default build runs out of memory on Render's builder. The voice bridge keeps live calls in memory, so it must stay on an always-on plan with a single instance.
+
+After the app URL changes, sync Inngest with `curl -X PUT <app-url>/api/inngest`, re-run `scripts/voice/setup-agent.ts --apply` with the new `APP_BASE_URL` so the ElevenLabs tools and post-call webhook follow, and update the Supabase Auth site URL and redirect allow list.
+
+Inngest's free plan includes 50,000 executions a month. The cron functions run every 10 minutes to stay under it.
 
 ## Local development
 
