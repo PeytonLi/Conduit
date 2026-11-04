@@ -19,17 +19,17 @@ Current phase: Phase 1 foundation implemented and locally verified; provider fea
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | Specification | Complete | PRD.md and docs/prd/ |
-| M0 — Setup and feasibility | In progress | Pinned: Next 16.4.0, React 19.3.0, Supabase JS 2.117.3, SSR 0.12.7, Inngest 4.22.0, Zod 4.6.5, OpenAI 7.31.0, neatlogs 1.1.28, Vitest 5.0.3, Playwright 1.64.0, Supabase CLI 2.120.0. Passed locally: `pnpm install --frozen-lockfile`, `pnpm db:start`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (5 tests), `pnpm db:reset && pnpm test:db` (3 tests), `pnpm build`, `pnpm exec playwright install chromium`, `pnpm test:e2e` (2 tests), and `pnpm seed:demo`. Local Supabase remains running. Live provider proofs, CI, and Entire agent setup remain incomplete. |
+| M0 — Setup and feasibility | In progress | Pinned: Next 16.4.0, React 19.3.0, Supabase JS 2.117.3, SSR 0.12.7, Inngest 4.22.0, Zod 4.6.5, OpenAI 7.31.0, Vitest 5.0.3, Playwright 1.64.0, Supabase CLI 2.120.0. Passed locally: `pnpm install --frozen-lockfile`, `pnpm db:start`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (5 tests), `pnpm db:reset && pnpm test:db` (3 tests), `pnpm build`, `pnpm exec playwright install chromium`, `pnpm test:e2e` (2 tests), and `pnpm seed:demo`. Local Supabase remains running. Live provider proofs and CI remain incomplete. |
 | M1 — Domain, data and permissions | Done | Schema, tenant controls, deterministic inventory, action ledger, and integration hardening landed in [#1](https://github.com/PeytonLi/Conduit/pull/1), [#3](https://github.com/PeytonLi/Conduit/pull/3), and [#7](https://github.com/PeytonLi/Conduit/pull/7). |
 | M2 — Inbox to shortage | Done | Inbox ingestion and case workflow delivered in [#6](https://github.com/PeytonLi/Conduit/pull/6), with UI and integration work in [#7](https://github.com/PeytonLi/Conduit/pull/7) and [#13](https://github.com/PeytonLi/Conduit/pull/13). |
 | M3 — Research, email and voice | Done | Planner, call contracts, provider wiring, and media bridge delivered in [#5](https://github.com/PeytonLi/Conduit/pull/5), [#9](https://github.com/PeytonLi/Conduit/pull/9), [#10](https://github.com/PeytonLi/Conduit/pull/10), [#11](https://github.com/PeytonLi/Conduit/pull/11), and [#12](https://github.com/PeytonLi/Conduit/pull/12). Live voice-provider success remains unverified; see the M0 gate and voice investigation below. |
 | M4 — Approval and recovery recording | Done | Versioned recovery, owner/operator approval flows, ledger recording, and voice/action integration landed in [#3](https://github.com/PeytonLi/Conduit/pull/3), [#8](https://github.com/PeytonLi/Conduit/pull/8), [#12](https://github.com/PeytonLi/Conduit/pull/12), and [#14](https://github.com/PeytonLi/Conduit/pull/14). |
-| M5 — Reliability, UX and acceptance | In progress | Reliability and UX work landed in [#7](https://github.com/PeytonLi/Conduit/pull/7), [#13](https://github.com/PeytonLi/Conduit/pull/13), and [#14](https://github.com/PeytonLi/Conduit/pull/14). AT-38 retention/disconnect controls are covered. Remaining gaps: AT-30 Development evidence, AT-32 Business model, AT-33 Replay isolation, and AT-37 Real connector. |
-| M6 — Partner evidence and submission preparation | In progress | AT-32 measured usage figures are captured in the attached `at32-usage.md`; pricing assumptions and the complete CFO.ai cost model remain outstanding. A measured inventory before/after performance run and repository setup/docs exist; Entire is not enabled, and the complete evidence bundle and demo video/submission artifacts remain outstanding. See [#14](https://github.com/PeytonLi/Conduit/pull/14) for the inventory performance work and the open M0/Entire gate below. |
+| M5 — Reliability, UX and acceptance | In progress | Reliability and UX work landed in [#7](https://github.com/PeytonLi/Conduit/pull/7), [#13](https://github.com/PeytonLi/Conduit/pull/13), and [#14](https://github.com/PeytonLi/Conduit/pull/14). AT-38 retention/disconnect controls are covered. Remaining gaps: AT-33 Replay isolation and AT-37 Real connector. |
+| M6 — Evidence and submission preparation | In progress | A measured inventory before/after performance run and repository setup/docs exist; the complete evidence bundle and demo video/submission artifacts remain outstanding. See [#14](https://github.com/PeytonLi/Conduit/pull/14) for the inventory performance work. |
 
 ## Next action
 
-After the lead integrates this foundation, start Phase 2 on the documented feature-owned branches. Complete provider proofs when the required sandbox accounts and permissions are available, and enable Entire when a supported coding-agent integration is available.
+After the lead integrates this foundation, start Phase 2 on the documented feature-owned branches. Complete provider proofs when the required sandbox accounts and permissions are available.
 
 If provider credentials remain unavailable, continue deterministic inventory and quote work against the specified fixtures in clearly labeled replay mode.
 
@@ -42,7 +42,6 @@ If provider credentials remain unavailable, continue deterministic inventory and
 5. Exa account if live public discovery is included in the build.
 6. Partner accounts and publishable evidence.
 7. Hackathon coding window must be respected for an eligible entry.
-8. Entire CLI 0.11.4 is installed, but `entire status` reports not set up. `entire enable` requires selecting a supported coding-agent integration; none was available in this Devin environment.
 
 ## Voice connection investigation — October 9, 2026
 

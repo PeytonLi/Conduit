@@ -2,7 +2,7 @@
 
 Conduit is a planned supplier delay recovery agent. It connects supplier messages with purchase orders, inventory, and dated demand to identify shortages, investigate alternatives, collect quotes, and prepare a recovery plan for business owner approval.
 
-The proposed workflow supports email and supplier calls using DeepSeek, ElevenLabs, and SignalWire, with Entire for development history, and CFO.ai for the product's business model.
+The proposed workflow supports email and supplier calls using DeepSeek, ElevenLabs, and SignalWire.
 
 The current voice route is SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`). It supersedes native ElevenLabs SIP-trunk outbound: that SignalWire host serves registered devices and returned `SIP 404 Domain unavailable`.
 
