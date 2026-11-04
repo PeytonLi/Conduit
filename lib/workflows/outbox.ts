@@ -51,7 +51,7 @@ export async function drainOutbox(
   return { published: rows.length };
 }
 
-/** Best-effort publish right after a request commits; the every-minute cron catches anything missed. */
+/** Best-effort publish right after a request commits; the 10-minute cron catches anything missed. */
 export async function publishAfterCommit(deps: { rpc: Rpc; clock: Clock; send: EventSender }): Promise<void> {
   try {
     await drainOutbox(deps);
