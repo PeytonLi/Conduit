@@ -85,7 +85,6 @@ lib/
   actions/              # dispatch and reconciliation
   integrations/         # gmail, deepseek, elevenlabs, signalwire, exa, business
   workflows/            # cases, sync, outbox, reconciliation, monitoring
-  telemetry/            # neatlogs and usage normalization
 supabase/migrations/
 tests/fixtures/
 tests/domain/

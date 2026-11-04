@@ -104,7 +104,7 @@ B0 uses thinking disabled to simplify streamed tool compatibility and latency. I
 
 The planner's public-web research uses the explicit supplier-search tool. Do not assume a web-search feature documented for another DeepSeek integration automatically exists in this application's API path.
 
-M0 proof: extract a delay from the fixed email; call a deterministic inventory tool; produce a cited next action; reject an unsupported tool; handle malformed arguments; record actual usage/model identity in neatlogs.
+M0 proof: extract a delay from the fixed email; call a deterministic inventory tool; produce a cited next action; reject an unsupported tool; handle malformed arguments; record actual usage/model identity in the planner request records.
 
 ## 4. Gmail
 
@@ -212,49 +212,7 @@ Capabilities explicitly declare can_read, can_revalidate, can_write, can_reconci
 
 B0 implements snapshot input and a labeled demo ledger with real transaction/idempotency behavior. CSV mode produces a manual execution packet for real business use. P1 selects one actual system and proves these operations before enabling live writes. No universal ERP connector is implied.
 
-## 7. neatlogs
-
-Initialize the TypeScript SDK and wrap the DeepSeek-configured OpenAI client with wrapOpenAI. Add explicit business spans for matching, inventory calculation, source retrieval, quote validation, action preparation, call requests/results, approval checks, execution and reconciliation.
-
-Correlate org pseudonym, case_id, episode, assessment_version, plan_version, action_id, model, prompt_version, provider_request_id and conversation_id. Link separate traces across durable steps through case/action identifiers; do not hold a span open during a two-hour wait.
-
-Store source references and factual summaries, with sensitive fields masked. Exclude secrets, tokens, raw hidden reasoning and unnecessary personal data. Preserve costs as unknown when unsupported; verify DeepSeek model/usage attribution in a real trace. Flush serverless invocation telemetry as documented.
-
-For voice, B0 traces app-side tool requests and structured call outcomes. ElevenLabs can export OTLP-shaped JSON; neatlogs documents OTLP/gRPC and its own HTTP trace format. Directly posting ElevenLabs JSON into a guessed neatlogs endpoint is not a supported integration. Full voice-span import is an optional tested adapter, not a B0 dependency.
-
-Required evidence: baseline failed run -> trace identifying the issue -> specific fix -> same fixed test inputs rerun -> measurable change with failures included. A tracing outage can degrade telemetry while the database audit remains durable; never lose or skip business authorization to keep a trace green.
-
-## 8. Entire
-
-Enable Entire in the project for the actual coding agent before implementation begins. Verify current supported-agent setup and inspect status/checkpoint behavior using its documentation/CLI help. The user's chosen runtime DeepSeek provider does not dictate the developer's coding tool.
-
-Capture development sessions and a meaningful checkpoint tied to a change such as fixing duplicate calls, correcting reservation arithmetic, or preventing stale approval execution. Include a readable checkpoint/graph explanation in evidence.
-
-Entire is development history. Business state, pending waits and runtime decisions remain in Supabase/Inngest. Keep credentials, private business records and real supplier content out of committed/public sessions and artifacts.
-
-## 9. CFO.ai
-
-Build a shareable business model for selling Conduit. Manual aggregate import is sufficient; runtime CFO.ai API/MCP integration is optional.
-
-Inputs:
-- Proposed monthly subscription or per-completed-case pricing, clearly labeled assumptions.
-- Customer count, usage per customer, onboarding/support effort and churn assumptions.
-- DeepSeek model usage, Exa search/content usage, ElevenLabs minutes, SignalWire charges and number rental.
-- Hosting, database, workflow, telemetry and other fixed/variable charges.
-- Failed attempts, retries, unresolved cases and human review time.
-- Starting cash, staffing assumptions, revenue, cash flow and runway.
-
-Use base, higher-usage and lower-reliability scenarios. Calculate:
-- variable cost per processed case;
-- total relevant variable costs / verified completed cases;
-- gross margin using actual billable components;
-- support-adjusted contribution and runway.
-
-Keep provider-native precision for usage costs until aggregation; avoid rounding each small model request to zero cents. Keep estimated and billed amounts separate. Prevent double-counting an LLM charge included in another vendor's invoice.
-
-Do not claim measured savings, paid demand or break-even without the supporting data. The CFO.ai artifact is a product business model, not a replacement for the customer's inventory or purchasing calculations.
-
-## 10. Configuration inventory
+## 7. Configuration inventory
 
 Names below are proposed application configuration, not existing secrets. Keep a checked-in example with empty placeholders and document which feature each key unlocks.
 
@@ -270,9 +228,7 @@ Names below are proposed application configuration, not existing secrets. Keep a
 | ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID, ELEVENLABS_PHONE_NUMBER_ID | Voice agent and legacy native SIP number |
 | ELEVENLABS_WEBHOOK_SECRET | Post-call signature verification |
 | EXA_API_KEY | Optional until live public supplier discovery is exercised |
-| NEATLOGS_API_KEY, NEATLOGS_ENDPOINT | Runtime traces and configured ingestion region |
 | SIGNALWIRE_SPACE_URL, SIGNALWIRE_PROJECT_ID, SIGNALWIRE_API_TOKEN, SIGNALWIRE_PHONE_NUMBER | SignalWire REST call initiation; also used for direct carrier health/reconciliation APIs |
-| Entire / CFO.ai account setup | Development/business tools; no runtime key required by this architecture |
 
 SignalWire SIP credentials and the voice agent's DeepSeek secret may be stored in ElevenLabs/provider configuration rather than duplicated in application environment variables. Document that configuration without exporting secret values.
 

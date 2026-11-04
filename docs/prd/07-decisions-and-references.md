@@ -12,7 +12,7 @@ This register tells a new agent which choices came from the user, which are prop
 | D-002 | Use DeepSeek for reasoning and tool calling | Explicit user choice replacing Claude | Keep DeepSeek as provider; test/pin a current account-available model before implementation |
 | D-003 | Use SignalWire as telephone carrier instead of Twilio | Working interpretation of “Signal and Wire,” retained in the accepted proposed stack | First test is SignalWire + ElevenLabs SIP. If the user meant two messaging apps, revise this decision before channel implementation |
 | D-004 | Use ElevenLabs for supplier voice | Explicit user requirement | B0 includes a real scoped call; live model/SIP compatibility is still a gate |
-| D-005 | Use Entire and CFO.ai; neatlogs removed | Explicit user requirement; the user later removed neatlogs from the stack | Development checkpoints and business model must each have visible evidence; runtime evidence comes from the database audit, planner request and usage records |
+| D-005 | Do not use neatlogs, Entire or CFO.ai | User removed all three from the stack | Runtime evidence comes from the database audit, planner request and usage records |
 | D-006 | TypeScript + Next.js hosted on Vercel | Proposed stack accepted as the working direction | One application with route handlers and UI |
 | D-007 | Supabase Postgres/Auth/private Storage | Proposed working architecture | Tenant-scoped records, explicit grants/RLS, server-only credentials |
 | D-008 | Inngest for durable execution | Proposed working architecture | Persist work and wait for replies; database action/outbox semantics remain required |
@@ -42,13 +42,12 @@ A proposed decision is implementable as the default within the specified scope; 
 | Which phone number/contact may be called? | No live number invented | User/owner supplies an authorized test contact and enables that scope | Real call test and supplier outreach |
 | Does DeepSeek work reliably inside the configured ElevenLabs agent? | Direct compatible endpoint, thinking off | M0 streamed tool-call/audio/callback experiment | B0 live voice completion |
 | Which exact model and package versions? | Current stable account-available versions | Context7/current docs plus actual model request; pin and record in BUILD_STATUS | Reproducible scaffold/provider proof |
-| Does neatlogs correctly attribute DeepSeek usage? | Explicit wrapper plus business spans | Inspect one actual stored trace against provider response/billing | Accurate usage evidence |
 | Is Gmail OAuth ready beyond a test mailbox? | Controlled testing setup | Check current Google scope/verification/account requirements | Public pilot rollout |
 | Is live web discovery needed in the first recording? | Exa proposal, catalog first | Enable a key and verify one source-backed search | Live discovery claim, not catalog recovery |
 | Can the business connector reconcile an ambiguous write? | Unknown | Capability proof with safe test records | Any live automated financial update |
 | What are acceptable purchasing and contact limits? | Conservative documented defaults; no financial autonomy | Owner configures policy using actual operations | Live dispatch/commitment |
 | What retention and provider region fit the customer? | Proposed durations; private storage; no default audio | Owner selects settings before real business data | Real-data pilot |
-| What price and demand are validated? | None; CFO.ai scenarios are assumptions | Interviews and measured pilot economics | Commercial claims, not building the prototype |
+| What price and demand are validated? | None; pricing scenarios are assumptions | Interviews and measured pilot economics | Commercial claims, not building the prototype |
 
 Do not fabricate customer demand, supported systems, quotes, provider compatibility, account access or live test results to close this register.
 
@@ -73,10 +72,6 @@ Grouping related delays avoids independently promising the same inventory. It ma
 ### Separate candidate, offer and commitment
 
 This creates more explicit states but prevents a search result, spoken price or accepted API request from being misrepresented as a fulfilled supply decision.
-
-### Required partner use
-
-The business task is the product. neatlogs explains its runs; Entire explains development; CFO.ai explains its business model. Each has a concrete role without pretending they are interchangeable runtime databases.
 
 ## 4. Evidence and prior art
 
@@ -105,14 +100,7 @@ Documentation was consulted through Context7 and official pages during the plann
 | S07 | [ElevenLabs post-call webhooks](https://elevenlabs.io/docs/eleven-agents/workflows/post-call-webhooks) | Results, signatures, failures and delivery behavior |
 | S08 | [ElevenLabs secret dynamic variables changelog](https://elevenlabs.io/docs/changelog/2025/5/26) | Header-only secret variables excluded from LLM context |
 | S09 | [SignalWire SIP documentation source](https://github.com/signalwire/docs/blob/main/fern/products/platform/pages/calling/voice/SIP/sip-trunking/index.mdx) | Carrier-side SIP configuration |
-| S10 | [neatlogs TypeScript SDK](https://docs.neatlogs.com/sdk/typescript) | Explicit client wrappers, spans and lifecycle |
-| S11 | [neatlogs OTLP](https://docs.neatlogs.com/sdk/opentelemetry) | Documented trace transport; avoid assuming arbitrary JSON compatibility |
 | S12 | [ElevenLabs OTLP export](https://elevenlabs.io/docs/eleven-agents/customization/opentelemetry-traces) | Export surfaces and OTLP-shaped conversation data |
-| S13 | [Entire documentation](https://docs.entire.io/) | Coding sessions/checkpoints |
-| S14 | [Entire checkpoint architecture](https://github.com/entireio/cli/blob/main/docs/architecture/sessions-and-checkpoints.md) | Relationship to development state and commits |
-| S15 | [CFO.ai model building](https://docs.cfo.ai/getting-started/build-your-financial-model) | Business assumptions, model and scenarios |
-| S16 | [CFO.ai sharing](https://docs.cfo.ai/dashboards/share-pages-and-scenarios) | Reviewable model/scenario sharing |
-| S17 | [CFO.ai MCP](https://docs.cfo.ai/integrations/mcp-server) | Optional integration, not required runtime infrastructure |
 | S18 | [Inngest event waits](https://www.inngest.com/docs/durable-execution/primitives/step-waitforevent) | Matching, timeouts and early-event behavior |
 | S19 | [Inngest idempotency](https://www.inngest.com/docs/guides/handling-idempotency) | Platform assistance with duplicate events |
 | S20 | [Supabase documentation](https://supabase.com/docs) | Postgres, Auth, Storage and platform setup |

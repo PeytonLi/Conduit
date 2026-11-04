@@ -189,8 +189,6 @@ Trigger: a judge or developer opens the demo environment.
 
 They can reset the sandbox, run the harmless delay and shortage fixtures, inspect the original data, replay a deliberate failure, and see the corrected result. Recorded calls are labeled recordings; deterministic replay is labeled replay. At least one actual call and callback must have separate evidence for the B0 live-voice gate.
 
-The demo links a neatlogs before/after run, the corresponding Entire checkpoint, and the CFO.ai financial model.
-
 ## 5. Functional requirement catalog
 
 | ID | Requirement | Release / journeys |
@@ -221,9 +219,6 @@ The demo links a neatlogs before/after run, the corresponding Entire checkpoint,
 | FR-024 | Support pause, resume, reassign, cancel and accept-risk with audit reasons | B0 / J12,J14,J15 |
 | FR-025 | Maintain source-linked timeline, user-friendly status and next action | B0 / all |
 | FR-026 | Enforce tenant isolation, tool capabilities, contact policy and secret protection | B0 / all |
-| FR-027 | Capture neatlogs traces and measured per-case usage, including failed attempts | B0 / J13,J16 |
-| FR-028 | Capture Entire development evidence and a meaningful fix checkpoint | B0 / J16 |
-| FR-029 | Produce the CFO.ai operating model with explicit assumptions and scenarios | B0 / J16 |
 | FR-030 | Provide reproducible fixtures, honest replay labeling and a resettable isolated demo | B0 / J16 |
 | FR-031 | Detect stale data and disable conclusions/commitments that require missing facts | B0 / J01,J13 |
 | FR-032 | Handle related cases and concurrent demand so the same supply is not allocated twice | B0 / J02,J10,J11 |

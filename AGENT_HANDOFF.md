@@ -19,7 +19,6 @@ Conduit watches supplier delay messages, connects them to purchase orders and da
 - **ElevenLabs + SignalWire** for voice via SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`). This supersedes native SIP, which failed with `SIP 404 Domain unavailable` because that SignalWire host serves registered devices only.
 - Gmail first; one imported business dataset for B0; one actual business connector for pilot.
 - Proposed Exa REST for public supplier discovery; Zod for validation.
-- **Entire** for coding history; **CFO.ai** for product economics.
 
 SignalWire is the current interpretation of the user's wording, not the separate Signal and Wire messaging apps. Record a changed interpretation as a decision before changing architecture.
 

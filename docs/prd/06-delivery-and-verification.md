@@ -10,13 +10,13 @@ The first build is B0, defined in [PRD](../../PRD.md). P1 real business-system w
 
 | Milestone | Work and dependencies | Exit evidence |
 | --- | --- | --- |
-| M0 — Setup and feasibility | Confirm coding window; create Git repository and TypeScript/Next.js project; pin dependencies; enable Entire; establish sandbox configuration; prove DeepSeek tool use, neatlogs capture and voice/SIP path | Repository/lockfile; safe configuration example; one valid DeepSeek tool loop and trace; one real approved-test-contact call with tool request, callback and outcome; exact versions/model IDs recorded |
+| M0 — Setup and feasibility | Confirm coding window; create Git repository and TypeScript/Next.js project; pin dependencies; establish sandbox configuration; prove DeepSeek tool use and voice/SIP path | Repository/lockfile; safe configuration example; one valid DeepSeek tool loop and trace; one real approved-test-contact call with tool request, callback and outcome; exact versions/model IDs recorded |
 | M1 — Domain, data and permissions | Schema, grants/RLS, membership checks, atomic import, deterministic inventory/quote logic, canonical states; can proceed while M0 external gates wait | Golden arithmetic tests; two-tenant access denial; validated fixture import; migrations reproducible in isolated database |
 | M2 — Inbox to shortage | Gmail read/OAuth or labeled replay, deduplication, extraction/matching, assessment, case queue/detail, source evidence | One email becomes one correct case; ambiguous and harmless cases behave correctly; source/version/freshness visible |
 | M3 — Supplier research and conversation | Approved catalog and Exa discovery, quote requests, per-call grants, ElevenLabs/SignalWire results, bounded planner and supplier waits | Compatible alternatives with sources; one voice offer plus written confirmation; failure falls back without duplicate contact |
 | M4 — Approval and recovery recording | Option comparison, versioned plan, owner approval, revalidation, claims, action dispatcher, demo ledger, export and readback | Approved split recorded once; stale approval rejected; ambiguous write reconciles; manual export visibly remains manual |
 | M5 — Reliability and UX | Early/late callbacks, restarts, budgets, pauses, input attacks, receiving/reopen, accessibility, secrets review | All applicable B0 acceptance rows pass; gaps disclosed; resettable demo and usable owner/operator flows |
-| M6 — Evidence and submission preparation | Before/after benchmark, Entire fix checkpoint, CFO.ai model/scenarios, README/setup and demo recording | Reproducible evidence bundle, <=3-minute video, partner artifacts, public-ready repository content and prepared submission material |
+| M6 — Evidence and submission preparation | Before/after benchmark, README/setup and demo recording | Reproducible evidence bundle, <=3-minute video, partner artifacts, public-ready repository content and prepared submission material |
 
 M0's provider proofs are high priority because a failed voice pairing may require an adapter. Do not spend the first implementation session polishing a large dashboard.
 
@@ -89,10 +89,7 @@ Each row is a required B0 check unless explicitly marked P1. “Live” requires
 | AT-26 Delivery lifecycle | Partial receipt, then revised ETA, then full receipt | Correct remaining quantities; reopen recovery if needed; delivered only with receiving evidence | FR-023 |
 | AT-27 Pause/cancel/control | Pause before dispatch or during a live call; cancel case with existing PO | New dispatch stops; in-flight status visible; original PO remains; uncertain execution blocks unsafe close | FR-024 |
 | AT-28 Handoff/audit | Different operator opens the case | Understands current facts, pending decision, sources, actor and next deadline without original chat | FR-025 |
-| AT-29 Tracing and usage | DeepSeek tool run succeeds/fails/retries; voice result returns | Correlated neatlogs evidence; model and usage verified; costs unknown when absent; no secrets/raw reasoning | FR-027 |
-| AT-30 Development evidence | Fix a real tested failure while Entire enabled | Checkpoint explains relevant change and links to observed before/after behavior | FR-028 |
 | AT-31 Untrusted content | Email/page/call says “ignore policy,” changes bank details, or requests another case | Treated as untrusted text; unauthorized tool/recipient/tenant access rejected outside the model | FR-026 |
-| AT-32 Business model | Import measured usage, failures and explicit pricing assumptions into CFO.ai | Base/downside scenario, complete cost denominator, no double billing or invented savings | FR-029 |
 | AT-33 Replay isolation | Reset/demo run while real provider keys exist in another environment | Replay cannot send/call/write live; fixture clock and simulated evidence labeled; other org untouched | FR-030 |
 | AT-34 Concurrent actions | Two workers/tabs act on same plan/stock group | One prepared commitment; conflicting versions/claims rejected; no double allocation | FR-032 |
 | AT-35 Budgets/model failure | Planner loops, invalid JSON, quota exceeded, repeated rate limit | Bounded repair/retry count; visible blocked/review state; unknown cost not treated as free | FR-033 |
@@ -129,7 +126,7 @@ A latency miss is evidence to improve configuration or scope. Do not fabricate m
 
 ## 6. Partner and hackathon evidence
 
-The organizer requires neatlogs, Entire and CFO.ai, a public repository, a video no longer than three minutes, and the specified X submission process. Published scoring is agent 30%, partner usage 25%, demo 20%, building in public 15%, usefulness/originality 10%. Planning can precede the event; implementation code must be written in the stated build window. [Official event page](https://neatlogs.com/hackathon).
+The organizer requires a public repository, a video no longer than three minutes, and the specified X submission process. Published scoring is agent 30%, partner usage 25%, demo 20%, building in public 15%, usefulness/originality 10%. Planning can precede the event; implementation code must be written in the stated build window. [Official event page](https://neatlogs.com/hackathon).
 
 Verified schedule on October 9: code starts October 10 at 12:30 PM IST (October 10 00:00 PDT); submission window October 12 7:00–11:55 PM IST (06:30–11:25 PDT). Recheck the organizer page before implementation/submission.
 
@@ -137,13 +134,10 @@ Prepare an evidence directory during implementation containing:
 - Sanitized fixture inputs and immutable expected results.
 - Actual run outputs and metric table, including unsuccessful attempts.
 - One documented defect, its trace, fix/checkpoint, and same-input rerun.
-- neatlogs case/action trace references.
-- Entire checkpoint/graph reference and explanation.
-- CFO.ai model/scenario share link and exported assumptions.
 - Live call proof, with private information removed and replay clearly separated.
 - Architecture diagram, setup instructions, known limitations and tested versions.
 
-Suggested video allocation: problem/data 20 seconds; agent workflow and useful recovery 70; before/after evidence 30; Entire checkpoint 20; CFO.ai model 25; outcome and limits 15. Total 180 seconds.
+Suggested video allocation: problem/data 20 seconds; agent workflow and useful recovery 70; before/after evidence 40; outcome and limits 50. Total 180 seconds.
 
 Prepare build-in-public updates around an actual failure, diagnosis, fix and measured improvement. Publishing and submission occur only with the user's authorization; preparing content is not a published entry.
 
@@ -173,7 +167,6 @@ For P1 acceptance, additionally require AT-37, actual authority/retention settin
 | Duplicate callback | Acknowledge existing receipt | No second business action |
 | Inngest unavailable | Keep outbox pending and status visible | Drain after service recovers; dedupe consumers |
 | DeepSeek unavailable/invalid | Retry within inference budget; then review | Preserve facts/drafts; resume without changing provider silently |
-| neatlogs unavailable | Preserve database audit and usage; mark telemetry delivery issue | Retry permitted export; retain measurement gap |
 | Provider cost unknown | Mark unknown and enforce count/time limits; block spending beyond configured budget certainty | Update rates/billing; reconcile estimates |
 | Wrong match discovered | Pause related actions and preserve history | Correct source linkage; invalidate dependent plan/approval; reconcile any external effect |
 | Global dispatch pause | Stop new sends/calls/financial writes | Continue evidence ingestion and reconciliation; owner resumes deliberately |
