@@ -1,17 +1,17 @@
 # Conduit — Build status
 
-Last updated: October 12, 2026
+Last updated: November 3, 2026
 Specification baseline: PRD v1.0
-Current phase: Phase 1 foundation implemented and locally verified; provider feasibility remains open
+Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submission evidence remain open
 
 ## Observed workspace state
 
 - Research notes exist at research/neathack-research.md.
 - PRD, handoff, and detailed reference chapters have been authored.
-- At the time this specification was written, no application source, package manifest, installed project dependencies, or database migrations were present.
-- The implementation work is on `devin/1791572968-phase1-setup`, based on the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit).
+- The application lives in the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit) with 17 Supabase migrations applied to the hosted project.
+- Hosting: Render Starter web services in Oregon for the app and the voice bridge, with deploys gated on passing CI. `/api/health` reports DeepSeek, Gmail, voice, Exa and Inngest configured.
 - Local environment verified: Node.js v22.23.3, pnpm 10.34.6, Docker 29.7.2, and Supabase CLI 2.120.0.
-- No provider credentials, connected accounts, phone calls, supplier messages, or business-system writes have been tested or provisioned.
+- Provider credentials are configured on the hosted app. A full live run (Gmail connected, real supplier email, real call) has not yet been recorded as evidence on the Render deployment, and no live business-system writes exist.
 - Current model choice: DeepSeek. Current voice route: SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`), superseding native SIP after `SIP 404 Domain unavailable` from the registered-device host.
 
 ## Milestone ledger
@@ -29,19 +29,13 @@ Current phase: Phase 1 foundation implemented and locally verified; provider fea
 
 ## Next action
 
-After the lead integrates this foundation, start Phase 2 on the documented feature-owned branches. Complete provider proofs when the required sandbox accounts and permissions are available.
-
-If provider credentials remain unavailable, continue deterministic inventory and quote work against the specified fixtures in clearly labeled replay mode.
+Record one end-to-end live run on the Render deployment: sign up, connect Gmail, receive a supplier delay email, place one call to an approved test number, approve a plan. Choose and connect a real business system for AT-37.
 
 ## Open gates
 
-1. Live DeepSeek account/model and usage capture.
-2. Live provider credentials and production configuration for SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge.
-3. Authorized Gmail test mailbox and OAuth setup.
-4. Actual pilot business system and access; B0 uses imports and a demo ledger.
-5. Exa account if live public discovery is included in the build.
-6. Partner accounts and publishable evidence.
-7. Hackathon coding window must be respected for an eligible entry.
+1. AT-37 real connector: needs an authorized business system with read and write access.
+2. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage).
+3. M6 evidence bundle, demo video and submission artifacts.
 
 ## Voice connection investigation — October 9, 2026
 
