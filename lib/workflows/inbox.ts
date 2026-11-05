@@ -1,4 +1,5 @@
 import { inngest } from "./client";
+import { publishPending, serverLedger } from "@/lib/actions/server";
 import { createServiceClient } from "@/lib/db/service";
 import { supabaseRpcClient } from "@/lib/db/messages";
 import { processSourceMessage } from "@/lib/db/cases-open";
@@ -19,7 +20,7 @@ import { createDeepSeekClient } from "@/lib/agent/extraction";
 export const inboxGmailPoll = inngest.createFunction(
   {
     id: "inbox-gmail-poll",
-    triggers: [{ cron: "* * * * *" }],
+    triggers: [{ cron: "*/10 * * * *" }],
     concurrency: [{ limit: 1 }],
   },
   async ({ step }) => {
@@ -86,7 +87,7 @@ export const inboxGmailPoll = inngest.createFunction(
           oauth2.setCredentials({ refresh_token: credential.refreshToken });
           api = createGoogleGmailApi(oauth2);
         }
-        return syncGmailConnection({
+        const synced = await syncGmailConnection({
           orgId: conn.org_id,
           connectionId: conn.connection_id,
           api,
@@ -136,6 +137,8 @@ export const inboxGmailPoll = inngest.createFunction(
             },
           },
         });
+        await publishPending(serverLedger());
+        return synced;
       });
     }
     return { synced: connections.length };

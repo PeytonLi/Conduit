@@ -3,7 +3,7 @@ import { serverLedger } from "@/lib/actions/server";
 import { inngest } from "./client";
 
 export const reconcileDue = inngest.createFunction(
-  { id: "reconcile-due-actions", triggers: [{ cron: "* * * * *" }], concurrency: { limit: 1 } },
+  { id: "reconcile-due-actions", triggers: [{ cron: "*/10 * * * *" }], concurrency: { limit: 1 } },
   async ({ step }) => {
     const due = await step.run("list", async () => {
       const deps = serverLedger();

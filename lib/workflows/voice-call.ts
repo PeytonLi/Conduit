@@ -9,7 +9,7 @@ export const VOICE_CALLBACK_GRACE_SECONDS = 20 * 60;
  * (conversation lookup). It never redials.
  */
 export const voiceStaleCallSweep = inngest.createFunction(
-  { id: "voice-stale-call-sweep", triggers: [{ cron: "*/5 * * * *" }] },
+  { id: "voice-stale-call-sweep", triggers: [{ cron: "*/10 * * * *" }] },
   async ({ step }) => {
     const flagged = await step.run("flag-stale-calls", () =>
       getVoiceStore().flagStaleCalls(new Date(), VOICE_CALLBACK_GRACE_SECONDS),

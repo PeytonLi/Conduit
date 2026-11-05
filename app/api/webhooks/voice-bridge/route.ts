@@ -1,6 +1,7 @@
 import { CONDUIT_SIGNATURE_HEADER } from "@/lib/integrations/elevenlabs/signature";
 import { handleVoiceBridgeWebhook } from "@/lib/integrations/elevenlabs/bridge-webhook";
 import { getVoiceEnv, getVoiceStore } from "@/lib/integrations/elevenlabs/runtime";
+import { publishPending, serverLedger } from "@/lib/actions/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
         now: () => new Date(),
       },
     );
+    if (result.status < 300) await publishPending(serverLedger());
     return Response.json(result.body, { status: result.status });
   } catch {
     return Response.json({ ok: false, code: "storage_unavailable" }, { status: 500 });

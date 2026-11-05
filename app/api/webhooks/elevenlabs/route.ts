@@ -1,6 +1,7 @@
 import { ELEVENLABS_SIGNATURE_HEADER } from "@/lib/integrations/elevenlabs/signature";
 import { handleElevenLabsWebhook } from "@/lib/integrations/elevenlabs/webhook";
 import { getVoiceEnv, getVoiceStore } from "@/lib/integrations/elevenlabs/runtime";
+import { publishPending, serverLedger } from "@/lib/actions/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
       secret: getVoiceEnv().ELEVENLABS_WEBHOOK_SECRET || undefined,
       now: () => new Date(),
     });
+    if (result.status < 300) await publishPending(serverLedger());
     return Response.json(result.body, { status: result.status });
   } catch {
     // Not yet durably stored: a 5xx makes ElevenLabs retry the delivery.
