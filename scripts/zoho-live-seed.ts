@@ -19,19 +19,16 @@ async function main() {
     z.array(any).parse((await http.get(path, any, query))[key] ?? []);
   const vendors = (await rows("/contacts", "contacts", { contact_type: "vendor" })).filter((c) => c.contact_name === LIVE_VENDOR_NAME);
   const items = (await rows("/items", "items")).filter((i) => i.name === LIVE_ITEM_NAME);
-  const locations = await rows("/locations", "locations");
-  if (vendors.length !== 1 || items.length !== 1 || locations.length !== 1) {
-    throw new Error(`need exactly one vendor/item/location, got ${vendors.length}/${items.length}/${locations.length}`);
+  if (vendors.length !== 1 || items.length !== 1) {
+    throw new Error(`need exactly one vendor and item, got ${vendors.length}/${items.length}`);
   }
-  const locationId = String(locations[0].location_id);
   const body = {
     vendor_id: String(vendors[0].contact_id),
     reference_number: LIVE_PO_REFERENCE,
     date: new Date().toISOString().slice(0, 10),
     delivery_date: "2030-01-20",
-    location_id: locationId,
     notes: "Conduit AT-37 contract test PO (test org).",
-    line_items: [{ item_id: String(items[0].item_id), quantity: 10, purchase_rate: 5, location_id: locationId }],
+    line_items: [{ item_id: String(items[0].item_id), quantity: 10, purchase_rate: 5 }],
   };
   console.log(`org ${credentials.organization_id} via ${credentials.api_domain}`);
   console.log("PLAN POST /purchaseorders", JSON.stringify(body));
