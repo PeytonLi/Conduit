@@ -6,11 +6,18 @@ import { refreshShopifyCredentials, shopifyCredentialsSchema, type ShopifyCreden
 
 const REFRESH_MARGIN_MS = 60_000;
 
+type SaveCredentials = (credentials: unknown, expiresAt: string | null) => Promise<void>;
+
 /**
- * Refreshes an expiring offline token in memory. The rotated refresh token is not persisted, so
- * Shopify keeps accepting the stored one for 30 days after its first refresh; reconnect after that.
+ * Refreshes an expiring offline token and persists the rotated pair. If saving fails, the new token is
+ * still used in memory; Shopify keeps accepting the stored refresh token for 30 days after its first use.
  */
-function refreshingGraphql(initial: ShopifyCredentials, fetchImpl: typeof fetch | undefined, now: () => Date): ShopifyGraphql {
+function refreshingGraphql(
+  initial: ShopifyCredentials,
+  fetchImpl: typeof fetch | undefined,
+  now: () => Date,
+  saveCredentials: SaveCredentials | undefined,
+): ShopifyGraphql {
   let credentials = initial;
   let client = createShopifyGraphql({ shop: credentials.shop, accessToken: credentials.access_token, fetch: fetchImpl });
   let refreshing: Promise<void> | null = null;
@@ -30,6 +37,7 @@ function refreshingGraphql(initial: ShopifyCredentials, fetchImpl: typeof fetch 
       now,
     });
     client = createShopifyGraphql({ shop: credentials.shop, accessToken: credentials.access_token, fetch: fetchImpl });
+    await saveCredentials?.(credentials, credentials.refresh_token_expires_at ?? credentials.access_token_expires_at).catch(() => undefined);
   }
 
   return async (operationName, query, variables, schema) => {
@@ -49,7 +57,7 @@ export const shopifyProvider: ErpProviderDefinition = {
   createClient(credentials, deps = {}) {
     const parsed = shopifyCredentialsSchema.parse(credentials);
     const now = deps.now ?? (() => new Date());
-    return createShopifyErpClient({ graphql: refreshingGraphql(parsed, deps.fetch, now), now });
+    return createShopifyErpClient({ graphql: refreshingGraphql(parsed, deps.fetch, now, deps.saveCredentials), now });
   },
 };
 

@@ -199,12 +199,14 @@ describe("Shopify ErpClient (mocked Admin GraphQL)", () => {
       }
       return shopify.fetch(input, init);
     }) as typeof fetch;
+    const saved: Array<{ credentials: unknown; expiresAt: string | null }> = [];
+    const now = () => new Date("2030-01-01T00:00:00Z");
     process.env.SHOPIFY_CLIENT_ID = "cid";
     process.env.SHOPIFY_CLIENT_SECRET = "secret";
     try {
       const client = shopifyProvider.createClient(
         { ...credentials, access_token_expires_at: "2020-01-01T00:00:00Z", refresh_token: "shprt_old" },
-        { fetch: fetchImpl },
+        { fetch: fetchImpl, now, saveCredentials: async (next, expiresAt) => void saved.push({ credentials: next, expiresAt }) },
       );
       await client.readPurchaseOrder("gid://shopify/InventoryTransfer/404");
       await client.readPurchaseOrder("gid://shopify/InventoryTransfer/404");
@@ -213,6 +215,40 @@ describe("Shopify ErpClient (mocked Admin GraphQL)", () => {
       delete process.env.SHOPIFY_CLIENT_SECRET;
     }
     expect(calls.filter((c) => c.endsWith("/admin/oauth/access_token"))).toHaveLength(1);
+    expect(shopify.requests.at(-1)?.headers["x-shopify-access-token"]).toBe("shpat_new");
+    expect(saved).toEqual([
+      {
+        credentials: {
+          ...credentials,
+          access_token: "shpat_new",
+          scope: "read_inventory",
+          access_token_expires_at: "2030-01-01T01:00:00.000Z",
+          refresh_token: "shprt_new",
+          refresh_token_expires_at: "2030-04-01T00:00:00.000Z",
+        },
+        expiresAt: "2030-04-01T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("keeps using the refreshed token when saving the rotated credentials fails", async () => {
+    const shopify = createShopifyEmulator();
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).endsWith("/admin/oauth/access_token")
+        ? Response.json({ access_token: "shpat_new", scope: "read_inventory", expires_in: 3600, refresh_token: "shprt_new", refresh_token_expires_in: 7776000 })
+        : shopify.fetch(input, init)) as typeof fetch;
+    process.env.SHOPIFY_CLIENT_ID = "cid";
+    process.env.SHOPIFY_CLIENT_SECRET = "secret";
+    try {
+      const client = shopifyProvider.createClient(
+        { ...credentials, access_token_expires_at: "2020-01-01T00:00:00Z", refresh_token: "shprt_old" },
+        { fetch: fetchImpl, saveCredentials: async () => Promise.reject(new Error("db down")) },
+      );
+      await expect(client.readPurchaseOrder("gid://shopify/InventoryTransfer/404")).resolves.toBeNull();
+    } finally {
+      delete process.env.SHOPIFY_CLIENT_ID;
+      delete process.env.SHOPIFY_CLIENT_SECRET;
+    }
     expect(shopify.requests.at(-1)?.headers["x-shopify-access-token"]).toBe("shpat_new");
   });
 });
