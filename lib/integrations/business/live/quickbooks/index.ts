@@ -7,8 +7,7 @@ import { qboCredentialsSchema } from "./schemas";
 export interface QboClientDeps {
   fetch?: typeof fetch;
   now?: () => Date;
-  /** Persists rotated refresh tokens; without it a rotation only lives for this client. */
-  saveCredentials?: (next: unknown, previous: unknown) => Promise<"saved" | "superseded">;
+  saveCredentials?: (credentials: unknown, expiresAt: string | null) => Promise<void>;
   env?: Record<string, string | undefined>;
 }
 
@@ -27,7 +26,7 @@ export const quickbooksProvider: ErpProviderDefinition = {
       credentials: qboCredentialsSchema.parse(credentials),
       fetch: deps.fetch ?? fetch,
       now,
-      saveCredentials: deps.saveCredentials as SaveQboCredentials | undefined,
+      saveCredentials: deps.saveCredentials satisfies SaveQboCredentials | undefined,
     });
     return createQuickbooksClient(http, { now });
   },

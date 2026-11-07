@@ -23,10 +23,10 @@ function credentials(qbo: MockQbo, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(saveCredentials?: (next: unknown, previous: unknown) => Promise<"saved" | "superseded">) {
+function setup() {
   const qbo = createMockQbo();
   const company = seedQboCompany(qbo);
-  const client = quickbooksProvider.createClient(credentials(qbo), { fetch: qbo.fetch, env, saveCredentials } as never);
+  const client = quickbooksProvider.createClient(credentials(qbo), { fetch: qbo.fetch, env } as never);
   return { qbo, company, client };
 }
 
@@ -240,7 +240,7 @@ describe("QuickBooks tokens and setup (MOCKED)", () => {
   it("refreshes an expired access token and saves the rotated refresh token", async () => {
     const qbo = createMockQbo();
     seedQboCompany(qbo);
-    const save = vi.fn(async () => "saved" as const);
+    const save = vi.fn(async (_credentials: unknown, _expiresAt: string | null) => {});
     const client = quickbooksProvider.createClient(credentials(qbo, { access_token: null, access_token_expires_at: null }), {
       fetch: qbo.fetch,
       env,
@@ -248,10 +248,10 @@ describe("QuickBooks tokens and setup (MOCKED)", () => {
     } as never);
     await client.readSnapshot();
     expect(save).toHaveBeenCalledTimes(1);
-    const [next, previous] = save.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
-    expect(previous.refresh_token).toBe("refresh-0");
+    const [next, expiresAt] = save.mock.calls[0] as [Record<string, unknown>, string | null];
     expect(next).toMatchObject({ refresh_token: "refresh-1", access_token: "access-1", realm_id: qbo.realmId });
-    expect(next.refresh_token_expires_at).toEqual(expect.any(String));
+    expect(expiresAt).toEqual(next.refresh_token_expires_at);
+    expect(expiresAt).toEqual(expect.any(String));
   });
 
   it("retries once with a fresh token after a 401", async () => {

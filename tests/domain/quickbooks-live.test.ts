@@ -39,7 +39,6 @@ let credentials: QboCredentials | null = null;
 async function save(next: unknown) {
   credentials = qboCredentialsSchema.parse(next);
   writeFileSync(tokenFile, JSON.stringify(credentials), { mode: 0o600 });
-  return "saved" as const;
 }
 
 describe.skipIf(!enabled)("QuickBooks ErpClient contract (REAL Intuit sandbox)", () => {
