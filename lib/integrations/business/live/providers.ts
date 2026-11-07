@@ -1,9 +1,10 @@
 import { registerErpProvider } from "./registry";
+import { shopifyProvider } from "./shopify";
 import type { ErpProviderDefinition } from "./types";
 
 // Provider lanes add their definition here, e.g.
 // import { odooProvider } from "./odoo";
-export const builtInErpProviders: ErpProviderDefinition[] = [];
+export const builtInErpProviders: ErpProviderDefinition[] = [shopifyProvider];
 
 let registered = false;
 
