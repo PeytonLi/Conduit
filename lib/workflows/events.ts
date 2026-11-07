@@ -5,6 +5,7 @@ export interface ConduitEventMap {
   "supplier.message.received": { message_id: string };
   "case.assessment.requested": { case_id: string; source_version: number };
   "business.snapshot.activated": { dataset_id: string };
+  "business.sync.requested": { connection_id: string };
   "case.recovery.requested": { case_id: string; assessment_version: number };
   "supplier.response.recorded": { case_id: string; evidence_id: string };
   "supplier.call.finished": {

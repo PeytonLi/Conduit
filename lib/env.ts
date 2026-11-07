@@ -33,6 +33,8 @@ export const serverEnvSchema = z.object({
   GOOGLE_CLIENT_ID: optionalNonempty,
   GOOGLE_CLIENT_SECRET: optionalNonempty,
   GOOGLE_REDIRECT_URI: optionalNonempty,
+  SHOPIFY_CLIENT_ID: optionalNonempty,
+  SHOPIFY_CLIENT_SECRET: optionalNonempty,
   GMAIL_PROVIDER: z.enum(["google", "composio"]).default("google"),
   COMPOSIO_API_KEY: optionalNonempty,
   COMPOSIO_GMAIL_AUTH_CONFIG_ID: optionalNonempty,

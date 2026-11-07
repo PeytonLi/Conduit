@@ -94,7 +94,11 @@ async function reconcileExisting(deps: DispatcherDeps, action: LedgerAction): Pr
     const leaseEnds = Date.parse(action.dispatch_started_at) + (deps.leaseSeconds ?? DEFAULT_LEASE_SECONDS) * 1000;
     if (deps.clock.now().getTime() < leaseEnds) return { status: "in_flight", action };
   }
-  if (action.kind === "manual_export" && action.state === "submitted") {
+  if (
+    action.state === "submitted" &&
+    (action.kind === "manual_export" ||
+      (action.kind === "live_business_amendment" && action.error_code === "not_supported_by_provider"))
+  ) {
     return { status: "awaiting_manual_confirmation", action };
   }
 
