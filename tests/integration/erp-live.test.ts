@@ -8,6 +8,7 @@ import { createLiveBusinessAdapter } from "@/lib/integrations/business/live/adap
 import { storeErpConnection } from "@/lib/integrations/business/live/connections";
 import { createFakeErpClient } from "@/lib/integrations/business/live/fake";
 import { prepareLiveStepPayload } from "@/lib/integrations/business/live/prepare";
+import { ensureErpProviders } from "@/lib/integrations/business/live/providers";
 import { registerErpProvider, resetErpProvidersForTest } from "@/lib/integrations/business/live/registry";
 import { resolveErpClient } from "@/lib/integrations/business/live/resolve";
 import { runConnectionSync } from "@/lib/integrations/business/live/run-sync";
@@ -56,6 +57,8 @@ const snapshot = (poId: string): ErpSnapshot => ({
 });
 
 let active: ErpClient | null = null;
+// Register built-ins first so the fake replaces the real Odoo definition.
+ensureErpProviders();
 registerErpProvider({ provider: "odoo", label: "Odoo", createClient: () => active! });
 
 async function setup(override?: Partial<ErpClient>) {

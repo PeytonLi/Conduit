@@ -27,7 +27,8 @@ export class QboTransportError extends Error {
   }
 }
 
-export type SaveQboCredentials = (next: QboCredentials, previous: QboCredentials) => Promise<"saved" | "superseded">;
+/** Awaited right after Intuit returns tokens, which may include a rotated refresh token. */
+export type SaveQboCredentials = (credentials: QboCredentials, expiresAt: string | null) => Promise<void>;
 
 export interface QboHttpDeps {
   clientId: string;
@@ -63,7 +64,7 @@ export function createQboHttp(deps: QboHttpDeps) {
         deps.fetch,
       );
       credentials = credentialsFromTokens(tokens, previous, deps.now());
-      if (deps.saveCredentials) await deps.saveCredentials(credentials, previous);
+      if (deps.saveCredentials) await deps.saveCredentials(credentials, credentials.refresh_token_expires_at);
       return credentials.access_token!;
     })().finally(() => {
       refreshing = null;
@@ -110,7 +111,7 @@ export function createQboHttp(deps: QboHttpDeps) {
         throw new QboFaultError(
           response.status,
           errors.map((e) => e.code ?? ""),
-          errors.map((e) => e.Message ?? e.Detail ?? "QuickBooks error").join("; "),
+          errors.map((e) => [e.Message, e.Detail].filter(Boolean).join(": ") || "QuickBooks error").join("; "),
         );
       }
       if (response.status >= 500) throw new QboTransportError(`QuickBooks returned HTTP ${response.status}`);
