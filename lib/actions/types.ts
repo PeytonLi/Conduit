@@ -2,7 +2,8 @@ export type ActionKind =
   | "supplier_email"
   | "supplier_call"
   | "demo_ledger_amendment"
-  | "manual_export";
+  | "manual_export"
+  | "live_business_amendment";
 
 export interface ActionRecord {
   id: string;
@@ -21,12 +22,14 @@ export interface DispatchResult {
   outcome: "submitted" | "confirmed" | "failed" | "unknown";
   providerRef?: string;
   safeSummary: string;
+  errorCode?: string;
 }
 
 export interface ReconcileResult {
   outcome: "confirmed" | "failed" | "unknown";
   providerRef?: string;
   safeSummary: string;
+  errorCode?: string;
 }
 
 export interface ProviderAdapter {

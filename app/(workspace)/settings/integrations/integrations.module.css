@@ -140,3 +140,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.businessSection {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sectionHeading {
+  margin: 0;
+  font-size: var(--text-lg);
+}

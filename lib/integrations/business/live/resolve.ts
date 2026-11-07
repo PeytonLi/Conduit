@@ -1,10 +1,8 @@
 import { z } from "zod";
-import { decryptCredential } from "@/lib/integrations/gmail/crypto";
+import type { Rpc } from "@/lib/actions/rpc";
+import { credentialKeyVersion, decryptCredential, encryptCredential } from "@/lib/integrations/gmail/crypto";
 import { getErpProviderDefinition, isErpProvider, type ErpProvider } from "./registry";
 import type { ErpClient } from "./types";
-
-/** Named-argument-free RPC: the function receives a single jsonb `p`. */
-export type JsonRpc = (fn: string, p: Record<string, unknown>) => Promise<unknown>;
 
 const loadedConnectionSchema = z.object({
   connection_id: z.string().uuid(),
@@ -34,20 +32,19 @@ export type ResolvedErpClient =
     };
 
 export interface ResolveErpDeps {
-  rpc: JsonRpc;
+  rpc: Rpc;
   encryptionKey: string | null | undefined;
   fetch?: typeof fetch;
   now?: () => Date;
 }
 
 export async function loadErpConnection(
-  rpc: JsonRpc,
+  rpc: Rpc,
   orgId: string,
   connectionId?: string,
 ): Promise<{ connection: ErpConnection; encrypted: { b64: string; keyVersion: string } | null } | null> {
   const raw = await rpc("erp_load_connection", {
-    org_id: orgId,
-    connection_id: connectionId ?? null,
+    p: { org_id: orgId, connection_id: connectionId ?? null },
   });
   if (raw === null || raw === undefined) return null;
   const row = loadedConnectionSchema.parse(raw);
@@ -93,9 +90,32 @@ export async function resolveErpClient(
     return { status: "credential_unavailable", connection, reason: "The stored credential could not be decrypted" };
   }
   try {
-    const client = definition.createClient(credentials, { fetch: deps.fetch, now: deps.now });
+    const key = deps.encryptionKey;
+    const saveCredentials = (next: unknown, expiresAt: string | null) =>
+      saveErpCredentials(deps.rpc, key, { orgId, connectionId: connection.connectionId, credentials: next, expiresAt });
+    const client = definition.createClient(credentials, { fetch: deps.fetch, now: deps.now, saveCredentials });
     return { status: "ready", connection, client };
   } catch {
     return { status: "credential_unavailable", connection, reason: "The stored credential is not valid for this provider" };
   }
+}
+
+/** Re-encrypts and stores rotated credentials for an active connection. */
+export async function saveErpCredentials(
+  rpc: Rpc,
+  encryptionKey: string,
+  input: { orgId: string; connectionId: string; credentials: unknown; expiresAt: string | null },
+): Promise<void> {
+  const result = z.object({ ok: z.boolean(), code: z.string().optional() }).parse(
+    await rpc("erp_update_credentials", {
+      p: {
+        org_id: input.orgId,
+        connection_id: input.connectionId,
+        encrypted_b64: encryptCredential(JSON.stringify(input.credentials), encryptionKey),
+        key_version: credentialKeyVersion(encryptionKey),
+        expires_at: input.expiresAt,
+      },
+    }),
+  );
+  if (!result.ok) throw new Error(`Business system credentials were not saved (${result.code ?? "unknown"})`);
 }
