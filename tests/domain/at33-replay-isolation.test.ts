@@ -16,7 +16,7 @@ import { ACTION_A, CASE_A, CONTACT_A, createFakeVoiceStore, fakeClock, ORG_A } f
 // even when real provider keys are configured alongside it.
 describe("AT-33 replay isolation with live keys present", () => {
   it("never resolves a live adapter for any action kind in replay mode", () => {
-    const kinds = ["supplier_email", "supplier_call", "demo_ledger_amendment"] as const;
+    const kinds = ["supplier_email", "supplier_call", "demo_ledger_amendment", "live_business_amendment"] as const;
     for (const kind of kinds) {
       const live: ProviderAdapter = {
         kind,

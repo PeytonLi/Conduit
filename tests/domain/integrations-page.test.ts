@@ -2,6 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 const mocks = vi.hoisted(() => ({
   requireMembership: vi.fn(),
@@ -143,5 +146,31 @@ describe("Integrations Gmail connection state", () => {
 
     const unknown = await renderPage({ gmail: "error", code: "unexpected_code" });
     expect(unknown).toContain("Please try again or ask an owner to review the setup.");
+  });
+
+  it("lists business systems whose app credentials are configured", async () => {
+    const odooOnly = await renderPage();
+    expect(odooOnly).toContain("Business system");
+    expect(odooOnly).toContain("<h3>Odoo</h3>");
+    expect(odooOnly).not.toContain("QuickBooks Online");
+    expect(odooOnly).not.toContain("Shopify");
+
+    vi.stubEnv("QBO_CLIENT_ID", "qbo");
+    vi.stubEnv("SHOPIFY_CLIENT_ID", "shop");
+    const html = await renderPage();
+    expect(html).toContain("Connect QuickBooks Online");
+    expect(html).toContain("<h3>Shopify</h3>");
+    expect(html).not.toContain("Zoho Inventory");
+  });
+
+  it("shows a connected business system with sync and disconnect controls", async () => {
+    mocks.listConnections.mockResolvedValue({
+      connections: [{ ...healthyGmail(), provider: "odoo", capabilities: {} }],
+      environment_capabilities: configuredCapabilities,
+    });
+    const html = await renderPage();
+    expect(html).toContain(">Connected<");
+    expect(html).toContain(">Disconnect</button>");
+    expect(html).toContain("Sync now");
   });
 });
