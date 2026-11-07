@@ -1,14 +1,14 @@
 import { ErpNotConfiguredError } from "../errors";
 import type { ErpProviderDefinition } from "../types";
 import { createQuickbooksClient } from "./client";
-import { createQboHttp, type SaveQboCredentials } from "./http";
+import { createQboHttp } from "./http";
 import { qboCredentialsSchema } from "./schemas";
 
 export interface QboClientDeps {
   fetch?: typeof fetch;
   now?: () => Date;
   /** Persists rotated refresh tokens; without it a rotation only lives for this client. */
-  saveCredentials?: (next: unknown, previous: unknown) => Promise<"saved" | "superseded">;
+  saveCredentials?: (credentials: unknown, expiresAt: string | null) => Promise<void>;
   env?: Record<string, string | undefined>;
 }
 
@@ -21,13 +21,19 @@ export const quickbooksProvider: ErpProviderDefinition = {
       throw new ErpNotConfiguredError("QBO_CLIENT_ID and QBO_CLIENT_SECRET must be set");
     }
     const now = deps.now ?? (() => new Date());
+    const save = deps.saveCredentials;
     const http = createQboHttp({
       clientId: env.QBO_CLIENT_ID,
       clientSecret: env.QBO_CLIENT_SECRET,
       credentials: qboCredentialsSchema.parse(credentials),
       fetch: deps.fetch ?? fetch,
       now,
-      saveCredentials: deps.saveCredentials as SaveQboCredentials | undefined,
+      saveCredentials: save
+        ? async (next) => {
+            await save(next, next.refresh_token_expires_at);
+            return "saved";
+          }
+        : undefined,
     });
     return createQuickbooksClient(http, { now });
   },
