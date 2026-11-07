@@ -1,10 +1,11 @@
+import { quickbooksProvider } from "./quickbooks";
 import { registerErpProvider } from "./registry";
 import type { ErpProviderDefinition } from "./types";
 import { zohoInventoryProvider } from "./zoho";
 
 // Provider lanes add their definition here, e.g.
 // import { odooProvider } from "./odoo";
-export const builtInErpProviders: ErpProviderDefinition[] = [zohoInventoryProvider];
+export const builtInErpProviders: ErpProviderDefinition[] = [quickbooksProvider, zohoInventoryProvider];
 
 let registered = false;
 
