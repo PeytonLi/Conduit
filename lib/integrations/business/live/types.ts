@@ -127,3 +127,11 @@ export interface ErpClient {
   findChange(changeRef: string, poExternalId: string): Promise<ChangeLookup>;
   listReceipts(since: string | null): Promise<ErpReceipt[]>;
 }
+
+/** What each provider module exports so the shared registry can build a client per connection. */
+export interface ErpProviderDefinition {
+  provider: ErpProvider;
+  label: string;
+  /** Builds a client from the connection's decrypted credentials; throws when they are invalid. */
+  createClient(credentials: unknown, deps?: { fetch?: typeof fetch; now?: () => Date }): ErpClient;
+}
