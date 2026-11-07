@@ -2,8 +2,9 @@ import { z } from "zod";
 import { amendDeliveryScheduleSchema } from "@/lib/integrations/business/amendment";
 import { buildManualExecutionPacket, type ManualExecutionPacket } from "@/lib/integrations/business/manual-packet";
 import { dispatchAction, type DispatcherDeps, type DispatchReport } from "./dispatcher";
-import { prepareAction, type LedgerAction } from "./ledger";
+import { getAction, prepareAction, type LedgerAction } from "./ledger";
 import { callLedger, type LedgerFailure } from "./rpc";
+import { getLiveStepPreparer } from "./live-step";
 
 const uuid = z.string().uuid();
 const minor = z.string().regex(/^\d+$/, "Money is integer minor units");
@@ -33,7 +34,7 @@ export const createPlanRequestSchema = z
       if (step.depends_on_step_ids.some((d) => !ids.has(d) || d === step.step_id)) {
         ctx.addIssue({ code: "custom", message: "Unknown step dependency", path: ["steps", index, "depends_on_step_ids"] });
       }
-      if (step.execution_mode === "demo_ledger") {
+      if (step.execution_mode === "demo_ledger" || step.execution_mode === "live_connector") {
         const parsed = amendDeliveryScheduleSchema.safeParse({ change_kind: "amend_delivery_schedule", ...step.payload });
         if (!parsed.success) {
           ctx.addIssue({ code: "custom", message: "Invalid delivery schedule amendment", path: ["steps", index, "payload"] });
@@ -80,7 +81,7 @@ export interface PlanView {
     missing_fields: string[];
   }[];
   approvals: { id: string; status: string; expires_at: string; consumed_by_action_id: string | null }[];
-  actions: { id: string; kind: string; state: string; plan_step_id: string | null }[];
+  actions: { id: string; kind: string; state: string; plan_step_id: string | null; error_code?: string | null }[];
 }
 
 const nowIso = (deps: DispatcherDeps) => deps.clock.now().toISOString();
@@ -144,7 +145,7 @@ export const stepIdempotencyKey = (plan: Pick<PlanView, "id" | "version">, stepI
 
 /**
  * Runs after plan.approved: prepares (revalidating the fingerprint inside the transaction) and
- * dispatches the single automated demo-ledger write, if any. Manual steps wait for export.
+ * dispatches the single automated write (demo ledger or live business system), if any. Manual steps wait for export.
  */
 export async function executeApprovedPlan(
   deps: DispatcherDeps,
@@ -152,14 +153,29 @@ export async function executeApprovedPlan(
 ): Promise<{ status: "no_automated_step" } | { status: "prepare_failed"; failure: LedgerFailure } | { status: "dispatch"; report: DispatchReport }> {
   const read = await getPlan(deps, input.orgId, input.planId);
   if (!read.ok) return { status: "prepare_failed", failure: read };
-  const step = read.plan.steps.find((s) => s.execution_mode === "demo_ledger");
+  const step = read.plan.steps.find((s) => s.execution_mode === "demo_ledger" || s.execution_mode === "live_connector");
   if (!step) return { status: "no_automated_step" };
+  let kind: "demo_ledger_amendment" | "live_business_amendment" = "demo_ledger_amendment";
+  let payload: unknown = { change_kind: "amend_delivery_schedule", ...step.payload };
+  if (step.execution_mode === "live_connector") {
+    const preparer = getLiveStepPreparer();
+    if (!preparer) {
+      return {
+        status: "prepare_failed",
+        failure: { ok: false, code: "failed_precondition", message: "No business system connector is available" },
+      };
+    }
+    const live = await preparer({ orgId: input.orgId, stepPayload: step.payload as Record<string, unknown> });
+    if (!live.ok) return { status: "prepare_failed", failure: live };
+    kind = "live_business_amendment";
+    payload = live.payload;
+  }
   const prepared = await prepareAction(deps, {
     orgId: input.orgId,
     actor: { type: "system", id: "execution" },
     caseId: read.plan.case_id,
-    kind: "demo_ledger_amendment",
-    payload: { change_kind: "amend_delivery_schedule", ...step.payload },
+    kind,
+    payload,
     idempotencyKey: stepIdempotencyKey(read.plan, step.step_id),
     planId: input.planId,
     planStepId: step.step_id,
@@ -181,13 +197,31 @@ export async function exportPlan(
   const read = await getPlan(deps, input.orgId, input.planId);
   if (!read.ok) return read;
   const plan = read.plan;
-  const exported = plan.actions.find((a) => a.kind === "manual_export" && a.state !== "cancelled" && a.state !== "failed");
+  const exported = plan.actions.find(
+    (a) =>
+      (a.kind === "manual_export" ||
+        (a.kind === "live_business_amendment" && a.error_code === "not_supported_by_provider")) &&
+      a.state !== "cancelled" &&
+      a.state !== "failed",
+  );
   const approval =
     plan.approvals.find((a) => a.status === "active") ??
     plan.approvals.find((a) => a.consumed_by_action_id && a.consumed_by_action_id === exported?.id);
   if (!approval) {
     return { ok: false, code: "approval_required", message: "An owner must approve the plan before export" };
   }
+  const packetFor = (action: LedgerAction) =>
+    buildManualExecutionPacket({
+      orgId: input.orgId,
+      caseId: plan.case_id,
+      planId: plan.id,
+      planVersion: plan.version,
+      actionId: action.id,
+      currency: plan.currency,
+      grossCommitmentMinor: plan.gross_commitment_minor,
+      steps,
+      generatedAt: action.created_at,
+    });
   const steps = plan.steps.map((s) => ({
     step_id: s.step_id,
     kind: s.kind,
@@ -198,6 +232,11 @@ export async function exportPlan(
     depends_on_step_ids: s.depends_on_step_ids,
     payload: s.payload,
   }));
+  if (exported?.kind === "live_business_amendment") {
+    const handoff = await getAction(deps, input.orgId, exported.id);
+    if (!handoff.ok) return handoff;
+    return { ok: true, action: handoff.action, packet: packetFor(handoff.action), replayed: true };
+  }
   const prepared = await prepareAction(deps, {
     orgId: input.orgId,
     actor: { type: "user", id: input.userId },
@@ -211,16 +250,5 @@ export async function exportPlan(
   if (!prepared.ok) return prepared;
   const report = await dispatchAction(deps, input.orgId, prepared.action.id);
   const action = "action" in report ? report.action : prepared.action;
-  const packet = buildManualExecutionPacket({
-    orgId: input.orgId,
-    caseId: plan.case_id,
-    planId: plan.id,
-    planVersion: plan.version,
-    actionId: action.id,
-    currency: plan.currency,
-    grossCommitmentMinor: plan.gross_commitment_minor,
-    steps,
-    generatedAt: action.created_at,
-  });
-  return { ok: true, action, packet, replayed: prepared.replayed };
+  return { ok: true, action, packet: packetFor(action), replayed: prepared.replayed };
 }
