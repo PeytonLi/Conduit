@@ -240,7 +240,7 @@ describe("QuickBooks tokens and setup (MOCKED)", () => {
   it("refreshes an expired access token and saves the rotated refresh token", async () => {
     const qbo = createMockQbo();
     seedQboCompany(qbo);
-    const save = vi.fn(async (_credentials: unknown, _expiresAt: string | null) => {});
+    const save = vi.fn<(credentials: unknown, expiresAt: string | null) => Promise<void>>(async () => {});
     const client = quickbooksProvider.createClient(credentials(qbo, { access_token: null, access_token_expires_at: null }), {
       fetch: qbo.fetch,
       env,
