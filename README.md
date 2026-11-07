@@ -4,7 +4,7 @@ Conduit is a supplier delay recovery agent. It connects supplier messages with p
 
 **Stack:** Next.js 16 and React 19, Supabase (Postgres, Auth, private Storage), Inngest for durable background work, DeepSeek for extraction and planning, Gmail through Composio, Exa for supplier research, and ElevenLabs with SignalWire for calls. Calls run through SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge in `services/voice-bridge` (`VOICE_TRANSPORT=media_bridge`).
 
-**Status:** Inbox ingestion, assessment, research, email and voice outreach, approval, recovery recording, and monitoring are built. The remaining acceptance gap is AT-37 (a real business-system connector). See [BUILD_STATUS.md](BUILD_STATUS.md) for evidence and open gates.
+**Status:** Inbox ingestion, assessment, research, email and voice outreach, approval, recovery recording, and monitoring are built. The AT-37 real-connector check passed against a QuickBooks Online sandbox. See [BUILD_STATUS.md](BUILD_STATUS.md) for evidence and open gates.
 
 Start with the [product requirements](PRD.md). Implementation agents should read the [compact handoff](AGENT_HANDOFF.md) and [current build status](BUILD_STATUS.md), then load the relevant [reference chapters](docs/prd/). The [research notes](research/neathack-research.md) cover hackathon requirements, precedents, and integration research.
 
