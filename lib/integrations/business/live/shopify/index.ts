@@ -1,4 +1,4 @@
-import { parseServerEnv } from "@/lib/env";
+import { serverEnvSchema } from "@/lib/env";
 import type { ErpProviderDefinition } from "../types";
 import { createShopifyErpClient } from "./client";
 import { createShopifyGraphql, type ShopifyGraphql } from "./graphql";
@@ -20,7 +20,7 @@ function refreshingGraphql(initial: ShopifyCredentials, fetchImpl: typeof fetch 
     Date.parse(credentials.access_token_expires_at) - REFRESH_MARGIN_MS <= now().getTime();
 
   async function refresh() {
-    const env = parseServerEnv(process.env);
+    const env = serverEnvSchema.pick({ SHOPIFY_CLIENT_ID: true, SHOPIFY_CLIENT_SECRET: true }).parse(process.env);
     if (!env.SHOPIFY_CLIENT_ID || !env.SHOPIFY_CLIENT_SECRET || !credentials.refresh_token) return;
     credentials = await refreshShopifyCredentials({
       credentials,
