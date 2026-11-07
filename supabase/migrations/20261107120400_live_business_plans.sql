@@ -94,7 +94,7 @@ begin
           and c.provider = any(private.erp_providers()) and c.status in ('healthy', 'degraded')
       )
     ) then
-      v_missing := v_missing || 'live_connector_unavailable';
+      v_missing := v_missing || 'live_connector_unavailable'::text;
     end if;
     case v_step->>'kind'
     when 'amend_delivery_schedule' then
