@@ -11,15 +11,21 @@ import { assertLiveTestPo, liveZoho } from "./live-guard";
  * scripts/zoho-live-seed.ts before each run; the guard refuses any other org or PO.
  */
 const live = process.env.ZOHO_LIVE_TEST === "1";
+// One http + client per run: Zoho caps access-token refreshes per refresh token (about 10 per 10 minutes).
+let shared: { zoho: ReturnType<typeof liveZoho>; client: ReturnType<typeof createZohoInventoryClient> } | undefined;
 
 describe.skipIf(!live)("Zoho Inventory ErpClient contract (REAL Zoho test organization)", { timeout: 120_000 }, () => {
   describeErpClientContract(async () => {
-    const { deps, http } = liveZoho(process.env);
+    if (!shared) {
+      const zoho = liveZoho(process.env);
+      shared = { zoho, client: createZohoInventoryClient(zoho.deps) };
+    }
+    const { http } = shared.zoho;
     const poId = z.string().regex(/^\d+$/).parse(process.env.ZOHO_LIVE_PO_ID);
     const lineId = z.string().regex(/^\d+$/).parse(process.env.ZOHO_LIVE_LINE_ID);
     await assertLiveTestPo(http, poId, lineId);
     return {
-      client: createZohoInventoryClient(deps),
+      client: shared.client,
       poExternalId: poId,
       lineExternalId: lineId,
       touch: async () => {
