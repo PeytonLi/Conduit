@@ -489,16 +489,23 @@ async function listReceipts(http: ZohoHttp, limits: ZohoClientLimits, since: str
     return sinceMs === null || changed === null || changed >= sinceMs;
   });
   const receipts: ErpReceipt[] = [];
+  const poLines = new Map<string, Promise<ZohoPurchaseOrderLine[]>>();
   for (const summary of capDetails(summaries, limits, "purchase receives")) {
     const { purchasereceive: receive } = await http.get(`/purchasereceives/${summary.receive_id}`, zohoReceiveResponseSchema);
     const receivedAt = dateToIso(receive.date);
     if (!receivedAt) continue;
+    if (!poLines.has(receive.purchaseorder_id)) {
+      poLines.set(receive.purchaseorder_id, getPurchaseOrder(http, receive.purchaseorder_id).then((po) => po?.line_items ?? []));
+    }
+    const lines = await poLines.get(receive.purchaseorder_id)!;
     for (const line of receive.line_items) {
       if (line.quantity <= 0) continue;
+      // Receive lines carry their own ids; map back to the PO line by item when that is unambiguous.
+      const matches = lines.filter((candidate) => line.item_id && candidate.item_id === line.item_id);
       receipts.push({
         external_receipt_id: `${receive.receive_id}:${line.line_item_id}`,
         po_external_id: receive.purchaseorder_id,
-        line_external_id: line.line_item_id,
+        line_external_id: matches.length === 1 ? matches[0].line_item_id : line.line_item_id,
         quantity: intQty(line.quantity, "received quantity"),
         received_at: receivedAt,
         kind: "received",

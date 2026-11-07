@@ -141,13 +141,18 @@ export const zohoSalesOrderSchema = z.object({
 });
 export const zohoSalesOrderResponseSchema = z.object({ salesorder: zohoSalesOrderSchema });
 
-export const zohoReceiveSummarySchema = z.object({
-  receive_id: id,
-  purchaseorder_id: id.optional(),
-  status: z.string().optional().default("received"),
-  last_modified_time: z.string().optional(),
-  created_time: z.string().optional(),
-});
+// The list endpoint names the id purchasereceive_id; the detail endpoint names it receive_id.
+export const zohoReceiveSummarySchema = z
+  .object({
+    purchasereceive_id: id.optional(),
+    receive_id: id.optional(),
+    purchaseorder_id: id.optional(),
+    status: z.string().optional().default("received"),
+    last_modified_time: z.string().optional(),
+    created_time: z.string().optional(),
+  })
+  .transform(({ purchasereceive_id, receive_id, ...rest }) => ({ ...rest, receive_id: purchasereceive_id ?? receive_id }))
+  .refine((summary): summary is typeof summary & { receive_id: string } => summary.receive_id !== undefined, "missing receive id");
 export const zohoReceiveListSchema = zohoPageContextSchema.extend({
   purchasereceives: z.array(zohoReceiveSummarySchema).optional().default([]),
 });
@@ -156,6 +161,6 @@ export const zohoReceiveSchema = z.object({
   purchaseorder_id: id,
   date: z.string().min(1),
   status: z.string().optional().default("received"),
-  line_items: z.array(z.object({ line_item_id: id, quantity })),
+  line_items: z.array(z.object({ line_item_id: id, item_id: optionalId, quantity })),
 });
 export const zohoReceiveResponseSchema = z.object({ purchasereceive: zohoReceiveSchema });

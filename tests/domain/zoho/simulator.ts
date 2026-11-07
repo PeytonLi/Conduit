@@ -60,7 +60,7 @@ export function createZohoSimulator() {
   let validTokens = new Set<string>();
 
   const pos = new Map<string, SimPo>();
-  const receives = new Map<string, { receive_id: string; purchaseorder_id: string; date: string; status: string; created_time: string; last_modified_time: string; line_items: { line_item_id: string; quantity: number }[] }>();
+  const receives = new Map<string, { receive_id: string; purchaseorder_id: string; date: string; status: string; created_time: string; last_modified_time: string; line_items: { line_item_id: string; item_id: string; quantity: number }[] }>();
   const items = new Map([
     ["4815000000044100", {
       item_id: "4815000000044100", name: "Shipping carton", sku: "CARTON-302015", unit: "carton",
@@ -228,7 +228,11 @@ export function createZohoSimulator() {
       return so ? okJson({ salesorder: so }) : notFound();
     }
     if (method === "GET" && path === "/purchasereceives") {
-      return page([...receives.values()].map((receive) => omit(receive, "line_items")), url.searchParams, "purchasereceives");
+      return page(
+        [...receives.values()].map(({ receive_id, ...receive }) => ({ ...omit(receive, "line_items"), purchasereceive_id: receive_id })),
+        url.searchParams,
+        "purchasereceives",
+      );
     }
     if (method === "GET" && (m = /^\/purchasereceives\/(\d+)$/.exec(path))) {
       const receive = receives.get(m[1]);
@@ -237,11 +241,11 @@ export function createZohoSimulator() {
     if (method === "POST" && path === "/purchasereceives") {
       const po = pos.get(url.searchParams.get("purchaseorder_id") ?? "");
       if (!po) return notFound();
-      const lines = (body.line_items as { line_item_id: string; quantity: number }[]);
-      for (const line of lines) {
+      const lines = (body.line_items as { line_item_id: string; quantity: number }[]).map((line) => {
         const target = po.line_items.find((candidate) => candidate.line_item_id === line.line_item_id);
         if (target) target.quantity_received += line.quantity;
-      }
+        return { line_item_id: nextId(), item_id: target?.item_id ?? "", quantity: line.quantity };
+      });
       po.status = "partially_received";
       po.last_modified_time = stamp();
       const now = new Date().toISOString();
