@@ -8,9 +8,7 @@ export const DEFAULT_ZOHO_ACCOUNTS_SERVER = "https://accounts.zoho.com";
 function parseHttps(value: string): URL | null {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
-    if (url.pathname !== "/" && url.pathname !== "") return null;
-    return url;
+    return url.protocol === "https:" && url.port === "" && url.href === `${url.origin}/` ? url : null;
   } catch {
     return null;
   }
