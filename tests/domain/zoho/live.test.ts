@@ -40,8 +40,9 @@ describe.skipIf(!live)("Zoho Inventory ErpClient contract (REAL Zoho test organi
       receive: async (quantity) => {
         await assertLiveTestPo(http, poId, lineId);
         await http.send("POST", "/purchasereceives", zohoEnvelopeSchema, {
-          query: { purchaseorder_id: poId },
+          query: { purchaseorder_id: poId, ignore_auto_number_generation: "true" },
           body: {
+            receive_number: `CDT-RCV-${Date.now()}`,
             date: new Date().toISOString().slice(0, 10),
             line_items: [{ line_item_id: lineId, quantity }],
           },
