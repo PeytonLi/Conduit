@@ -111,7 +111,7 @@ export function createQboHttp(deps: QboHttpDeps) {
         throw new QboFaultError(
           response.status,
           errors.map((e) => e.code ?? ""),
-          errors.map((e) => e.Message ?? e.Detail ?? "QuickBooks error").join("; "),
+          errors.map((e) => [e.Message, e.Detail].filter(Boolean).join(": ") || "QuickBooks error").join("; "),
         );
       }
       if (response.status >= 500) throw new QboTransportError(`QuickBooks returned HTTP ${response.status}`);

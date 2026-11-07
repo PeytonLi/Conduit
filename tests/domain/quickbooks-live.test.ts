@@ -109,6 +109,8 @@ describe.skipIf(mode !== "1")("QuickBooks ErpClient contract (REAL Intuit sandbo
         const current = (await http.read("PurchaseOrder", po.Id))!;
         await http.write("PurchaseOrder", { Id: po.Id, SyncToken: current.SyncToken, sparse: true, Memo: `touched ${Date.now()}` }, `conduit-at37-touch-${Date.now()}`);
       },
+      // The real sandbox rejects this Bill ("Add a line item to continue"): QBO's API won't link a
+      // Bill line to a PO line, so this check fails until a receipt can be recorded another way.
       async receive(quantity) {
         await http.write(
           "Bill",
