@@ -11,7 +11,7 @@ import { prepareLiveStepPayload } from "@/lib/integrations/business/live/prepare
 import { registerErpProvider, resetErpProvidersForTest } from "@/lib/integrations/business/live/registry";
 import { resolveErpClient } from "@/lib/integrations/business/live/resolve";
 import { runConnectionSync } from "@/lib/integrations/business/live/run-sync";
-import type { ErpClient, ErpSnapshot } from "@/lib/integrations/business/live/types";
+import type { ErpClient, ErpProviderDefinition, ErpSnapshot } from "@/lib/integrations/business/live/types";
 import { approve, connect, createPlan, deps, FakeClock, seedHarbor, splitStep, type Harbor } from "./actions.harness";
 
 vi.mock("server-only", () => ({}));
@@ -181,5 +181,30 @@ describe("live business connector (fake ErpClient, local database)", () => {
     expect((await client.query("select missing_fields from plan_steps where plan_id = $1", [plan.plan_id])).rows[0].missing_fields).toContain(
       "live_connector_unavailable",
     );
+  });
+
+  it("persists rotated credentials through saveCredentials", async () => {
+    const { d, h, connectionId } = await setup();
+    const seen: unknown[] = [];
+    let save: Parameters<ErpProviderDefinition["createClient"]>[1] = undefined;
+    registerErpProvider({
+      provider: "odoo",
+      label: "Odoo",
+      createClient: (credentials, clientDeps) => {
+        seen.push(credentials);
+        save = clientDeps;
+        return active!;
+      },
+    });
+    await resolveErpClient({ rpc: d.rpc, encryptionKey: KEY }, h.orgId);
+    await save!.saveCredentials!({ api_key: "rotated" }, "2026-12-01T00:00:00.000Z");
+    await resolveErpClient({ rpc: d.rpc, encryptionKey: KEY }, h.orgId);
+    expect(seen).toEqual([{ api_key: "test" }, { api_key: "rotated" }]);
+    const row = (await client.query("select expires_at from private.integration_credentials where connection_id = $1", [connectionId])).rows[0];
+    expect(new Date(row.expires_at).toISOString()).toBe("2026-12-01T00:00:00.000Z");
+
+    await client.query("update connections set status = 'disconnected' where id = $1", [connectionId]);
+    await expect(save!.saveCredentials!({ api_key: "late" }, null)).rejects.toThrow(/not_connected/);
+    registerErpProvider({ provider: "odoo", label: "Odoo", createClient: () => active! });
   });
 });

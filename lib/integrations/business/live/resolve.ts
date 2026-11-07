@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Rpc } from "@/lib/actions/rpc";
-import { decryptCredential } from "@/lib/integrations/gmail/crypto";
+import { credentialKeyVersion, decryptCredential, encryptCredential } from "@/lib/integrations/gmail/crypto";
 import { getErpProviderDefinition, isErpProvider, type ErpProvider } from "./registry";
 import type { ErpClient } from "./types";
 
@@ -90,9 +90,32 @@ export async function resolveErpClient(
     return { status: "credential_unavailable", connection, reason: "The stored credential could not be decrypted" };
   }
   try {
-    const client = definition.createClient(credentials, { fetch: deps.fetch, now: deps.now });
+    const key = deps.encryptionKey;
+    const saveCredentials = (next: unknown, expiresAt: string | null) =>
+      saveErpCredentials(deps.rpc, key, { orgId, connectionId: connection.connectionId, credentials: next, expiresAt });
+    const client = definition.createClient(credentials, { fetch: deps.fetch, now: deps.now, saveCredentials });
     return { status: "ready", connection, client };
   } catch {
     return { status: "credential_unavailable", connection, reason: "The stored credential is not valid for this provider" };
   }
+}
+
+/** Re-encrypts and stores rotated credentials for an active connection. */
+export async function saveErpCredentials(
+  rpc: Rpc,
+  encryptionKey: string,
+  input: { orgId: string; connectionId: string; credentials: unknown; expiresAt: string | null },
+): Promise<void> {
+  const result = z.object({ ok: z.boolean(), code: z.string().optional() }).parse(
+    await rpc("erp_update_credentials", {
+      p: {
+        org_id: input.orgId,
+        connection_id: input.connectionId,
+        encrypted_b64: encryptCredential(JSON.stringify(input.credentials), encryptionKey),
+        key_version: credentialKeyVersion(encryptionKey),
+        expires_at: input.expiresAt,
+      },
+    }),
+  );
+  if (!result.ok) throw new Error(`Business system credentials were not saved (${result.code ?? "unknown"})`);
 }
