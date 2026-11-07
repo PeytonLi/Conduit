@@ -133,5 +133,13 @@ export interface ErpProviderDefinition {
   provider: ErpProvider;
   label: string;
   /** Builds a client from the connection's decrypted credentials; throws when they are invalid. */
-  createClient(credentials: unknown, deps?: { fetch?: typeof fetch; now?: () => Date }): ErpClient;
+  createClient(
+    credentials: unknown,
+    deps?: {
+      fetch?: typeof fetch;
+      now?: () => Date;
+      /** Persists rotated credentials (e.g. a refreshed OAuth token) for this connection; rejects if not saved. */
+      saveCredentials?: (credentials: unknown, expiresAt: string | null) => Promise<void>;
+    },
+  ): ErpClient;
 }
