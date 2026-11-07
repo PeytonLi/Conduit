@@ -1,9 +1,9 @@
+import { odooProvider } from "./odoo";
 import { registerErpProvider } from "./registry";
 import type { ErpProviderDefinition } from "./types";
 
-// Provider lanes add their definition here, e.g.
-// import { odooProvider } from "./odoo";
-export const builtInErpProviders: ErpProviderDefinition[] = [];
+// Provider lanes add their definition here.
+export const builtInErpProviders: ErpProviderDefinition[] = [odooProvider];
 
 let registered = false;
 
