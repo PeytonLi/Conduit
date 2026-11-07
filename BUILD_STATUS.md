@@ -53,7 +53,9 @@ Limits:
 - The QuickBooks API cannot create a Bill linked to a purchase order (a line link is rejected with "Add a line item to continue"; a header link is dropped), so receiving is only visible when bills are entered from the purchase order inside QuickBooks.
 - QuickBooks has no per-line delivery dates, so a split becomes a reduced original PO plus a new PO. It has no demand source, so demand stays empty.
 - One extra unaudited sandbox write happened while debugging: an unlinked $1 Bill (id 152).
-- Odoo passed the same contract against a local Odoo 20 container in [#40](https://github.com/PeytonLi/Conduit/pull/40). Zoho Inventory and Shopify are tested against mocks only so far.
+- Odoo passed the same contract against a local Odoo 20 container in [#40](https://github.com/PeytonLi/Conduit/pull/40), not a customer system.
+- Zoho Inventory passed every contract check against a real Zoho Inventory test org in [#37](https://github.com/PeytonLi/Conduit/pull/37), including receiving through purchase receives; see that PR for its evidence.
+- Shopify is tested against mocks only so far.
 
 ## Voice connection investigation — October 9, 2026
 
