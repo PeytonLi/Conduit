@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { createServiceClient } from "@/lib/db/service";
-import { supabaseRpcClient, type RpcClient } from "@/lib/db/messages";
+import type { Rpc } from "@/lib/actions/rpc";
+import { createServiceRpc } from "@/lib/actions/rpc.supabase";
 import { parseServerEnv } from "@/lib/env";
 import { inngest } from "@/lib/workflows/client";
 import {
@@ -25,7 +25,7 @@ export interface StoreErpConnectionInput {
 }
 
 export interface StoreErpConnectionDeps {
-  rpc?: RpcClient;
+  rpc?: Rpc;
   encryptionKey?: string | null;
   requestSync?: (orgId: string, connectionId: string) => Promise<void>;
 }
@@ -43,8 +43,8 @@ export async function storeErpConnection(
       ? deps.encryptionKey
       : parseServerEnv(process.env).CREDENTIAL_ENCRYPTION_KEY;
   if (!key) throw new ErpNotConfiguredError("CREDENTIAL_ENCRYPTION_KEY is not set");
-  const rpc = deps.rpc ?? supabaseRpcClient(createServiceClient());
-  const result = await rpc.rpc<{ connection_id: string }>("erp_store_connection", {
+  const rpc = deps.rpc ?? createServiceRpc();
+  const result = (await rpc("erp_store_connection", { p: {
     org_id: input.orgId,
     actor_user_id: input.actorUserId,
     provider: input.provider,
@@ -53,7 +53,7 @@ export async function storeErpConnection(
     encrypted_b64: encryptCredential(JSON.stringify(input.credentials), key),
     key_version: credentialKeyVersion(key),
     expires_at: input.expiresAt,
-  });
+  } })) as { connection_id: string };
   const requestSync = deps.requestSync ?? requestErpSync;
   try {
     await requestSync(input.orgId, result.connection_id);
@@ -74,13 +74,11 @@ export async function requestErpSync(orgId: string, connectionId: string): Promi
 
 export async function disconnectErpConnection(
   input: { orgId: string; actorUserId: string; provider?: ErpProvider },
-  deps: { rpc?: RpcClient } = {},
+  deps: { rpc?: Rpc } = {},
 ): Promise<{ disconnected: boolean }> {
-  const rpc = deps.rpc ?? supabaseRpcClient(createServiceClient());
-  const result = await rpc.rpc<{ disconnected: boolean }>("erp_disconnect", {
-    org_id: input.orgId,
-    actor_user_id: input.actorUserId,
-    provider: input.provider ?? null,
-  });
+  const rpc = deps.rpc ?? createServiceRpc();
+  const result = (await rpc("erp_disconnect", {
+    p: { org_id: input.orgId, actor_user_id: input.actorUserId, provider: input.provider ?? null },
+  })) as { disconnected: boolean };
   return { disconnected: result.disconnected };
 }

@@ -4,6 +4,7 @@ export const eventNames = [
   "supplier.message.received",
   "case.assessment.requested",
   "business.snapshot.activated",
+  "business.sync.requested",
   "case.recovery.requested",
   "supplier.response.recorded",
   "supplier.call.finished",

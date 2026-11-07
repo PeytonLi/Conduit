@@ -1,10 +1,8 @@
 import { z } from "zod";
+import type { Rpc } from "@/lib/actions/rpc";
 import { decryptCredential } from "@/lib/integrations/gmail/crypto";
 import { getErpProviderDefinition, isErpProvider, type ErpProvider } from "./registry";
 import type { ErpClient } from "./types";
-
-/** Named-argument-free RPC: the function receives a single jsonb `p`. */
-export type JsonRpc = (fn: string, p: Record<string, unknown>) => Promise<unknown>;
 
 const loadedConnectionSchema = z.object({
   connection_id: z.string().uuid(),
@@ -34,20 +32,19 @@ export type ResolvedErpClient =
     };
 
 export interface ResolveErpDeps {
-  rpc: JsonRpc;
+  rpc: Rpc;
   encryptionKey: string | null | undefined;
   fetch?: typeof fetch;
   now?: () => Date;
 }
 
 export async function loadErpConnection(
-  rpc: JsonRpc,
+  rpc: Rpc,
   orgId: string,
   connectionId?: string,
 ): Promise<{ connection: ErpConnection; encrypted: { b64: string; keyVersion: string } | null } | null> {
   const raw = await rpc("erp_load_connection", {
-    org_id: orgId,
-    connection_id: connectionId ?? null,
+    p: { org_id: orgId, connection_id: connectionId ?? null },
   });
   if (raw === null || raw === undefined) return null;
   const row = loadedConnectionSchema.parse(raw);

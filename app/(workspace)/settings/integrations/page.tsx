@@ -12,9 +12,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import styles from "./integrations.module.css";
 import { DisconnectGmailButton } from "@/components/DisconnectGmailButton";
 import { ConnectGmailButton } from "@/components/ConnectGmailButton";
+import { ConnectBusinessSystem, ConnectedBusinessSystemActions } from "@/components/BusinessSystemControls";
+import { availableBusinessSystems, type BusinessConnectMethod } from "@/lib/integrations/business/live/availability";
+import { erpProviderLabels, isErpProvider } from "@/lib/integrations/business/live/registry";
 
 type IntegrationsSearchParams = {
   gmail?: string | string[];
+  business?: string | string[];
+  provider?: string | string[];
   code?: string | string[];
 };
 
@@ -84,8 +89,22 @@ export default async function IntegrationsSettingsPage({
     getOrganization(membership),
   ]);
   const configured = new Map(result.connections.map((connection) => [connection.provider, connection]));
+  const businessStatus = firstParam(query.business);
+  const businessProvider = firstParam(query.provider);
+  const businessLabel = isErpProvider(businessProvider) ? erpProviderLabels[businessProvider] : "The business system";
+  const businessSystems = availableBusinessSystems(process.env);
+  const businessConnection = result.connections.find(
+    (connection) => isErpProvider(connection.provider) && ["healthy", "degraded"].includes(connection.status),
+  );
+  // A connected provider stays visible even if its app credentials were later removed.
+  const businessCards: { provider: string; label: string; method: BusinessConnectMethod; connectPath: string }[] = [
+    ...(businessConnection && !businessSystems.some((system) => system.provider === businessConnection.provider)
+      ? [{ provider: businessConnection.provider, label: humanLabel("provider", businessConnection.provider), method: "oauth" as const, connectPath: "" }]
+      : []),
+    ...businessSystems,
+  ];
   const providers = [...new Set([
-    ...result.connections.map((connection) => connection.provider),
+    ...result.connections.map((connection) => connection.provider).filter((provider) => !isErpProvider(provider)),
     ...Object.keys(result.environment_capabilities),
   ])];
   const readinessByProvider = result.environment_capabilities as Record<string, {
@@ -105,6 +124,72 @@ export default async function IntegrationsSettingsPage({
           Gmail couldn’t be connected. {gmailErrorReasons[gmailError] ?? "Please try again or ask an owner to review the setup."}
         </p>
       )}
+      {businessStatus === "connected" && (
+        <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
+          {businessLabel} connected. Conduit is importing purchase orders and stock now.
+        </p>
+      )}
+      {businessStatus === "error" && (
+        <p className={`${styles.notice} ${styles.noticeError}`} role="alert">
+          {businessLabel} couldn’t be connected. {firstParam(query.code) ? `(${firstParam(query.code)}) ` : ""}Please try again.
+        </p>
+      )}
+      <section aria-labelledby="business-system-heading" className={styles.businessSection}>
+        <h2 className={styles.sectionHeading} id="business-system-heading">Business system</h2>
+        <p className={styles.purpose}>
+          Conduit reads purchase orders, stock and receipts from one business system and writes approved delivery changes back.
+        </p>
+        {appEnvironment === "replay" ? (
+          <p className={styles.purpose}>Not needed in replay. Replay uses the demo ledger.</p>
+        ) : businessSystems.length === 0 && !businessConnection ? (
+          <EmptyState icon="plug" message="No business system is configured for this deployment." />
+        ) : (
+          <div className={styles.grid}>
+            {businessCards.map((system) => {
+              const connected = businessConnection?.provider === system.provider ? businessConnection : null;
+              const label = isErpProvider(system.provider) ? erpProviderLabels[system.provider] : system.label;
+              return (
+                <Card className={styles.card} key={system.provider}>
+                  <div className={styles.cardHeading}>
+                    <div className={styles.cardIdentity}>
+                      <span aria-hidden="true" className={styles.iconTile}>
+                        <Icon name="plug" />
+                      </span>
+                      <h3>{label}</h3>
+                    </div>
+                  </div>
+                  <div className={styles.cardStatus}>
+                    <StatusBadge tone={connected ? (connected.status === "healthy" ? "success" : "warning") : "neutral"}>
+                      {connected ? (connected.status === "healthy" ? "Connected" : "Connected, needs attention") : "Not connected"}
+                    </StatusBadge>
+                  </div>
+                  <div className={styles.connectionDetails}>
+                    {connected && (
+                      <>
+                        <p className={styles.syncLine}>
+                          Last synced {formatLastSynced(connected.last_success_at, organization.timezone)}
+                        </p>
+                        {connected.last_error_message && <p className={styles.error}>{connected.last_error_message}</p>}
+                      </>
+                    )}
+                  </div>
+                  {membership.role === "owner" && (
+                    <div className={styles.cardFooter}>
+                      {connected ? (
+                        <ConnectedBusinessSystemActions label={label} provider={system.provider} />
+                      ) : businessConnection ? (
+                        <p className={styles.purpose}>Disconnect {humanLabel("provider", businessConnection.provider)} to use {label}.</p>
+                      ) : (
+                        <ConnectBusinessSystem connectPath={system.connectPath} label={label} method={system.method} />
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
       {providers.length ? (
         <section aria-label="Provider status" className={styles.grid}>
           {providers.map((provider) => {

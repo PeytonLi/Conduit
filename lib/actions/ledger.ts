@@ -122,7 +122,7 @@ export function recordOutcome(
     p_outcome: result.outcome,
     p_provider_ref: result.providerRef ?? null,
     p_safe_summary: result.safeSummary,
-    p_error_code: errorCode,
+    p_error_code: errorCode ?? ("errorCode" in result ? (result.errorCode ?? null) : null),
     p_source: source,
     p_actor_id: source,
     p_evidence_id: null,
