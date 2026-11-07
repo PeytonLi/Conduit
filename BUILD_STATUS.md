@@ -1,6 +1,6 @@
 # Conduit — Build status
 
-Last updated: November 3, 2026
+Last updated: November 7, 2026
 Specification baseline: PRD v1.0
 Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submission evidence remain open
 
@@ -8,10 +8,10 @@ Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submi
 
 - Research notes exist at research/neathack-research.md.
 - PRD, handoff, and detailed reference chapters have been authored.
-- The application lives in the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit) with 17 Supabase migrations applied to the hosted project.
+- The application lives in the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit) with 23 Supabase migrations applied to the hosted project (including the live business-connector tables).
 - Hosting: Render Starter web services in Oregon for the app and the voice bridge, with deploys gated on passing CI. `/api/health` reports DeepSeek, Gmail, voice, Exa and Inngest configured.
 - Local environment verified: Node.js v22.23.3, pnpm 10.34.6, Docker 29.7.2, and Supabase CLI 2.120.0.
-- Provider credentials are configured on the hosted app. A full live run (Gmail connected, real supplier email, real call) has not yet been recorded as evidence on the Render deployment, and no live business-system writes exist.
+- Provider credentials are configured on the hosted app. A full live run (Gmail connected, real supplier email, real call) has not yet been recorded as evidence on the Render deployment. The only real business-system writes so far are audited test writes to an Intuit QuickBooks Online sandbox company (see AT-37 below).
 - Current model choice: DeepSeek. Current voice route: SignalWire REST + `<Connect><Stream>` to the ElevenLabs WebSocket media bridge (PR #12, `VOICE_TRANSPORT=media_bridge`), superseding native SIP after `SIP 404 Domain unavailable` from the registered-device host.
 
 ## Milestone ledger
@@ -24,18 +24,36 @@ Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submi
 | M2 — Inbox to shortage | Done | Inbox ingestion and case workflow delivered in [#6](https://github.com/PeytonLi/Conduit/pull/6), with UI and integration work in [#7](https://github.com/PeytonLi/Conduit/pull/7) and [#13](https://github.com/PeytonLi/Conduit/pull/13). |
 | M3 — Research, email and voice | Done | Planner, call contracts, provider wiring, and media bridge delivered in [#5](https://github.com/PeytonLi/Conduit/pull/5), [#9](https://github.com/PeytonLi/Conduit/pull/9), [#10](https://github.com/PeytonLi/Conduit/pull/10), [#11](https://github.com/PeytonLi/Conduit/pull/11), and [#12](https://github.com/PeytonLi/Conduit/pull/12). Live voice-provider success remains unverified; see the M0 gate and voice investigation below. |
 | M4 — Approval and recovery recording | Done | Versioned recovery, owner/operator approval flows, ledger recording, and voice/action integration landed in [#3](https://github.com/PeytonLi/Conduit/pull/3), [#8](https://github.com/PeytonLi/Conduit/pull/8), [#12](https://github.com/PeytonLi/Conduit/pull/12), and [#14](https://github.com/PeytonLi/Conduit/pull/14). |
-| M5 — Reliability, UX and acceptance | In progress | Reliability and UX work landed in [#7](https://github.com/PeytonLi/Conduit/pull/7), [#13](https://github.com/PeytonLi/Conduit/pull/13), and [#14](https://github.com/PeytonLi/Conduit/pull/14). AT-38 retention/disconnect controls and AT-33 replay isolation (`tests/domain/at33-replay-isolation.test.ts`) are covered. Remaining gap: AT-37 Real connector, which needs a real business system. |
+| M5 — Reliability, UX and acceptance | In progress | Reliability and UX work landed in [#7](https://github.com/PeytonLi/Conduit/pull/7), [#13](https://github.com/PeytonLi/Conduit/pull/13), and [#14](https://github.com/PeytonLi/Conduit/pull/14). AT-38 retention/disconnect controls and AT-33 replay isolation (`tests/domain/at33-replay-isolation.test.ts`) are covered. AT-37 Real connector passed against a QuickBooks Online sandbox; see the evidence below. |
 | M6 — Evidence and submission preparation | In progress | A measured inventory before/after performance run and repository setup/docs exist; the complete evidence bundle and demo video/submission artifacts remain outstanding. See [#14](https://github.com/PeytonLi/Conduit/pull/14) for the inventory performance work. |
 
 ## Next action
 
-Record one end-to-end live run on the Render deployment: sign up, connect Gmail, receive a supplier delay email, place one call to an approved test number, approve a plan. Choose and connect a real business system for AT-37.
+Record one end-to-end live run on the Render deployment: sign up, connect Gmail, receive a supplier delay email, place one call to an approved test number, approve a plan. Optionally repeat AT-37 on Zoho Inventory or a hosted Odoo once a test account is connected.
 
 ## Open gates
 
-1. AT-37 real connector: needs an authorized business system with read and write access.
-2. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage).
-3. M6 evidence bundle, demo video and submission artifacts.
+1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage).
+2. M6 evidence bundle, demo video and submission artifacts.
+
+## AT-37 real connector evidence — November 7, 2026
+
+Passed for QuickBooks Online against a real Intuit sandbox company ("Sandbox Company US 9497", `sandbox-quickbooks.api.intuit.com`). An independent audit session approved the planned writes before they ran, and every write targeted only that sandbox. The run used the shared `describeErpClientContract` suite through `tests/domain/quickbooks-live.test.ts` (skipped unless its env flag is set), with the code from [#39](https://github.com/PeytonLi/Conduit/pull/39), [#41](https://github.com/PeytonLi/Conduit/pull/41), [#42](https://github.com/PeytonLi/Conduit/pull/42) and [#43](https://github.com/PeytonLi/Conduit/pull/43).
+
+| Check | Result |
+| --- | --- |
+| Fresh read | Passed: snapshot of purchase orders, items and vendors read live. |
+| Version conflict | Passed: a write with a stale `SyncToken` was refused and reported as a conflict, not applied. |
+| Approved write and readback | Passed: delivery split applied (original PO reduced, a second PO created with the `CDT-` change reference), then read back and matched. |
+| Unknown write reconciliation | Passed: retrying the same change reference found the existing change instead of creating a duplicate, and an unknown reference returned `not_found`. |
+| Receiving | Passed, with a manual step: Bill 153 was created by hand in the QuickBooks UI from purchase order 1010 (QBO id 151). `listReceipts` returned `bill:153:2` for 1 of 10 units on line `151:1`, and the snapshot showed `received_qty` 1. |
+
+Limits:
+
+- The QuickBooks API cannot create a Bill linked to a purchase order (a line link is rejected with "Add a line item to continue"; a header link is dropped), so receiving is only visible when bills are entered from the purchase order inside QuickBooks.
+- QuickBooks has no per-line delivery dates, so a split becomes a reduced original PO plus a new PO. It has no demand source, so demand stays empty.
+- One extra unaudited sandbox write happened while debugging: an unlinked $1 Bill (id 152).
+- Odoo passed the same contract against a local Odoo 20 container in [#40](https://github.com/PeytonLi/Conduit/pull/40). Zoho Inventory and Shopify are tested against mocks only so far.
 
 ## Voice connection investigation — October 9, 2026
 
