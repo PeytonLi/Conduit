@@ -3,7 +3,7 @@
  * QuickBooks Online) implements. Quantities are integers in the line's unit; money is integer
  * minor units as a string; timestamps are ISO 8601 with offset.
  */
-export type ErpProvider = "odoo" | "zoho_inventory" | "quickbooks";
+export type ErpProvider = "odoo" | "zoho_inventory" | "quickbooks" | "shopify";
 
 export interface ErpLocation {
   external_id: string;
