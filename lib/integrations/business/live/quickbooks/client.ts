@@ -305,7 +305,9 @@ export function createQuickbooksClient(http: QboHttp, deps: { now: () => Date })
     },
     /**
      * QBO has no receiving API: a Bill line linked to a PO line is the only signal. Edited bills
-     * re-emit the same receipt id with the new quantity; deleted bills are not reported.
+     * re-emit the same receipt id with the new quantity; deleted bills are not reported. In the
+     * Intuit sandbox the API refused to create such a link (line LinkedTxn -> "Add a line item",
+     * header LinkedTxn dropped), so links only come from bills created from the PO in QBO itself.
      */
     async listReceipts(since): Promise<ErpReceipt[]> {
       const bills = await http.query("Bill", since ? `MetaData.LastUpdatedTime >= ${qboLiteral(qboTime(since))}` : "");

@@ -23,10 +23,10 @@ function credentials(qbo: MockQbo, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(saveCredentials?: (credentials: unknown, expiresAt: string | null) => Promise<void>) {
+function setup() {
   const qbo = createMockQbo();
   const company = seedQboCompany(qbo);
-  const client = quickbooksProvider.createClient(credentials(qbo), { fetch: qbo.fetch, env, saveCredentials } as never);
+  const client = quickbooksProvider.createClient(credentials(qbo), { fetch: qbo.fetch, env } as never);
   return { qbo, company, client };
 }
 
@@ -248,10 +248,10 @@ describe("QuickBooks tokens and setup (MOCKED)", () => {
     } as never);
     await client.readSnapshot();
     expect(save).toHaveBeenCalledTimes(1);
-    const [next, expiresAt] = save.mock.calls[0] as unknown as [Record<string, unknown>, string | null];
+    const [next, expiresAt] = save.mock.calls[0] as [Record<string, unknown>, string | null];
     expect(next).toMatchObject({ refresh_token: "refresh-1", access_token: "access-1", realm_id: qbo.realmId });
-    expect(next.refresh_token_expires_at).toEqual(expect.any(String));
-    expect(expiresAt).toBe(next.refresh_token_expires_at);
+    expect(expiresAt).toEqual(next.refresh_token_expires_at);
+    expect(expiresAt).toEqual(expect.any(String));
   });
 
   it("retries once with a fresh token after a 401", async () => {
