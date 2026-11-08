@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { describeErpClientContract } from "@/lib/integrations/business/live/contract";
 import { shopifyProvider } from "@/lib/integrations/business/live/shopify";
 import { changeStamp } from "@/lib/integrations/business/live/shopify/client";
@@ -145,6 +145,35 @@ describe("Shopify ErpClient (mocked Admin GraphQL)", () => {
     expect(result).toMatchObject({ status: "rejected", code: "quantity_mismatch" });
   });
 
+  it("refuses to reuse a change reference for a different split", async () => {
+    const { shopify, client } = setupClient();
+    const { transferId, lineId } = shopify.addTransfer({ quantity: 10 });
+    const po = (await client.readPurchaseOrder(transferId))!;
+    const base = { change_ref: "a-reused", po_external_id: transferId, line_external_id: lineId };
+    const applied = await client.applyDeliverySplit({
+      ...base,
+      expected_version: po.version,
+      schedules: [
+        { quantity: 4, earliest_at: day(1), latest_at: day(1) },
+        { quantity: 6, earliest_at: day(2), latest_at: day(2) },
+      ],
+    });
+    expect(applied.status).toBe("applied");
+    if (applied.status !== "applied") return;
+    const created = shopify.requests.length;
+    const reused = await client.applyDeliverySplit({
+      ...base,
+      expected_version: applied.version,
+      schedules: [
+        { quantity: 2, earliest_at: day(1), latest_at: day(1) },
+        { quantity: 3, earliest_at: day(2), latest_at: day(2) },
+        { quantity: 5, earliest_at: day(3), latest_at: day(3) },
+      ],
+    });
+    expect(reused).toMatchObject({ status: "rejected", code: "change_ref_reused" });
+    expect(shopify.requests.slice(created).some((r) => r.operationName === "ConduitShipmentCreate")).toBe(false);
+  });
+
   it("reports unknown on a lost response, then finds and completes the change on retry", async () => {
     const { shopify, client } = setupClient();
     const { transferId, lineId } = shopify.addTransfer({ quantity: 10 });
@@ -250,5 +279,105 @@ describe("Shopify ErpClient (mocked Admin GraphQL)", () => {
       delete process.env.SHOPIFY_CLIENT_SECRET;
     }
     expect(shopify.requests.at(-1)?.headers["x-shopify-access-token"]).toBe("shpat_new");
+  });
+
+  describe("credential rotation", () => {
+    const TRANSFER = "gid://shopify/InventoryTransfer/404";
+    const expired = { ...credentials, access_token_expires_at: "2020-01-01T00:00:00Z", refresh_token: "shprt_old" };
+    const tokenBody = (n: number) => ({
+      access_token: `shpat_${n}`,
+      scope: "read_inventory",
+      expires_in: 3600,
+      refresh_token: `shprt_${n}`,
+      refresh_token_expires_in: 7776000,
+    });
+
+    beforeEach(() => {
+      vi.stubEnv("SHOPIFY_CLIENT_ID", "cid");
+      vi.stubEnv("SHOPIFY_CLIENT_SECRET", "secret");
+    });
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("presents the last stored refresh token again when saving the rotated pair failed", async () => {
+      const shopify = createShopifyEmulator();
+      const presented: string[] = [];
+      let issued = 0;
+      const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!String(input).endsWith("/admin/oauth/access_token")) return shopify.fetch(input, init);
+        presented.push(new URLSearchParams(String(init?.body)).get("refresh_token")!);
+        return Response.json(tokenBody(++issued));
+      }) as typeof fetch;
+      let clock = new Date("2030-01-01T00:00:00Z");
+      const saves: string[] = [];
+      let failSave = true;
+      const client = shopifyProvider.createClient(expired, {
+        fetch: fetchImpl,
+        now: () => clock,
+        saveCredentials: async (next) => {
+          if (failSave) throw new Error("db down");
+          saves.push((next as { refresh_token: string }).refresh_token);
+        },
+      });
+
+      await client.readPurchaseOrder(TRANSFER);
+      clock = new Date("2030-01-01T02:00:00Z");
+      await client.readPurchaseOrder(TRANSFER);
+      failSave = false;
+      clock = new Date("2030-01-01T04:00:00Z");
+      await client.readPurchaseOrder(TRANSFER);
+      clock = new Date("2030-01-01T06:00:00Z");
+      await client.readPurchaseOrder(TRANSFER);
+
+      // Unsaved pairs are never advanced to: refreshes 2 and 3 retry the stored token, 4 uses the saved one.
+      expect(presented).toEqual(["shprt_old", "shprt_old", "shprt_old", "shprt_3"]);
+      expect(saves).toEqual(["shprt_3", "shprt_4"]);
+    });
+
+    it("refreshes once and retries when Shopify rejects a token that looked valid", async () => {
+      const shopify = createShopifyEmulator();
+      let refreshes = 0;
+      const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/admin/oauth/access_token")) {
+          refreshes++;
+          return Response.json(tokenBody(1));
+        }
+        const token = new Headers(init?.headers).get("x-shopify-access-token");
+        return token === "shpat_1" ? shopify.fetch(input, init) : new Response("{}", { status: 401 });
+      }) as typeof fetch;
+      const client = shopifyProvider.createClient({ ...credentials, refresh_token: "shprt_old" }, { fetch: fetchImpl });
+      await expect(Promise.all([client.readPurchaseOrder(TRANSFER), client.readPurchaseOrder(TRANSFER)])).resolves.toEqual([null, null]);
+      expect(refreshes).toBe(1);
+    });
+
+    it("reports reauthorization_required when Shopify refuses the refresh token", async () => {
+      const fetchImpl = (async () => Response.json({ error: "invalid_request" }, { status: 401 })) as typeof fetch;
+      const client = shopifyProvider.createClient(expired, { fetch: fetchImpl });
+      await expect(client.readPurchaseOrder(TRANSFER)).rejects.toMatchObject({ code: "reauthorization_required", retryable: false });
+    });
+
+    it("treats a lost or 5xx token response as retryable and retries with the same refresh token", async () => {
+      const shopify = createShopifyEmulator();
+      const presented: string[] = [];
+      const outcomes = [new TypeError("fetch failed"), new Response("", { status: 503 }), Response.json(tokenBody(1))];
+      const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!String(input).endsWith("/admin/oauth/access_token")) return shopify.fetch(input, init);
+        presented.push(new URLSearchParams(String(init?.body)).get("refresh_token")!);
+        const next = outcomes.shift()!;
+        if (next instanceof Error) throw next;
+        return next;
+      }) as typeof fetch;
+      const client = shopifyProvider.createClient(expired, { fetch: fetchImpl });
+      await expect(client.readPurchaseOrder(TRANSFER)).rejects.toMatchObject({ code: "token_transport", retryable: true });
+      await expect(client.readPurchaseOrder(TRANSFER)).rejects.toMatchObject({ code: "token_http_503", retryable: true });
+      await expect(client.readPurchaseOrder(TRANSFER)).resolves.toBeNull();
+      expect(presented).toEqual(["shprt_old", "shprt_old", "shprt_old"]);
+    });
+
+    it("fails clearly instead of sending an expired token it cannot refresh", async () => {
+      const shopify = createShopifyEmulator();
+      const client = shopifyProvider.createClient({ ...expired, refresh_token: null }, { fetch: shopify.fetch });
+      await expect(client.readPurchaseOrder(TRANSFER)).rejects.toMatchObject({ code: "reauthorization_required" });
+      expect(shopify.requests).toHaveLength(0);
+    });
   });
 });

@@ -55,7 +55,12 @@ Limits:
 - One extra unaudited sandbox write happened while debugging: an unlinked $1 Bill (id 152).
 - Odoo passed the same contract against a local Odoo 20 container in [#40](https://github.com/PeytonLi/Conduit/pull/40), not a customer system.
 - Zoho Inventory passed every contract check against a real Zoho Inventory test org in [#37](https://github.com/PeytonLi/Conduit/pull/37), including receiving through purchase receives; see that PR for its evidence.
-- Shopify is tested against mocks only so far.
+- Shopify has **not** been run against a real store yet; AT-37 is not claimed for it. `tests/domain/shopify-live.test.ts` is ready to run the shared contract against one declared development store (`SHOPIFY_LIVE_TEST=preflight` reads only, `SHOPIFY_LIVE_TEST=1` writes; see `.env.example`), and is skipped without credentials. It refuses to write unless the API reports the declared shop, a development plan, and an active location and tracked item. What it covers once credentials exist: fresh read, a stable version, version conflict, approved split with readback and no duplicate on retry, unknown-write reconciliation (the response to a real shipment create is dropped, then the retry completes it without a duplicate), change-reference reuse, `not_found` for an unknown change, receiving through a shipment received outside Conduit, and refresh-token rotation with the new pair stored. Documented limits:
+  - Shopify has no conditional write (no ETag or `If-Match`) and transfers expose no `updatedAt`, so the version is a hash of the transfer and conflict detection is a read-compare-write with a small window, not an atomic check.
+  - Transfers have no per-line delivery date. A split creates one dated shipment per delivery, and only quantity not already on a shipment can be split.
+  - Demand comes from fulfillment orders, which the contract fixture does not seed, so demand mapping stays covered by mocks only.
+  - Conduit never creates receipts; the fixture ships and receives units to stand in for a warehouse, which needs the shipment-receive write scope on the dev-store token.
+  - The cleanup that cancels the seeded transfers is best effort, and the contract's transfer and shipment mutations are written from Shopify's documented shapes and have not run against a store yet.
 
 ## Voice connection investigation — October 9, 2026
 
