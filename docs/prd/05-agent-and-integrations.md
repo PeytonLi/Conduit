@@ -122,7 +122,7 @@ Persist the history cursor only after all pages and message records in that batc
 
 Parse MIME safely, prefer plain text, sanitize HTML, retain attachment references and source hashes. Quotes and forwarded text are separate evidence segments. Reply-To and display names are untrusted contact hints; a changed address needs approval.
 
-Gmail push via Google Cloud Pub/Sub is a later optimization. It is not required for B0 polling.
+Gmail push via Google Cloud Pub/Sub is an optional, additive optimization. It is not required for B0 polling, which remains the fallback; setup is in [Gmail push setup](../gmail-push-setup.md).
 
 ### Outbound email
 

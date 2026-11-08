@@ -1,7 +1,7 @@
 import type { InngestFunction } from "inngest";
 import { inngest } from "./client";
 import "@/lib/integrations/register-providers";
-import { inboxGmailPoll, inboxProcessMessage } from "./inbox";
+import { inboxGmailPoll, inboxGmailWatchRenew, inboxProcessMessage } from "./inbox";
 import { dispatchOnActionPrepared, executeOnPlanApproved } from "./execution.inngest";
 import { monitorReceipts } from "./monitoring.inngest";
 import { outboxDrain } from "./outbox.inngest";
@@ -16,6 +16,7 @@ import { caseRecoveryFunction } from "./case-recovery";
 
 export const functions: InngestFunction.Any[] = [
   inboxGmailPoll,
+  inboxGmailWatchRenew,
   inboxProcessMessage,
   voiceStaleCallSweep,
   outboxDrain,

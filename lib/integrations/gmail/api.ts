@@ -1,4 +1,5 @@
 import { google, type Auth, type gmail_v1 } from "googleapis";
+import { z } from "zod";
 
 export interface GmailReconciliationContext {
   to: string;
@@ -37,7 +38,14 @@ export interface GmailApi {
     rfcId: string,
     context?: GmailReconciliationContext,
   ): Promise<{ id: string; threadId: string } | null>;
+  /** Registers Gmail push notifications (users.watch). Not offered by every provider. */
+  watch?(args: { topicName: string }): Promise<{ historyId: string; expiration: Date }>;
 }
+
+const watchResponseSchema = z.object({
+  historyId: z.string().min(1),
+  expiration: z.string().regex(/^\d+$/),
+});
 
 export type GmailErrorKind =
   | "invalid_cursor"
@@ -145,6 +153,24 @@ export function createGoogleGmailApi(oauth2: Auth.OAuth2Client): GmailApi {
       const msg = res.data.messages?.[0];
       if (!msg?.id) return null;
       return { id: msg.id, threadId: msg.threadId ?? "" };
+    },
+    async watch({ topicName }) {
+      const res = await gmail.users.watch({
+        userId: "me",
+        requestBody: {
+          topicName,
+          labelIds: ["INBOX"],
+          labelFilterBehavior: "INCLUDE",
+        },
+      });
+      const parsed = watchResponseSchema.parse({
+        historyId: res.data.historyId == null ? undefined : String(res.data.historyId),
+        expiration: res.data.expiration == null ? undefined : String(res.data.expiration),
+      });
+      return {
+        historyId: parsed.historyId,
+        expiration: new Date(Number(parsed.expiration)),
+      };
     },
   };
 }

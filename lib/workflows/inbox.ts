@@ -3,17 +3,16 @@ import { publishPending, serverLedger } from "@/lib/actions/server";
 import { createServiceClient } from "@/lib/db/service";
 import { supabaseRpcClient } from "@/lib/db/messages";
 import { processSourceMessage } from "@/lib/db/cases-open";
+import { gmailPollEnabled } from "@/lib/integrations/gmail/sync";
 import {
-  gmailPollEnabled,
-  syncGmailConnection,
-} from "@/lib/integrations/gmail/sync";
-import { createGoogleGmailApi, type GmailApi } from "@/lib/integrations/gmail/api";
-import { createComposioGmailApi } from "@/lib/integrations/gmail/composio-api";
-import { createComposioClient } from "@/lib/integrations/gmail/composio-client";
-import { decryptCredential } from "@/lib/integrations/gmail/crypto";
-import { parseGmailCredential } from "@/lib/integrations/gmail/credentials";
-import { google } from "googleapis";
-import { ingestMessage } from "@/lib/db/messages";
+  GMAIL_WATCH_RENEW_CRON,
+  gmailWatchEnabled,
+} from "@/lib/integrations/gmail/push";
+import {
+  listWatchesDue,
+  registerWatchForConnection,
+  syncGmailConnectionById,
+} from "@/lib/integrations/gmail/runtime";
 import { parseServerEnv } from "@/lib/env";
 import { createDeepSeekClient } from "@/lib/agent/extraction";
 
@@ -43,105 +42,58 @@ export const inboxGmailPoll = inngest.createFunction(
 
     for (const conn of connections) {
       if (conn.environment_mode === "replay") continue;
-      await step.run(`sync-${conn.connection_id}`, async () => {
-        const cred = await rpc.rpc<{
-          encrypted_b64: string | null;
-          key_version: string | null;
-          sync_cursor: string | null;
-        }>("gmail_load_credential", {
-          org_id: conn.org_id,
-          connection_id: conn.connection_id,
-        });
-        if (!cred.encrypted_b64 || !cred.key_version || !env.CREDENTIAL_ENCRYPTION_KEY) {
-          return { ok: false, reason: "missing credential" };
-        }
-        const credential = parseGmailCredential(decryptCredential(
-          cred.encrypted_b64,
-          env.CREDENTIAL_ENCRYPTION_KEY,
-          cred.key_version,
-        ));
-        let api: GmailApi;
-        if (env.GMAIL_PROVIDER === "composio") {
-          if (credential.provider !== "composio" || !env.COMPOSIO_API_KEY) {
-            return { ok: false, reason: "provider credential mismatch" };
-          }
-          api = createComposioGmailApi(
-            createComposioClient(env.COMPOSIO_API_KEY),
-            conn.org_id,
-            credential.connectedAccountId,
-          );
-        } else {
-          if (
-            credential.provider !== "google" ||
-            !env.GOOGLE_CLIENT_ID ||
-            !env.GOOGLE_CLIENT_SECRET ||
-            !env.GOOGLE_REDIRECT_URI
-          ) {
-            return { ok: false, reason: "provider credential mismatch" };
-          }
-          const oauth2 = new google.auth.OAuth2(
-            env.GOOGLE_CLIENT_ID,
-            env.GOOGLE_CLIENT_SECRET,
-            env.GOOGLE_REDIRECT_URI,
-          );
-          oauth2.setCredentials({ refresh_token: credential.refreshToken });
-          api = createGoogleGmailApi(oauth2);
-        }
-        const synced = await syncGmailConnection({
+      await step.run(`sync-${conn.connection_id}`, () =>
+        syncGmailConnectionById({
+          rpc,
+          env,
           orgId: conn.org_id,
           connectionId: conn.connection_id,
-          api,
-          now: () => new Date(),
-          store: {
-            // Re-read the cursor so the CAS compares against fresh state,
-            // not the value captured before this sync started.
-            getCursor: async (orgId, connectionId) => {
-              const fresh = await rpc.rpc<{ sync_cursor: string | null }>(
-                "gmail_load_credential",
-                { org_id: orgId, connection_id: connectionId },
-              );
-              return fresh.sync_cursor;
-            },
-            storeMessage: async (m) => {
-              const r = await ingestMessage({
-                rpc,
-                orgId: m.orgId,
-                connectionId: m.connectionId,
-                providerMessageId: m.providerMessageId,
-                providerThreadId: m.providerThreadId,
-                raw: m.raw,
-                historical: m.historical,
-                direction: m.direction,
-              });
-              return r.created;
-            },
-            setStatus: async (orgId, connectionId, status, code) => {
-              await rpc.rpc("gmail_set_status", {
-                org_id: orgId,
-                connection_id: connectionId,
-                status,
-                error_code: code,
-              });
-            },
-            advanceCursor: async (orgId, connectionId, expected, next) => {
-              const r = await rpc.rpc<{ advanced: boolean }>(
-                "gmail_advance_cursor",
-                {
-                  org_id: orgId,
-                  connection_id: connectionId,
-                  expected_cursor: expected,
-                  new_cursor: next,
-                },
-              );
-              return r.advanced;
-            },
-          },
-        });
-        await publishPending(serverLedger());
-        return synced;
-      });
+          publish: () => publishPending(serverLedger()),
+        }),
+      );
     }
     return { synced: connections.length };
+  },
+);
+
+/**
+ * Keeps Gmail push watches alive. users.watch expires after at most 7 days;
+ * this registers new connections and renews anything close to expiry. The poll
+ * above keeps running regardless, so a missed renewal only costs latency.
+ */
+export const inboxGmailWatchRenew = inngest.createFunction(
+  {
+    id: "inbox-gmail-watch-renew",
+    triggers: [{ cron: GMAIL_WATCH_RENEW_CRON }],
+    concurrency: [{ limit: 1 }],
+  },
+  async ({ step }) => {
+    const env = parseServerEnv(process.env);
+    if (!gmailWatchEnabled(env)) {
+      return { skipped: true, reason: "gmail push disabled or not configured" };
+    }
+    const rpc = supabaseRpcClient(createServiceClient());
+
+    const due = await step.run("list-due-watches", async () =>
+      (await listWatchesDue({ rpc, env })).map((s) => ({
+        orgId: s.orgId,
+        connectionId: s.connectionId,
+      })),
+    );
+
+    let renewed = 0;
+    for (const conn of due) {
+      const outcome = await step.run(`watch-${conn.connectionId}`, () =>
+        registerWatchForConnection({
+          rpc,
+          env,
+          orgId: conn.orgId,
+          connectionId: conn.connectionId,
+        }),
+      );
+      if (outcome.ok) renewed += 1;
+    }
+    return { due: due.length, renewed };
   },
 );
 

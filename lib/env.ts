@@ -13,6 +13,13 @@ const optionalHttpsUrl = z
   }, "must be an https URL")
   .optional()
   .or(z.literal(""));
+const optionalPubSubTopic = z
+  .string()
+  .trim()
+  .regex(/^projects\/[^/\s]+\/topics\/[^/\s]+$/, "must be projects/<project>/topics/<topic>")
+  .optional()
+  .or(z.literal(""));
+const optionalServiceAccountEmail = z.string().trim().email().optional().or(z.literal(""));
 const optionalBridgeSecret = z.string().trim().min(32).optional().or(z.literal(""));
 
 export const serverEnvSchema = z.object({
@@ -39,6 +46,9 @@ export const serverEnvSchema = z.object({
   SHOPIFY_CLIENT_ID: optionalNonempty,
   SHOPIFY_CLIENT_SECRET: optionalNonempty,
   GMAIL_PROVIDER: z.enum(["google", "composio"]).default("google"),
+  GMAIL_PUBSUB_TOPIC: optionalPubSubTopic,
+  GMAIL_PUBSUB_AUDIENCE: optionalNonempty,
+  GMAIL_PUBSUB_SERVICE_ACCOUNT_EMAIL: optionalServiceAccountEmail,
   COMPOSIO_API_KEY: optionalNonempty,
   COMPOSIO_GMAIL_AUTH_CONFIG_ID: optionalNonempty,
   ELEVENLABS_API_KEY: optionalNonempty,
