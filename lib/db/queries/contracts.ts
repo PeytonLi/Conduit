@@ -60,6 +60,15 @@ export const supplierApprovalRequestSchema = z.object({
   decision: z.enum(["approve", "block", "revoke"]),
   expected_version: z.number().int().positive(),
   reason: z.string().trim().min(1).max(2000),
+  evidence_ids: z.array(uuid).max(20).default([]),
+  evidence_note: z.string().trim().max(2000).nullable().optional(),
+}).superRefine((value, ctx) => {
+  if (value.scope === "contact" && !value.contact_id) {
+    ctx.addIssue({ code: "custom", path: ["contact_id"], message: "Select a contact" });
+  }
+  if (value.scope === "purchasing" && value.decision === "approve" && !value.evidence_ids.length && !value.evidence_note) {
+    ctx.addIssue({ code: "custom", path: ["evidence_note"], message: "Record onboarding evidence" });
+  }
 });
 
 export const demoRunRequestSchema = z.object({

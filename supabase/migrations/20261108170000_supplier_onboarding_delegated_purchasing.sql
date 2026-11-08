@@ -46,6 +46,7 @@ alter table public.supplier_onboarding_events enable row level security;
 create policy tenant_member_select on public.supplier_onboarding_events
   for select to authenticated using (public.is_member(org_id));
 grant select on public.supplier_onboarding_events to authenticated;
+grant all on public.supplier_onboarding_events to service_role;
 
 -- candidate -> contact_approved -> purchasing_eligible, or blocked. Derived, so imports and any
 -- other writer of purchasing_status can never leave a stored stage out of step.
@@ -92,6 +93,10 @@ declare
   v_evidence uuid[] := coalesce(p_evidence_ids, '{}');
   v_note text := nullif(btrim(coalesce(p_evidence_note, '')), '');
 begin
+  if private.member_role(p_org, p_actor) is distinct from 'owner' then
+    raise exception using errcode = 'P0403', message = 'owner_required';
+  end if;
+  perform 1 from public.organizations where id = p_org for update;
   if nullif(btrim(p_reason), '') is null then
     raise exception using errcode = 'P0422', message = 'reason_required';
   end if;
@@ -162,7 +167,10 @@ begin
     if p_decision = 'approve' and supplier_row.purchasing_status = 'blocked' then
       raise exception using errcode = 'P0422', message = 'supplier_blocked';
     end if;
-    if p_decision = 'approve' and current_contact.identity_evidence_id is null then
+    if p_decision = 'approve' and not exists (
+      select 1 from public.evidence e where e.id = current_contact.identity_evidence_id
+        and e.org_id = p_org and e.verified_at is not null
+    ) then
       raise exception using errcode = 'P0422', message = 'identity_evidence_required';
     end if;
     if p_decision = 'approve' and not (current_contact.channel = any(current_contact.permitted_channels)) then
@@ -179,6 +187,12 @@ begin
         updated_at = now()
     where id = p_contact and supplier_id = p_supplier and org_id = p_org
     returning row_version into new_version;
+    if p_decision <> 'approve' and supplier_row.purchasing_status = 'approved'
+        and not exists (select 1 from public.supplier_contacts c
+          where c.org_id = p_org and c.supplier_id = p_supplier and c.outreach_approved_at is not null) then
+      update public.suppliers set purchasing_status = 'candidate', row_version = row_version + 1,
+        updated_at = now() where id = p_supplier and org_id = p_org;
+    end if;
   end if;
 
   v_to := private.supplier_onboarding_stage(p_org, p_supplier);
@@ -224,12 +238,15 @@ grant execute on function public.ui_supplier_approval(
 -- Suppliers named by a plan's purchase quotes that are not purchasing-eligible (candidate or blocked).
 create or replace function private.plan_unpurchasable_suppliers(p_org_id uuid, p_plan_id uuid)
 returns uuid[] language sql stable set search_path = public, pg_temp as $$
-  select coalesce(array_agg(distinct q.supplier_id), '{}')
+  select coalesce(array_agg(distinct coalesce(sp.id, s.id)), '{}')
   from public.plan_steps s
-  join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
-  join public.suppliers sp on sp.org_id = q.org_id and sp.id = q.supplier_id
-  where s.org_id = p_org_id and s.plan_id = p_plan_id and s.kind = 'purchase_bridge'
-    and s.payload ? 'quote_id' and sp.purchasing_status <> 'approved';
+  left join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
+  left join public.purchase_order_lines l on l.org_id = s.org_id and l.id = (s.payload->>'po_line_id')::uuid
+  left join public.purchase_orders po on po.org_id = l.org_id and po.id = l.purchase_order_id
+  left join public.suppliers sp on sp.org_id = s.org_id and sp.id = coalesce(q.supplier_id, po.supplier_id)
+  where s.org_id = p_org_id and s.plan_id = p_plan_id
+    and s.kind in ('purchase_bridge', 'amend_delivery_schedule', 'cancel_original_quantity')
+    and (sp.id is null or sp.purchasing_status <> 'approved');
 $$;
 
 -- Backstop at the ledger: no commitment action can be inserted for a plan that buys from a
@@ -456,6 +473,7 @@ returns integer language plpgsql set search_path = public, pg_temp as $$
 declare
   r record;
   v_count integer := 0;
+  v_state public.action_state;
 begin
   for r in
     select a.id as approval_id, a.plan_id, a.status as approval_status, a.consumed_by_action_id,
@@ -471,8 +489,11 @@ begin
     if r.approval_status = 'active' then
       update public.approvals set status = 'revoked' where id = r.approval_id;
     else
+      select state into v_state from public.actions where id = r.action_id for update;
+      if v_state is distinct from 'prepared' then continue; end if;
       update public.actions set state = 'cancelled', error_code = 'delegation_disabled', updated_at = p_now,
         row_version = row_version + 1 where id = r.action_id and state = 'prepared';
+      update public.approvals set status = 'revoked' where id = r.approval_id;
       perform private.release_claims(p_org_id, r.action_id, 'released', p_now);
       perform private.audit(p_org_id, 'system', 'delegation', r.case_id, 'action', r.action_id,
         'action.cancelled', r.action_version, r.action_version + 1, 'delegated purchasing disabled: ' || p_reason, p_now);
@@ -525,9 +546,8 @@ begin
     where id = p_org_id;
   perform private.audit(p_org_id, 'user', p_actor_user_id::text, null, 'policy', v_id,
     'policy.version_created', v_current, v_current + 1, p_reason, p_now);
-  if coalesce((p_settings #>> '{delegated_purchasing,enabled}')::boolean, false) is not true then
-    v_revoked := private.revoke_delegated_commitments(p_org_id, 'policy version ' || (v_current + 1) || ': ' || p_reason, p_now);
-  end if;
+  -- Any new policy invalidates the snapshot that authorized outstanding delegated work.
+  v_revoked := private.revoke_delegated_commitments(p_org_id, 'policy version ' || (v_current + 1) || ': ' || p_reason, p_now);
   perform public.outbox_enqueue(p_org_id, 'policy.changed', v_id,
     jsonb_build_object('policy_version_id', v_id), null, null, p_now);
   return jsonb_build_object('ok', true, 'policy_version_id', v_id, 'version', v_current + 1,
@@ -605,6 +625,8 @@ declare
   v_existing record;
   v_basis jsonb;
 begin
+  -- Serialize with policy changes, the kill switch, and other delegated approvals (daily budget).
+  perform 1 from public.organizations where id = p_org_id for update;
   select * into v_policy from private.current_policy(p_org_id);
   v_cfg := v_policy.settings -> 'delegated_purchasing';
   if coalesce((v_cfg->>'enabled')::boolean, false) is not true then
@@ -647,8 +669,27 @@ begin
   end if;
   if v_gross is null then
     v_denials := v_denials || 'amount_unknown'::text;
-  elsif v_gross > v_ceiling then
+  elsif v_gross < 0 or v_gross > v_ceiling then
     v_denials := v_denials || 'over_ceiling'::text;
+  end if;
+  -- Do not trust a planner's ready label or amount: every bridge must match verified DB terms.
+  if exists (
+    select 1 from public.plan_steps s
+    left join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
+    where s.org_id = p_org_id and s.plan_id = p_plan_id and (
+      q.id is null or q.case_id <> v_plan.case_id or q.status <> 'verified'
+      or q.item_id <> v_case.item_id or q.destination_location_id is distinct from v_case.location_id
+      or q.quantity is distinct from s.quantity or q.unit is distinct from s.unit
+      or q.unit_price_minor is null or q.freight_minor is null or q.fees_minor is null
+      or q.nonrecoverable_tax_minor is null or q.arrival_end is null
+      or q.valid_until is null or q.valid_until <= p_now or q.latest_order_at <= p_now
+    )
+  ) or v_gross is distinct from (
+    select sum(q.quantity::bigint * q.unit_price_minor + q.freight_minor + q.fees_minor + q.nonrecoverable_tax_minor)
+    from public.plan_steps s join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
+    where s.org_id = p_org_id and s.plan_id = p_plan_id
+  ) then
+    v_denials := v_denials || 'unverified_purchase_terms'::text;
   end if;
   if v_cfg->>'currency' is distinct from v_org.currency or exists (
     select 1 from public.plan_steps s join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
@@ -757,3 +798,154 @@ grant execute on function public.delegation_kill_switch(uuid, uuid, text, timest
 revoke all on function public.approve_plan_delegated(uuid, uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.approve_plan_delegated(uuid, uuid, timestamptz) to service_role;
 grant execute on all functions in schema private to service_role;
+
+-- Planner writes steps before finalization. Capture their material snapshot and try the same
+-- delegated gate used by API-created plans; denials leave a ready plan waiting for its owner.
+create or replace function public.plan_finalize(p_org_id uuid, p_plan_id uuid, p_now timestamptz default now())
+returns jsonb language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_plan public.recovery_plans%rowtype;
+  v_result jsonb;
+begin
+  perform 1 from public.organizations where id = p_org_id for update;
+  select * into v_plan from public.recovery_plans where id = p_plan_id and org_id = p_org_id for update;
+  if not found then return private.result_error('not_found', 'Plan not found'); end if;
+  perform 1 from public.cases where id = v_plan.case_id and org_id = p_org_id for update;
+  if v_plan.status = 'ready' then
+    if v_plan.input_fingerprint = '' then
+      update public.recovery_plans set
+        input_fingerprint = public.plan_material_fingerprint(p_org_id, p_plan_id),
+        policy_version_id = (select current_policy_version_id from public.organizations where id = p_org_id),
+        expires_at = (select min(least(q.valid_until, coalesce(q.latest_order_at, q.valid_until)))
+          from public.plan_steps s join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
+          where s.org_id = p_org_id and s.plan_id = p_plan_id)
+      where id = p_plan_id;
+    end if;
+    v_result := public.approve_plan_delegated(p_org_id, p_plan_id, p_now);
+    if not coalesce((v_result->>'ok')::boolean, false) then
+      update public.cases set phase = 'awaiting_approval', updated_at = p_now, row_version = row_version + 1
+      where id = v_plan.case_id and org_id = p_org_id and run_control = 'active' and phase <> 'closed';
+    end if;
+  end if;
+  select * into v_plan from public.recovery_plans where id = p_plan_id and org_id = p_org_id;
+  return jsonb_build_object('ok', true, 'plan', to_jsonb(v_plan));
+end;
+$$;
+revoke all on function public.plan_finalize(uuid, uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.plan_finalize(uuid, uuid, timestamptz) to service_role;
+
+-- Recheck supplier eligibility at dispatch, serialized with the delegation kill switch.
+create or replace function public.ledger_claim_dispatch(
+  p_org_id uuid, p_action_id uuid, p_lease_seconds integer default 300, p_now timestamptz default now()
+) returns jsonb language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_action record;
+  v_case record;
+  v_settings jsonb;
+  v_denials text[];
+  v_approval record;
+begin
+  perform 1 from public.organizations where id = p_org_id for update;
+  select * into v_action from public.actions where id = p_action_id and org_id = p_org_id for update;
+  if not found then return private.result_error('not_found', 'Action not found'); end if;
+  if v_action.state <> 'prepared' then
+    return private.result_error('not_claimable', 'Action is not prepared',
+      jsonb_build_object('action', private.action_json(p_org_id, p_action_id)));
+  end if;
+  if v_action.plan_id is not null and cardinality(private.plan_unpurchasable_suppliers(p_org_id, v_action.plan_id)) > 0 then
+    update public.actions set state = 'cancelled', error_code = 'supplier_not_purchasable', updated_at = p_now,
+      row_version = row_version + 1 where id = p_action_id;
+    perform private.release_claims(p_org_id, p_action_id, 'released', p_now);
+    return private.result_error('supplier_not_purchasable', 'Supplier purchasing approval was revoked before dispatch');
+  end if;
+  select * into v_case from public.cases where id = v_action.case_id and org_id = p_org_id;
+  -- Preserve mailbox-aware claim rules from 20261108130000_outlook_multi_mailbox.sql:
+  -- require the named mailbox (or any healthy mailbox when unset), not "any Gmail".
+  if v_action.kind = 'supplier_email'
+    and v_action.mode <> 'replay'
+    and not exists (
+    select 1
+    from public.connections c
+    where c.org_id = p_org_id
+      and c.provider = any(private.mailbox_providers())
+      and c.status in ('healthy', 'degraded')
+      and (
+        nullif(v_action.payload->>'connection_id', '') is null
+        or c.id = (v_action.payload->>'connection_id')::uuid
+      )
+  ) then
+    return private.result_error(
+      'failed_precondition',
+      'Mailbox connection is unavailable',
+      jsonb_build_object('reason', 'connection_unavailable')
+    );
+  end if;
+  if v_action.kind in ('live_business_amendment', 'live_business_transfer') and not exists (
+    select 1 from public.connections c
+    where c.org_id = p_org_id and c.id = (v_action.payload->'erp'->>'connection_id')::uuid
+      and c.status in ('healthy', 'degraded')
+  ) then
+    return private.result_error('failed_precondition', 'Business system connection is unavailable',
+      jsonb_build_object('reason', 'connection_unavailable'));
+  end if;
+  if v_action.permitted_by is not null and not exists (
+    select 1
+    from public.memberships m
+    where m.org_id = p_org_id
+      and m.auth_user_id = v_action.permitted_by
+      and m.active
+  ) then
+    return private.result_error(
+      'failed_precondition',
+      'The action preparer is no longer an active organization member',
+      jsonb_build_object('reason', 'preparer_revoked')
+    );
+  end if;
+  select settings into v_settings from private.current_policy(p_org_id);
+  if (private.policy_setting(coalesce(v_settings, '{}'), '{dispatch_paused}', 'false'))::boolean then
+    return private.result_error('dispatch_paused', 'Dispatch is paused by organization policy');
+  end if;
+  if v_case.run_control <> 'active' then
+    return private.result_error('case_not_active', 'Case is paused or blocked',
+      jsonb_build_object('run_control', v_case.run_control));
+  end if;
+  if v_action.mode <> (select environment_mode from public.organizations where id = p_org_id) then
+    update public.actions set state = 'cancelled', error_code = 'mode_changed', updated_at = p_now,
+      row_version = row_version + 1 where id = p_action_id;
+    perform private.release_claims(p_org_id, p_action_id, 'released', p_now);
+    return private.result_error('mode_changed', 'Organization mode changed after preparation');
+  end if;
+  if v_action.kind in ('supplier_email', 'supplier_call') then
+    v_denials := private.outreach_denials(p_org_id, v_action.case_id, v_action.contact_id,
+      case v_action.kind when 'supplier_email' then 'email' else 'phone' end, p_now, false);
+    if cardinality(v_denials) > 0 then
+      return private.result_error('policy_denied', 'Outreach is not currently permitted',
+        jsonb_build_object('denials', to_jsonb(v_denials)));
+    end if;
+  else
+    select * into v_approval from public.approvals where id = v_action.approval_id and org_id = p_org_id for update;
+    if v_approval.expires_at <= p_now then
+      update public.actions set state = 'cancelled', error_code = 'approval_expired', updated_at = p_now,
+        row_version = row_version + 1 where id = p_action_id;
+      perform private.release_claims(p_org_id, p_action_id, 'released', p_now);
+      update public.approvals set status = 'expired' where id = v_approval.id;
+      update public.recovery_plans set status = 'ready', row_version = row_version + 1, updated_at = p_now
+      where id = v_action.plan_id and org_id = p_org_id;
+      update public.cases set phase = 'awaiting_approval', updated_at = p_now, row_version = row_version + 1
+      where id = v_action.case_id and org_id = p_org_id;
+      perform private.audit(p_org_id, 'system', 'dispatcher', v_action.case_id, 'action', p_action_id,
+        'action.cancelled', v_action.row_version, v_action.row_version + 1, 'approval expired before dispatch', p_now);
+      perform public.outbox_enqueue(p_org_id, 'action.outcome.recorded', p_action_id,
+        jsonb_build_object('action_id', p_action_id, 'outcome_version', v_action.row_version + 1), null, null, p_now);
+      return private.result_error('approval_expired', 'Approval expired before dispatch; renewal required');
+    end if;
+  end if;
+  update public.actions set state = 'dispatching', dispatch_started_at = p_now, attempts = attempts + 1,
+    next_reconcile_at = p_now + make_interval(secs => p_lease_seconds), updated_at = p_now,
+    row_version = row_version + 1
+  where id = p_action_id;
+  perform private.audit(p_org_id, 'system', 'dispatcher', v_action.case_id, 'action', p_action_id,
+    'action.dispatching', v_action.row_version, v_action.row_version + 1, null, p_now);
+  return jsonb_build_object('ok', true, 'action', private.action_json(p_org_id, p_action_id));
+end;
+$$;

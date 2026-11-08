@@ -150,8 +150,13 @@ export function createProposeRecoveryPlanTool(
 
       // Policy ceiling check uses incremental; unknown incremental => exceeds.
       const policy = await deps.store.getCurrentPolicy(ctx.orgId);
-      const ceilingRaw = (policy?.settings as Record<string, unknown> | undefined)
-        ?.procurement_ceiling_minor;
+      const settings = policy?.settings as {
+        procurement_ceiling_minor?: string;
+        negotiation?: { ceiling_minor?: string | null };
+        delegated_purchasing?: { enabled?: boolean; ceiling_minor?: string | null };
+      } | undefined;
+      const ceilingRaw = settings?.procurement_ceiling_minor ?? settings?.negotiation?.ceiling_minor ??
+        (settings?.delegated_purchasing?.enabled ? settings.delegated_purchasing.ceiling_minor : null);
       const ceiling = ceilingRaw === undefined || ceilingRaw === null ? null : BigInt(String(ceilingRaw));
       const exceeds = incrementalStr === null || ceiling === null || incremental > ceiling;
 
@@ -177,6 +182,7 @@ export function createProposeRecoveryPlanTool(
 
       const version = await deps.store.nextPlanVersion(ctx.orgId, ctx.caseId);
       const plan = await deps.store.insertRecoveryPlan({
+        now: deps.clock.now().toISOString(),
         orgId: ctx.orgId,
         caseId: ctx.caseId,
         version,
@@ -196,7 +202,7 @@ export function createProposeRecoveryPlanTool(
         {
           plan_id: plan.id,
           version,
-          status,
+          status: plan.status,
           gross_commitment_minor: grossStr,
           incremental_cost_minor: incrementalStr,
           missing_fields: [...new Set(missingFields)],

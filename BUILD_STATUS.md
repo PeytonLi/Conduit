@@ -6,7 +6,7 @@ Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submi
 
 ## Observed workspace state
 
-- Live policy configuration is owner-gated; delegated purchasing is not yet available, and every commitment still requires fresh owner approval.
+- Policy configuration is owner-gated. Optional delegated low-value bridge-purchase approvals are implemented; delegation defaults off, so every commitment still needs fresh owner approval until an owner explicitly enables a bounded policy. Hosted migration/configuration and a live owner acceptance run remain open.
 - Research notes exist at research/neathack-research.md.
 - PRD, handoff, and detailed reference chapters have been authored.
 - The application lives in the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit) with 23 Supabase migrations applied to the hosted project (including the live business-connector tables).
@@ -36,6 +36,15 @@ Execute the Render live E2E using [docs/evidence/render-e2e-runbook.md](docs/evi
 
 1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage) — tracked in [docs/evidence/submission-checklist.md](docs/evidence/submission-checklist.md).
 2. M6 evidence bundle, demo video and submission artifacts — slots under `docs/evidence/artifacts/`; see [docs/evidence/README.md](docs/evidence/README.md).
+
+## Supplier onboarding and delegated purchasing — November 8, 2026
+
+- Implemented locally: supplier stages (`candidate` → `contact_approved` → `purchasing_eligible`, plus blocked), separate owner approvals, evidence notes/IDs, immutable tenant-scoped onboarding history, and contact-version conflict checks. Revoking the last approved contact removes purchasing eligibility. Candidate/blocked suppliers cannot authorize commitments; eligibility is rechecked before dispatch.
+- Owners can optionally enable bounded bridge-purchase approvals in Settings → Policies: ceiling in integer minor units, matching business currency, supplier allowlist, local weekdays/hours, and a daily limit. Default remains off. Ready plans from the API and planner run the database gate; approvals and audit events explicitly identify delegation, policy version, evaluated terms, and the accountable owner. Planner finalization captures the material fingerprint and uses the replay clock.
+- The owner-only emergency disable control revokes outstanding delegated approvals and cancels prepared actions. Policy changes do the same. Concurrent approvals share a database lock so they cannot exceed the daily limit. Already dispatched work cannot be retracted; ordinary owner approvals are retained.
+- Verification: lint and typecheck passed; full unit suite **982 passed, 24 skipped**; **48 integration tests passed** across onboarding/delegation, approvals, actions, live transfers, planner/ledger, and ledger suites against an isolated local PostgreSQL database. The complete feature migration also applied successfully to a fresh schema clone. Production build passed with local Supabase environment values.
+- **Not deployed or verified live.** Apply migration `20261108170000_supplier_onboarding_delegated_purchasing.sql` before the application update. Owners still need verified contact identity evidence, separate contact/purchasing decisions, correct organization currency/timezone, and explicit delegation opt-in. No automatic purchase-order creation is added: approved bridge purchases use the existing manual export/handoff path. Full browser journeys and the entire integration suite were not run in this worktree. Setup and limits: [docs/supplier-onboarding-delegation.md](docs/supplier-onboarding-delegation.md).
+- The build reports a security upgrade notice for the existing pinned Next.js 16.4.0 dependency; no dependency versions were changed in this feature.
 
 ## Outlook and multiple mailboxes — November 8, 2026
 

@@ -92,6 +92,8 @@ export interface PlanActionView {
 }
 
 export interface ApprovalView {
+  approval_mode?: "owner" | "delegated";
+  delegated_policy_version_id?: string | null;
   plan_id: string;
   plan_version: number;
   status: string;
@@ -831,6 +833,8 @@ export async function getCaseDetail(
   let planView: ApprovalView | null = null;
   const plan = base.plan;
   if (plan) {
+    const approvalRows = await selectRows(base.client.from("approvals").select("approval_mode,delegated_policy_version_id")
+      .eq("org_id", context.orgId).eq("plan_id", plan.id).order("created_at", { ascending: false }).limit(1));
     const planSteps = await selectRows(
       base.client.from("plan_steps").select("*")
         .eq("org_id", context.orgId)
@@ -849,6 +853,8 @@ export async function getCaseDetail(
     ) ?? (planSteps.length > 0 && planSteps.every((step) => step.kind === "transfer_stock") ? undefined : quoteRows[0]);
     const supplier = quote ? base.data.suppliers.get(quote.supplier_id) : null;
     planView = {
+      approval_mode: approvalRows[0]?.approval_mode ?? "owner",
+      delegated_policy_version_id: approvalRows[0]?.delegated_policy_version_id ?? null,
       plan_id: plan.id,
       plan_version: plan.version,
       status: plan.status,

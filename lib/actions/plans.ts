@@ -94,7 +94,7 @@ export interface PlanView {
     payload: Record<string, unknown>;
     missing_fields: string[];
   }[];
-  approvals: { id: string; status: string; expires_at: string; consumed_by_action_id: string | null }[];
+  approvals: { id: string; status: string; expires_at: string; consumed_by_action_id: string | null; approval_mode: "owner" | "delegated" }[];
   actions: { id: string; kind: string; state: string; plan_step_id: string | null; error_code?: string | null }[];
 }
 
@@ -106,7 +106,7 @@ export async function createPlan(
 ) {
   const refused = await preflightTransferSteps(deps, input.orgId, input.body.steps);
   if (refused) return refused;
-  return callLedger<{ plan_id: string; version: number; status: string; input_fingerprint: string; replayed?: boolean }>(
+  const created = await callLedger<{ plan_id: string; version: number; status: string; input_fingerprint: string; replayed?: boolean }>(
     deps.rpc,
     "plan_create",
     {
@@ -119,6 +119,12 @@ export async function createPlan(
       p_now: nowIso(deps),
     },
   );
+  if (!created.ok || created.status !== "ready") return created;
+  const finalized = await callLedger<{ plan: { status: string } }>(deps.rpc, "plan_finalize", {
+    p_org_id: input.orgId, p_plan_id: created.plan_id, p_now: nowIso(deps),
+  });
+  if (!finalized.ok) return finalized;
+  return { ...created, status: finalized.plan.status };
 }
 
 export function getPlan(deps: DispatcherDeps, orgId: string, planId: string) {

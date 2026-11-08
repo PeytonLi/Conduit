@@ -24,7 +24,7 @@ export default async function SuppliersPage() {
         <Card className={styles.card} key={supplier.id}>
           <header className={styles.cardHeader}>
             <h2>{supplier.name}</h2>
-            <StatusBadge>{humanLabel("supplierStatus", supplier.purchasing_status)}</StatusBadge>
+            <StatusBadge>{supplier.stage.replaceAll("_", " ")}</StatusBadge>
           </header>
           {supplier.approval_at && <p className={styles.updated}>Approval updated {formatDateTime(supplier.approval_at, organization.timezone)}</p>}
           <section aria-label={`${supplier.name} contacts`}>
@@ -53,6 +53,17 @@ export default async function SuppliersPage() {
             {membership.role === "owner"
               ? <SupplierApprovalControls supplier={supplier} />
               : <p>Only an owner can change supplier approvals.</p>}
+          </Disclosure>
+          <Disclosure summary="Onboarding history">
+            {supplier.onboarding_events.length ? <ul className={styles.list}>{supplier.onboarding_events.map((event) => (
+              <li key={event.id}>
+                <strong>{event.scope}: {event.decision} · {event.to_stage.replaceAll("_", " ")}</strong>
+                <span>{formatDateTime(event.occurred_at, organization.timezone)} · Owner {event.actor_user_id}</span>
+                <span>{event.reason}</span>
+                {event.evidence_note && <span>{event.evidence_note}</span>}
+                {event.evidence_ids.length > 0 && <span>Evidence: {event.evidence_ids.join(", ")}</span>}
+              </li>
+            ))}</ul> : <p>No onboarding decisions recorded.</p>}
           </Disclosure>
         </Card>
       )) : <EmptyState icon="truck" message="No suppliers are available." />}

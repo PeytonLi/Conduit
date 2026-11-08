@@ -38,10 +38,14 @@ export function PolicyEditor({
   version,
   initialSettings,
   currency,
+  timeZone,
+  suppliers,
 }: {
   version: number;
   initialSettings: PolicySettings;
   currency: string;
+  timeZone: string;
+  suppliers: { id: string; name: string; purchasing_status: string }[];
 }) {
   const router = useRouter();
   const [currentVersion, setCurrentVersion] = useState(version);
@@ -57,6 +61,27 @@ export function PolicyEditor({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const delegation = settings.delegated_purchasing;
+  function updateDelegation(next: Partial<PolicySettings["delegated_purchasing"]>) {
+    setSettings({ ...settings, delegated_purchasing: { ...delegation, ...next } });
+  }
+
+  async function killDelegation() {
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await postJson<{ version: number; delegated_commitments_revoked: number }>("/api/v1/policies/delegation/disable", { reason: reason.trim() });
+      setCurrentVersion(result.version);
+      updateDelegation({ enabled: false });
+      setMessage(`Delegation disabled. ${result.delegated_commitments_revoked} outstanding commitments revoked.`);
+      router.refresh();
+    } catch (error) {
+      setError(workspaceErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save() {
     setError("");
@@ -113,6 +138,11 @@ export function PolicyEditor({
       >
         {editing ? "Cancel editing" : "Edit policy"}
       </Button>
+      <label className={styles.field}>Reason for emergency disable<input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+      <Button disabled={saving || !reason.trim()} onClick={() => void killDelegation()} variant="secondary">Disable delegated purchasing now</Button>
+      <p className={styles.note}>Disables delegation and cancels work awaiting dispatch. Already dispatched work cannot be retracted.</p>
+      {!editing && error && <p role="alert">{error}</p>}
+      {!editing && message && <p role="status">{message}</p>}
       {editing && <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <fieldset className={styles.group}>
         <legend>Dispatch</legend>
@@ -154,6 +184,27 @@ export function PolicyEditor({
         <p className={styles.note}>Commitment authority: owner</p>
         <label className={styles.field}>Negotiation ceiling ({currency})<input inputMode="decimal" onChange={(event) => setCeiling(event.target.value)} value={ceiling} /></label>
         <label className={styles.field}>Approval validity (minutes)<input type="number" min={1} max={30} value={settings.approval.validity_seconds / 60} onChange={(event) => numberField(settings, "approval", "validity_seconds", Number(event.target.value) * 60, setSettings)} /></label>
+      </fieldset>
+      <fieldset className={styles.group}>
+        <legend>Delegated low-value purchasing</legend>
+        <p className={styles.note}>Off by default: every commitment needs fresh owner approval. When enabled, eligible bridge purchases within these limits receive a labeled delegated approval. Hours use {timeZone}. Empty allowlist covers all purchasing-eligible suppliers.</p>
+        <label className={styles.checkField}><input type="checkbox" checked={delegation.enabled} onChange={(event) => updateDelegation({ enabled: event.target.checked, currency: delegation.currency ?? currency })} /> Enable delegated purchasing</label>
+        <label className={styles.field}>Delegated ceiling (integer minor units)<input inputMode="numeric" value={delegation.ceiling_minor ?? ""} onChange={(event) => updateDelegation({ ceiling_minor: event.target.value || null })} /></label>
+        <label className={styles.field}>Delegated currency<input maxLength={3} value={delegation.currency ?? currency} onChange={(event) => updateDelegation({ currency: event.target.value.toUpperCase() })} /></label>
+        <fieldset className={styles.days}><legend>Supplier allowlist</legend>
+          {suppliers.map((supplier) => <label className={styles.weekday} key={supplier.id}>
+            <input type="checkbox" checked={delegation.supplier_allowlist.includes(supplier.id)} onChange={(event) => updateDelegation({ supplier_allowlist: event.target.checked ? [...delegation.supplier_allowlist, supplier.id] : delegation.supplier_allowlist.filter((id) => id !== supplier.id) })} />
+            {supplier.name} ({supplier.purchasing_status === "approved" ? "purchasing eligible" : "not purchasing eligible"})
+          </label>)}
+        </fieldset>
+        <fieldset className={styles.days}><legend>Delegated weekdays</legend>
+          {weekdays.map(([day, label]) => <label className={styles.weekday} key={day}>
+            <input type="checkbox" checked={delegation.hours.weekdays.includes(day)} onChange={(event) => updateDelegation({ hours: { ...delegation.hours, weekdays: event.target.checked ? [...delegation.hours.weekdays, day].sort() : delegation.hours.weekdays.filter((value) => value !== day) } })} /> {label}
+          </label>)}
+        </fieldset>
+        <label className={styles.field}>Delegated hours start<input type="time" value={delegation.hours.start} onChange={(event) => updateDelegation({ hours: { ...delegation.hours, start: event.target.value } })} /></label>
+        <label className={styles.field}>Delegated hours end<input type="time" value={delegation.hours.end} onChange={(event) => updateDelegation({ hours: { ...delegation.hours, end: event.target.value } })} /></label>
+        <label className={styles.field}>Max delegated approvals per day<input type="number" min={1} max={20} value={delegation.max_auto_approvals_per_day} onChange={(event) => updateDelegation({ max_auto_approvals_per_day: Number(event.target.value) })} /></label>
       </fieldset>
       <fieldset className={styles.group}>
         <legend>Freshness (minutes)</legend>

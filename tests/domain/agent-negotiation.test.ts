@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createRecordProvisionalOfferTool } from "@/lib/agent/tools/record-provisional-offer";
 import { createProposeRecoveryPlanTool } from "@/lib/agent/tools/propose-recovery-plan";
 import { createToolRegistry, TOOL_NAMES } from "@/lib/agent/tools/registry";
@@ -150,6 +150,25 @@ describe("AT-16 negotiation and plan authority", () => {
       }
       expect([...store.reviews.values()].length).toBe(1);
     }
+  });
+
+  it.each([
+    [{ negotiation: { ceiling_minor: "100000" } }, "ready"],
+    [{ delegated_purchasing: { enabled: true, ceiling_minor: "100000" } }, "ready"],
+    [{ delegated_purchasing: { enabled: false, ceiling_minor: "100000" } }, "draft"],
+  ])("uses configured policy ceilings and passes the replay clock to finalization", async (settings, status) => {
+    const store = harborStore();
+    await store.insertQuote(verifiedQuote());
+    store.policies.push({ id: "pol-1", org_id: ctx.orgId, version: 1, settings });
+    const insert = vi.spyOn(store, "insertRecoveryPlan");
+    const tool = createProposeRecoveryPlanTool({ store, clock, preparer: createFakePreparer(store) });
+    const result = await tool.run(ctx, {
+      assessment_id: ASSESSMENT_A,
+      steps: [{ step_id: "s1", kind: "purchase_bridge", quantity: 600, quote_id: "q-1" }],
+      evidence_ids: ["70000000-0000-4000-8000-000000000004"],
+    });
+    expect(result).toMatchObject({ ok: true, data: { status } });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ now: clock.now().toISOString() }));
   });
 
   it("amend_delivery_schedule without quote_id -> missing_quote", async () => {

@@ -487,6 +487,7 @@ export interface PlannerStore {
   insertUsageEvent(input: UsageEventInput): Promise<void>;
   getCurrentPolicy(orgId: string): Promise<PolicyRecord | null>;
   insertRecoveryPlan(input: {
+    now: string;
     orgId: string;
     caseId: string;
     version: number;

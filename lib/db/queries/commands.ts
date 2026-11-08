@@ -40,6 +40,8 @@ export interface SupplierApprovalInput {
   decision: "approve" | "block" | "revoke";
   expectedVersion: number;
   reason: string;
+  evidenceIds?: string[];
+  evidenceNote?: string | null;
   requestId?: string;
 }
 
@@ -62,6 +64,7 @@ export interface SupplierApprovalResult {
   decision: "approve" | "block" | "revoke";
   row_version: number;
   purchasing_status: string | null;
+  stage: "candidate" | "contact_approved" | "purchasing_eligible" | "blocked";
 }
 
 const safeMessages: Record<string, string> = {
@@ -87,6 +90,10 @@ const safeMessages: Record<string, string> = {
   invalid_scope: "Supplier approval scope is invalid",
   identity_evidence_required: "Identity evidence is required to approve this contact",
   channel_not_permitted: "The contact has not permitted this channel",
+  contact_approval_required: "Approve a supplier contact before purchasing eligibility",
+  onboarding_evidence_required: "Record onboarding evidence before purchasing eligibility",
+  evidence_not_found: "Evidence must belong to this organization",
+  supplier_blocked: "Revoke the supplier block before approving it",
 };
 
 export function mapRpcError(error: { code?: string; message?: string }): QueryError {
@@ -185,6 +192,8 @@ export async function supplierApproval(
       p_expected_version: input.expectedVersion,
       p_reason: input.reason,
       p_request_id: input.requestId ?? randomUUID(),
+      p_evidence_ids: input.evidenceIds ?? [],
+      p_evidence_note: input.evidenceNote ?? null,
     },
     deps,
   );

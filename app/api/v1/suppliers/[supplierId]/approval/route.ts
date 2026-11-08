@@ -25,6 +25,8 @@ export async function POST(
           decision: parsed.data.decision,
           expectedVersion: parsed.data.expected_version,
           reason: parsed.data.reason,
+          evidenceIds: parsed.data.evidence_ids,
+          evidenceNote: parsed.data.evidence_note,
           requestId,
         }),
       }));
