@@ -63,12 +63,6 @@ export function PolicyEditor({
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const delegation = settings.delegated_purchasing;
-  useEffect(() => {
-    setCurrentVersion(version);
-    setSettings(initialSettings);
-    // Sync from the server when a new policy version lands; ignore identity churn on settings.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- version is the refresh signal
-  }, [version]);
   function updateDelegation(next: Partial<PolicySettings["delegated_purchasing"]>) {
     setSettings({ ...settings, delegated_purchasing: { ...delegation, ...next } });
   }
