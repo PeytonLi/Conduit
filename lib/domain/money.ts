@@ -1,5 +1,6 @@
 import { DomainValidationError } from "./errors";
-import { assertQuantity } from "./quantity";
+import { assertQuantity, quantityToScaledInt } from "./quantity";
+import { MAX_QUANTITY_SCALE } from "./units";
 
 export const MAX_MONEY_MINOR = 1_000_000_000_000n;
 
@@ -94,11 +95,20 @@ export function sumMinor(...values: bigint[]): bigint {
   return sum;
 }
 
-export function mulQtyPrice(quantity: number, unitPriceMinor: bigint): bigint {
-  assertQuantity(quantity, "quantity");
+/**
+ * landed line cost from quantity × unit price. Quantities may be fractional; money stays integer minor units
+ * with half-up rounding at the minor unit.
+ */
+export function mulQtyPrice(quantity: number, unitPriceMinor: bigint, quantityScale = MAX_QUANTITY_SCALE): bigint {
+  assertQuantity(quantity, "quantity", quantityScale);
   assertMoney(unitPriceMinor, "unitPriceMinor");
   if (unitPriceMinor < 0n) throw new DomainValidationError("out_of_range", "unitPriceMinor");
-  const result = BigInt(quantity) * unitPriceMinor;
+  const qtyScaled = quantityToScaledInt(quantity, quantityScale);
+  const scaleFactor = 10n ** BigInt(quantityScale);
+  const product = qtyScaled * unitPriceMinor;
+  const quotient = product / scaleFactor;
+  const remainder = product % scaleFactor;
+  const result = remainder * 2n >= scaleFactor ? quotient + 1n : quotient;
   assertMoney(result);
   return result;
 }

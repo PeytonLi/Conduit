@@ -1,8 +1,14 @@
 import { z } from "zod";
 import { parseMinorUnits } from "./money";
+import { isQuantity, MAX_QUANTITY } from "./quantity";
 
 const nullableText = z.string().nullable();
-const quantity = z.number().int().min(0).max(1_000_000_000).nullable();
+const quantity = z
+  .number()
+  .min(0)
+  .max(MAX_QUANTITY)
+  .refine((value) => isQuantity(value), { message: "invalid_quantity_precision" })
+  .nullable();
 const money = z.string().regex(/^\d+$/).transform((value) => parseMinorUnits(value)).nullable();
 const arrivalWindow = z.object({
   start: nullableText,

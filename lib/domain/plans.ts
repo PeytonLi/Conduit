@@ -3,7 +3,7 @@ import { convertCost, type Conversion } from "./fx";
 import { projectInventory } from "./inventory";
 import { incrementalCost, type QuoteEvaluation } from "./quotes";
 import { MAX_MONEY_MINOR, mulQtyPrice, sumMinor } from "./money";
-import { isQuantity } from "./quantity";
+import { isQuantity, quantitiesEqual } from "./quantity";
 import { parseInstant } from "./time";
 import type { ProjectionDiagnostics } from "./projection-types";
 import type { ProjectionInput, ProjectionResult } from "./types";
@@ -122,7 +122,7 @@ export function validatePlan(args: PlanArgs): PlanValidation {
     if (step.item_id !== args.caseItemId) violations.push({ stepId: stepId(step), code: "item_mismatch", message: "Step item must match the case item." });
     if (step.unit !== args.baseline.unit) violations.push({ stepId: stepId(step), code: "unit_mismatch", message: "Step unit must match the baseline unit." });
     if (step.destination_location_id !== args.caseLocationId) violations.push({ stepId: stepId(step), code: "destination_mismatch", message: "Step destination must match the case location." });
-    if (step.quantity === null || !isQuantity(step.quantity)) violations.push({ stepId: stepId(step), code: "invalid_quantity", message: "Step quantity must be a supported nonnegative integer." });
+    if (step.quantity === null || !isQuantity(step.quantity)) violations.push({ stepId: stepId(step), code: "invalid_quantity", message: "Step quantity must be a supported nonnegative quantity." });
     const moneyValues = step.kind === "amend_delivery_schedule"
       ? [step.added_freight_minor]
       : step.kind === "purchase_bridge"
@@ -183,12 +183,12 @@ export function validatePlan(args: PlanArgs): PlanValidation {
       modified.receipts = modified.receipts.filter((receipt) => !line.receiptIds.includes(receipt.id));
       const schedule = step.schedule ?? [];
       const total = schedule.reduce((sum, entry) => sum + (entry.quantity ?? 0), 0);
-      if ((args.target === "ready" || schedule.every((entry) => entry.quantity !== null)) && total !== line.remainingQty) {
+      if ((args.target === "ready" || schedule.every((entry) => entry.quantity !== null)) && !quantitiesEqual(total, line.remainingQty)) {
         violations.push({ stepId: step.step_id, code: "schedule_total_mismatch", message: "Replacement schedule must equal the line's remaining quantity." });
       }
       schedule.forEach((entry, index) => {
         if (entry.quantity === null || !isQuantity(entry.quantity)) {
-          violations.push({ stepId: step.step_id, code: "invalid_quantity", message: "Schedule quantities must be supported integers." });
+          violations.push({ stepId: step.step_id, code: "invalid_quantity", message: "Schedule quantities must be supported quantities." });
         }
         if (entry.latest_at !== null && parseInstant(entry.latest_at) === null) {
           violations.push({ stepId: step.step_id, code: "invalid_schedule_time", message: "Schedule latest_at must include an offset." });
