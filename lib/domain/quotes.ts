@@ -2,7 +2,7 @@ import { convertCost, type Conversion, type FxRate } from "./fx";
 import { DomainValidationError } from "./errors";
 import { projectInventory } from "./inventory";
 import { mulQtyPrice, sumMinor } from "./money";
-import { isQuantity } from "./quantity";
+import { isIntegerQuantity, isQuantity } from "./quantity";
 import { compareText, parseInstant, toIso } from "./time";
 import type { ProjectionInput } from "./types";
 
@@ -159,8 +159,8 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
   const minimumQty = q.minimumQty;
   if (
     isQuantity(context.requiredQty) &&
-    packSize !== null && isQuantity(packSize) && packSize > 0 &&
-    minimumQty !== null && isQuantity(minimumQty)
+    packSize !== null && isIntegerQuantity(packSize) && packSize > 0 &&
+    minimumQty !== null && isIntegerQuantity(minimumQty)
   ) {
     const needed = Math.max(context.requiredQty, minimumQty);
     orderQty = Math.ceil(needed / packSize) * packSize;
@@ -199,8 +199,8 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
   }
 
   if (q.availableQty !== null && !isQuantity(q.availableQty)) missingTerms.push("availableQty");
-  if (packSize !== null && (!isQuantity(packSize) || packSize === 0)) missingTerms.push("packSize");
-  if (minimumQty !== null && !isQuantity(minimumQty)) missingTerms.push("minimumQty");
+  if (packSize !== null && (!isIntegerQuantity(packSize) || packSize === 0)) missingTerms.push("packSize");
+  if (minimumQty !== null && !isIntegerQuantity(minimumQty)) missingTerms.push("minimumQty");
 
   if (q.currency === null) {
     landedCostMinor = null;

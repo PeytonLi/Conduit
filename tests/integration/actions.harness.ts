@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import "./pg-numeric";
 import { Client } from "pg";
 import type { Clock, Rpc } from "@/lib/actions/rpc";
 import { asReplayAdapter, registerReplayAdapter, type ReplayAdapter } from "@/lib/actions/replay";

@@ -35,11 +35,11 @@ export const assessmentResponseSchema = z.object({
     quality: z.enum(["sufficient", "insufficient"]),
     unit: z.string(),
     first_shortage_at: z.string().datetime().nullable(),
-    bridge_quantity: z.number().int().nonnegative().nullable(),
+    bridge_quantity: z.number().nonnegative().nullable(),
     requirements: z.array(
       z.object({
         by: z.string().datetime(),
-        cumulative_quantity: z.number().int().nonnegative(),
+        cumulative_quantity: z.number().nonnegative(),
       }),
     ),
     source_as_of: z.string().datetime(),

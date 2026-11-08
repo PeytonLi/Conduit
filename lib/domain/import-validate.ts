@@ -3,6 +3,7 @@ import { parseCsv, CsvParseError, type ParsedCsv } from "./import-csv";
 import { DomainValidationError } from "./errors";
 import { currencyMinorDigits, parseMinorUnits } from "./money";
 import { parseQuantity } from "./quantity";
+import { MAX_QUANTITY_SCALE, resolveItemQuantityScale } from "./units";
 import { compareText, isValidTimeZone, parseInstant, toIso } from "./time";
 import { requiredColumns, type ImportFile } from "./import-schema";
 type Metadata = { schema_version: 1; source_as_of: string; timezone: string; currency: string };
@@ -34,6 +35,7 @@ export type NormalizedImport = {
     sku: string;
     description: string;
     base_unit: string;
+    quantity_scale: number;
     specification: {
       length_mm: number;
       width_mm: number;
@@ -151,11 +153,13 @@ function parseRows(
   return parsed.rows.map((row) => ({ file, line: row.line, values: row.values, fields: row.fields }));
 }
 
-function quantityField(row: RawRow, field: string, errors: ImportIssue[]): number | null {
+function quantityField(row: RawRow, field: string, scale: number, errors: ImportIssue[]): number | null {
   const value = row.fields[field] ?? "";
-  const result = parseQuantity(value);
+  const result = parseQuantity(value, scale);
   if (!result.ok) {
-    errors.push(issue(row.file, row.line, field, result.code, `${field} must be a supported whole quantity.`));
+    const code = result.code === "not_number" && scale === 0 ? "not_integer" : result.code;
+    const unitHint = scale === 0 ? "whole quantity" : `quantity with at most ${scale} decimal places`;
+    errors.push(issue(row.file, row.line, field, code, `${field} must be a supported ${unitHint}.`));
     return null;
   }
   return result.value;
@@ -318,22 +322,36 @@ export function validateImport(args: ValidateImportArgs): {
   }
 
   const itemPayload: NormalizedImport["items"] = [];
+  const itemScaleById = new Map<string, number>();
   for (const row of rows("items.csv")) {
     const field = row.fields;
     addUnique(itemsById, field.item_id ?? "", row, "item_id", errors);
     addUnique(itemSkus, field.sku ?? "", row, "sku", errors);
     if (!field.base_unit?.trim()) errors.push(issue(row.file, row.line, "base_unit", "empty"));
-    const length = quantityField(row, "length_mm", errors);
-    const width = quantityField(row, "width_mm", errors);
-    const height = quantityField(row, "height_mm", errors);
+    const dimensionScale = 0;
+    const length = quantityField(row, "length_mm", dimensionScale, errors);
+    const width = quantityField(row, "width_mm", dimensionScale, errors);
+    const height = quantityField(row, "height_mm", dimensionScale, errors);
     for (const [name, dimension] of [["length_mm", length], ["width_mm", width], ["height_mm", height]] as const) {
       if (dimension !== null && dimension <= 0) errors.push(issue(row.file, row.line, name, "out_of_range"));
     }
+    let explicitScale: number | null = null;
+    if (field.quantity_scale !== undefined && field.quantity_scale !== "") {
+      const scaleParsed = parseQuantity(field.quantity_scale, 0);
+      if (!scaleParsed.ok || scaleParsed.value > MAX_QUANTITY_SCALE) {
+        errors.push(issue(row.file, row.line, "quantity_scale", "out_of_range", "quantity_scale must be an integer from 0 to 6."));
+      } else {
+        explicitScale = scaleParsed.value;
+      }
+    }
+    const quantityScale = resolveItemQuantityScale(field.base_unit ?? "", explicitScale);
+    if (field.item_id) itemScaleById.set(field.item_id, quantityScale);
     itemPayload.push({
       external_id: field.item_id,
       sku: field.sku,
       description: field.description,
       base_unit: field.base_unit,
+      quantity_scale: quantityScale,
       specification: {
         length_mm: length ?? 0,
         width_mm: width ?? 0,
@@ -341,6 +359,16 @@ export function validateImport(args: ValidateImportArgs): {
         material_grade: field.material_grade,
       },
     });
+  }
+
+  function scaleForItem(itemExternalId: string | undefined, row: RawRow, field: string): number {
+    if (!itemExternalId) return 0;
+    const scale = itemScaleById.get(itemExternalId);
+    if (scale === undefined) {
+      errors.push(issue(row.file, row.line, field, "missing_reference", `Unknown item ${itemExternalId}.`));
+      return 0;
+    }
+    return scale;
   }
 
   const orderPayload: NormalizedImport["purchase_orders"] = [];
@@ -370,9 +398,10 @@ export function validateImport(args: ValidateImportArgs): {
     if (!ordersById.has(field.po_id)) errors.push(issue(row.file, row.line, "po_id", "missing_reference"));
     if (!itemsById.has(field.item_id)) errors.push(issue(row.file, row.line, "item_id", "missing_reference"));
     if (!locationExternalIds.has(field.location_id)) errors.push(issue(row.file, row.line, "location_id", "missing_reference"));
-    const ordered = quantityField(row, "ordered_qty", errors);
-    const received = quantityField(row, "received_qty", errors);
-    const cancelled = quantityField(row, "cancelled_qty", errors);
+    const lineScale = scaleForItem(field.item_id, row, "item_id");
+    const ordered = quantityField(row, "ordered_qty", lineScale, errors);
+    const received = quantityField(row, "received_qty", lineScale, errors);
+    const cancelled = quantityField(row, "cancelled_qty", lineScale, errors);
     if (ordered !== null && received !== null && cancelled !== null && received + cancelled > ordered) {
       errors.push(issue(row.file, row.line, "received_qty", "received_cancelled_exceeds_ordered"));
     }
@@ -406,7 +435,9 @@ export function validateImport(args: ValidateImportArgs): {
     addUnique(receiptIds, field.receipt_id ?? "", row, "receipt_id", errors);
     const lineKey = `${field.po_id}\u0000${field.line_id}`;
     if (!linesById.has(lineKey)) errors.push(issue(row.file, row.line, "line_id", "missing_reference"));
-    const quantity = quantityField(row, "quantity_remaining", errors);
+    const lineFields = linesById.get(lineKey)?.fields;
+    const receiptScale = scaleForItem(lineFields?.item_id, row, "line_id");
+    const quantity = quantityField(row, "quantity_remaining", receiptScale, errors);
     const earliest = timestampField(row, "earliest_at", errors, true);
     const latest = timestampField(row, "latest_at", errors, true);
     const earliestMs = earliest === null ? null : parseInstant(earliest);
@@ -450,9 +481,10 @@ export function validateImport(args: ValidateImportArgs): {
     addUnique(inventoryIds, key, row, "item_id", errors);
     if (!itemsById.has(field.item_id)) errors.push(issue(row.file, row.line, "item_id", "missing_reference"));
     if (!locationExternalIds.has(field.location_id)) errors.push(issue(row.file, row.line, "location_id", "missing_reference"));
-    const physical = quantityField(row, "physical_qty", errors);
-    const unusable = quantityField(row, "unusable_qty", errors);
-    const outside = quantityField(row, "outside_allocations_qty", errors);
+    const stockScale = scaleForItem(field.item_id, row, "item_id");
+    const physical = quantityField(row, "physical_qty", stockScale, errors);
+    const unusable = quantityField(row, "unusable_qty", stockScale, errors);
+    const outside = quantityField(row, "outside_allocations_qty", stockScale, errors);
     if (physical !== null && unusable !== null && outside !== null && unusable + outside > physical) {
       errors.push(issue(row.file, row.line, "outside_allocations_qty", "contradictory_stock"));
     }
@@ -475,8 +507,9 @@ export function validateImport(args: ValidateImportArgs): {
     addUnique(demandIds, field.demand_id ?? "", row, "demand_id", errors);
     if (!itemsById.has(field.item_id)) errors.push(issue(row.file, row.line, "item_id", "missing_reference"));
     if (!locationExternalIds.has(field.location_id)) errors.push(issue(row.file, row.line, "location_id", "missing_reference"));
-    const remaining = quantityField(row, "remaining_qty", errors);
-    const reserved = quantityField(row, "included_reserved_qty", errors);
+    const demandScale = scaleForItem(field.item_id, row, "item_id");
+    const remaining = quantityField(row, "remaining_qty", demandScale, errors);
+    const reserved = quantityField(row, "included_reserved_qty", demandScale, errors);
     if (remaining !== null && reserved !== null && reserved > remaining) {
       errors.push(issue(row.file, row.line, "included_reserved_qty", "included_reserved_exceeds_demand"));
     }

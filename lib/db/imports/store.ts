@@ -3,6 +3,9 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/db/service";
 import type { ProjectionFacts } from "@/lib/domain/assessment-input";
 import type { NormalizedImport } from "@/lib/domain/import-validate";
+import { isQuantity } from "@/lib/domain/quantity";
+
+const quantitySchema = z.number().refine(isQuantity);
 
 const importIssueSchema = z.object({
   file: z.string().nullable(),
@@ -94,6 +97,7 @@ const projectionFactsSchema = z.object({
   item: z.object({
     id: z.string().uuid(),
     base_unit: z.string(),
+    quantity_scale: z.number().int().min(0).max(6).optional(),
     specification: z.record(z.string(), z.unknown()),
   }).nullable(),
   location: z.object({
@@ -102,24 +106,24 @@ const projectionFactsSchema = z.object({
   }).nullable(),
   inventory: z.object({
     id: z.string().uuid(),
-    physical_qty: z.number().int(),
-    unusable_qty: z.number().int(),
-    outside_allocations_qty: z.number().int(),
+    physical_qty: quantitySchema,
+    unusable_qty: quantitySchema,
+    outside_allocations_qty: quantitySchema,
     source_as_of: z.string(),
   }).nullable(),
   demand: z.array(z.object({
     id: z.string().uuid(),
     external_id: z.string(),
-    remaining_qty: z.number().int(),
+    remaining_qty: quantitySchema,
     required_at: z.string(),
     certainty: z.enum(["confirmed", "forecast"]),
-    included_reserved_qty: z.number().int(),
+    included_reserved_qty: quantitySchema,
     source_as_of: z.string(),
   })),
   receipts: z.array(z.object({
     id: z.string().uuid(),
     po_line_id: z.string().uuid(),
-    quantity_remaining: z.number().int(),
+    quantity_remaining: quantitySchema,
     earliest_at: z.string().nullable(),
     latest_at: z.string().nullable(),
     promise_state: z.enum(["confirmed", "estimated", "unknown"]),
@@ -128,14 +132,14 @@ const projectionFactsSchema = z.object({
   })),
   lines: z.array(z.object({
     id: z.string().uuid(),
-    ordered_qty: z.number().int(),
-    received_qty: z.number().int(),
-    cancelled_qty: z.number().int(),
+    ordered_qty: quantitySchema,
+    received_qty: quantitySchema,
+    cancelled_qty: quantitySchema,
     unit_price_minor: z.string(),
   })),
   claims: z.array(z.object({
     id: z.string().uuid(),
-    quantity: z.number().int(),
+    quantity: quantitySchema,
   })),
 });
 

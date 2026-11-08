@@ -86,10 +86,11 @@ describe("source coverage (AT-11)", () => {
     expect(maxSafeTransferQuantity(broken)).toBe(0);
   });
 
-  it("rejects non-positive and fractional quantities", () => {
-    for (const quantity of [0, -1, 1.5, null]) {
+  it("rejects non-positive and over-precision quantities", () => {
+    for (const quantity of [0, -1, 1.1234567, null]) {
       expect(checkTransferCoverage(stock(), quantity, "t")).toMatchObject({ ok: false, code: "invalid_quantity" });
     }
+    expect(checkTransferCoverage(stock(), 1.5, "t").ok).toBe(true);
   });
 
   it("summarises a source's spare stock from projection facts", () => {

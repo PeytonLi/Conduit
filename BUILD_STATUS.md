@@ -36,6 +36,17 @@ Execute the Render live E2E using [docs/evidence/render-e2e-runbook.md](docs/evi
 1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage) — tracked in [docs/evidence/submission-checklist.md](docs/evidence/submission-checklist.md).
 2. M6 evidence bundle, demo video and submission artifacts — slots under `docs/evidence/artifacts/`; see [docs/evidence/README.md](docs/evidence/README.md).
 
+## P2 fractional item quantities — November 8, 2026
+
+Per-item `quantity_scale` (0–6) and `numeric(18,6)` quantity columns support packaging/supply lines in weight and volume units without breaking integer cartons or money invariants.
+
+- Domain: `lib/domain/quantity.ts`, `lib/domain/units.ts` (scale rules, parse/validate, fixed-point helpers); projection, plans, transfers, import validation, and `mulQtyPrice` half-up minor-unit rounding updated.
+- DB: migrations `20261108161000_fractional_quantities.sql`, `20261108161100_fractional_import_activate.sql`, `20261108161200_fractional_load_projection_facts.sql` — `items.quantity_scale`, quantity columns widened, `activate_import` / `erp_activate_snapshot` / `load_projection_facts` patched (after FX migration timestamps).
+- Harbor packaging B0 fixtures unchanged (integer cartons). New coverage: `tests/domain/fractional-quantities.test.ts`.
+- Checks: `pnpm typecheck`, `pnpm lint`, `pnpm test` (unit: 979 passed, 24 skipped). Integration DB not re-run on this migration set in this session.
+
+**Limits:** QuickBooks, Zoho, Odoo, and Shopify live client boundaries still require whole-unit quantities (`tests/domain/erp-live.test.ts`, Odoo/Zoho adapters). Pack size and MOQ stay integers. Inbox extraction, voice `qty_needed`, and some ledger RPC quantity casts may still assume integers until follow-up patches. ERP fractional read/write not verified live.
+
 ## Outlook and multiple mailboxes — November 8, 2026
 
 Decision D-022 (docs/prd/07). Setup and the live checklist: [docs/outlook-setup.md](docs/outlook-setup.md).

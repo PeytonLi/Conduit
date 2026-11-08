@@ -1,6 +1,7 @@
 import { buildProjectionInput, type ProjectionFacts } from "./assessment-input";
 import { projectInventory } from "./inventory";
-import { isQuantity } from "./quantity";
+import { isQuantity, quantityToScaledInt, scaledIntToQuantity } from "./quantity";
+import { MAX_QUANTITY_SCALE } from "./units";
 import type { ProjectionInput } from "./types";
 
 /**
@@ -64,16 +65,17 @@ export function transferLeavesSourceCovered(source: ProjectionInput, quantity: n
  * Largest quantity that can leave the source without causing any source shortage. Coverage is
  * monotonic in the quantity, so a binary search over the source's physical stock is exact.
  */
-export function maxSafeTransferQuantity(source: ProjectionInput): number {
+export function maxSafeTransferQuantity(source: ProjectionInput, scale = MAX_QUANTITY_SCALE): number {
   if (!transferLeavesSourceCovered(source, 0, "probe")) return 0;
-  let low = 0;
-  let high = Math.max(0, source.physicalQty);
+  let low = 0n;
+  let high = quantityToScaledInt(Math.max(0, source.physicalQty), scale);
   while (low < high) {
-    const mid = Math.floor((low + high + 1) / 2);
-    if (transferLeavesSourceCovered(source, mid, "probe")) low = mid;
-    else high = mid - 1;
+    const mid = (low + high + 1n) / 2n;
+    const candidate = scaledIntToQuantity(mid, scale);
+    if (transferLeavesSourceCovered(source, candidate, "probe")) low = mid;
+    else high = mid - 1n;
   }
-  return low;
+  return scaledIntToQuantity(low, scale);
 }
 
 export type SourceSpare =

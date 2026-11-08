@@ -5,7 +5,7 @@ import type { ProjectionInput } from "./types";
 
 export type ProjectionFacts = {
   dataset: { id: string; source_type: "csv" | "connector" | "fixture"; source_as_of: string; content_hash: string } | null;
-  item: { id: string; base_unit: string; specification: Record<string, unknown> } | null;
+  item: { id: string; base_unit: string; quantity_scale?: number; specification: Record<string, unknown> } | null;
   location: { id: string; timezone: string } | null;
   inventory: { id: string; physical_qty: number; unusable_qty: number; outside_allocations_qty: number; source_as_of: string } | null;
   demand: {
