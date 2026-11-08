@@ -410,18 +410,24 @@ begin
       jsonb_build_object('action', private.action_json(p_org_id, p_action_id)));
   end if;
   select * into v_case from public.cases where id = v_action.case_id and org_id = p_org_id;
+  -- Preserve mailbox-aware claim rules from 20261108130000_outlook_multi_mailbox.sql:
+  -- require the named mailbox (or any healthy mailbox when unset), not "any Gmail".
   if v_action.kind = 'supplier_email'
     and v_action.mode <> 'replay'
     and not exists (
     select 1
     from public.connections c
     where c.org_id = p_org_id
-      and c.provider = 'gmail'
+      and c.provider = any(private.mailbox_providers())
       and c.status in ('healthy', 'degraded')
+      and (
+        nullif(v_action.payload->>'connection_id', '') is null
+        or c.id = (v_action.payload->>'connection_id')::uuid
+      )
   ) then
     return private.result_error(
       'failed_precondition',
-      'Gmail connection is unavailable',
+      'Mailbox connection is unavailable',
       jsonb_build_object('reason', 'connection_unavailable')
     );
   end if;
