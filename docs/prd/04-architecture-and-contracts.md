@@ -283,7 +283,7 @@ Credential tables and voice-grant hashes live in a private schema with no client
 
 Private storage paths include org and evidence ID; policies enforce active membership. Signed links expire after five minutes. Reject executable files and unsupported MIME types; cap B0 attachments at 10 MB and imports at 10,000 rows per file. Escape spreadsheet formula prefixes in exported user/supplier strings.
 
-Public URL discovery uses the search provider. If a direct fetcher is later added, it must reject private/local network targets, unsafe schemes, embedded credentials, redirects into private addresses, excessive size and unbounded requests.
+Public URL discovery uses the search provider. The optional direct fetcher (`DIRECT_PAGE_FETCH_ENABLED`, see docs/prd/05) rejects private/local network targets, unsafe schemes, embedded credentials, redirects into private addresses, excessive size and unbounded requests.
 
 Production, preview, sandbox and replay have separate credentials/data. Preview and replay cannot send real supplier messages, start real calls, or write a live business system. The backend enforces this regardless of UI flags.
 

@@ -17,6 +17,7 @@ export async function buildPlannerContext(
   ctx: AgentToolContext & { episode: number },
   clock: Clock,
   limits: PlannerLimits = DEFAULT_LIMITS,
+  enabledOptionalTools: readonly string[] = [],
 ): Promise<Record<string, unknown>> {
   const { orgId, caseId } = ctx;
   const caseRow = await store.getCase(orgId, caseId);
@@ -167,7 +168,7 @@ export async function buildPlannerContext(
       ),
     },
     phase: caseRow.phase,
-    allowed_tools: allowedTools(caseRow.phase),
+    allowed_tools: allowedTools(caseRow.phase, enabledOptionalTools),
     policy: policy
       ? {
           procurement_ceiling_minor:

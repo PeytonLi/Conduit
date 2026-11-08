@@ -9,6 +9,7 @@ import { createToolRegistry } from "@/lib/agent/tools/registry";
 import { createReplayModel } from "@/lib/integrations/deepseek/replay";
 import { createDeepSeekModel } from "@/lib/integrations/deepseek/client";
 import { selectResearch } from "@/lib/integrations/exa/replay";
+import { selectPageFetcher, type PageFetchEnv } from "@/lib/integrations/page-fetch";
 import { runPlannerCycle, type CycleOutcome, type StepTools } from "@/lib/agent/planner";
 import { createLedgerActionPreparer, type ActionPreparer } from "@/lib/agent/ports";
 import type { AgentToolContext } from "@/lib/agent/tools/types";
@@ -29,7 +30,7 @@ export interface RecoveryDeps {
   clock: Clock;
   step: RecoveryStepTools;
   preparer: ActionPreparer;
-  env?: { EXA_API_KEY?: string };
+  env?: { EXA_API_KEY?: string } & PageFetchEnv;
 }
 
 const WAIT_EVENTS: Record<PlannerWaitRecord["expected_kind"], string> = {
@@ -87,6 +88,7 @@ export async function runCaseRecovery(
     clock,
     preparer: deps.preparer,
     research: selectResearch(deps.env ?? {}, ctx.mode, { clock }),
+    pageFetcher: selectPageFetcher(deps.env ?? {}, ctx.mode, { clock }),
   });
 
   const MAX_CYCLES = 6;
@@ -245,7 +247,11 @@ async function defaultRecoveryDeps(step: RecoveryStepTools): Promise<RecoveryDep
     clock: systemClock,
     step,
     preparer: createLedgerActionPreparer({ rpc: createServiceRpc(), clock: ledgerClock }),
-    env: { EXA_API_KEY: env.EXA_API_KEY },
+    env: {
+      EXA_API_KEY: env.EXA_API_KEY,
+      DIRECT_PAGE_FETCH_ENABLED: env.DIRECT_PAGE_FETCH_ENABLED,
+      DIRECT_PAGE_FETCH_ALLOWLIST: env.DIRECT_PAGE_FETCH_ALLOWLIST,
+    },
   };
 }
 

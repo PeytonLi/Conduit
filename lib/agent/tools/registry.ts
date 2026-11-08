@@ -13,6 +13,7 @@ import { createRecordProvisionalOfferTool } from "./record-provisional-offer";
 import { createProposeRecoveryPlanTool } from "./propose-recovery-plan";
 import { createRequestOwnerReviewTool } from "./request-owner-review";
 import { createWaitForEvidenceTool } from "./wait-for-evidence";
+import { createFetchPublicPageTool } from "./fetch-public-page";
 
 export const TOOL_NAMES = [
   "read_case",
@@ -30,7 +31,10 @@ export const TOOL_NAMES = [
   "wait_for_evidence",
 ] as const;
 
-/** Exactly the 13 F3 tools. No accept/purchase/cancel/amend/execute tool exists. */
+/**
+ * The 13 F3 tools, plus fetch_public_page only when a page fetcher is
+ * configured. No accept/purchase/cancel/amend/execute tool exists.
+ */
 export function createToolRegistry(
   deps: ToolDeps,
 ): Map<string, AgentTool<unknown, unknown>> {
@@ -49,5 +53,8 @@ export function createToolRegistry(
     createRequestOwnerReviewTool(deps),
     createWaitForEvidenceTool(deps),
   ];
+  // Optional tool: absent from the registry (and the model's tool list) unless
+  // the direct fetcher is enabled, so the 13 core tools stay fixed.
+  if (deps.pageFetcher) tools.push(createFetchPublicPageTool(deps));
   return new Map(tools.map((t) => [t.name, t]));
 }

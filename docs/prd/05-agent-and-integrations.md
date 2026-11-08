@@ -205,6 +205,14 @@ The planner produces candidate records, not approved suppliers. Domain verificat
 
 Without Exa credentials, approved catalog search and labeled replay discovery still function. Live public discovery remains incomplete until tested.
 
+#### Optional direct page fetch (`DIRECT_PAGE_FETCH_ENABLED`)
+
+Exa remains the default discovery path. Setting `DIRECT_PAGE_FETCH_ENABLED=true` (exactly; blank/false is off, other values fail at startup, replay mode never enables it) registers one extra planner tool, `fetch_public_page { url }`, in the `recovering` and `awaiting_supplier` phases. Implementation: `lib/integrations/page-fetch/` and `lib/agent/tools/fetch-public-page.ts`.
+
+- Guards (docs/prd/04 SSRF rules): only `http`/`https` on ports 80/443; no embedded credentials; localhost/`.local`/`.internal`/single-label hosts and every private, loopback, link-local (incl. `169.254.169.254`), CGNAT, multicast, reserved and IPv6 ULA/mapped/NAT64/6to4 address are refused. The hostname is resolved once, every answer must be public, and the request connects to that validated IP (Host/SNI keep the original name). Redirects are followed manually (max 3), each hop re-validated, re-resolved and re-pinned; https to http downgrades are refused. Bodies are capped at 1 MB (rejected, not truncated), content types limited to HTML/plain text, no compression, one 10 s deadline for the whole fetch.
+- `DIRECT_PAGE_FETCH_ALLOWLIST` (optional, comma-separated) restricts fetches to listed hosts and their subdomains on every hop; blank allows any public host.
+- Each successful fetch stores `public_web_direct` evidence (final URL, `fetched_at`, sha256 of the raw body, short excerpt) linked to the case and uses the distinct-page budget. It is untrusted data: the tool creates no candidate, contact, approval or action, so a fetched page can never authorize outreach or purchasing.
+
 ### Business connector contract
 
 | Operation | Required semantics |
@@ -236,6 +244,7 @@ Names below are proposed application configuration, not existing secrets. Keep a
 | ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID, ELEVENLABS_PHONE_NUMBER_ID | Voice agent and legacy native SIP number |
 | ELEVENLABS_WEBHOOK_SECRET | Post-call signature verification |
 | EXA_API_KEY | Optional until live public supplier discovery is exercised |
+| DIRECT_PAGE_FETCH_ENABLED, DIRECT_PAGE_FETCH_ALLOWLIST | Optional direct public page fetch for research evidence (off by default; allowlist optional) |
 | SIGNALWIRE_SPACE_URL, SIGNALWIRE_PROJECT_ID, SIGNALWIRE_API_TOKEN, SIGNALWIRE_PHONE_NUMBER | SignalWire REST call initiation; also used for direct carrier health/reconciliation APIs |
 
 SignalWire SIP credentials and the voice agent's DeepSeek secret may be stored in ElevenLabs/provider configuration rather than duplicated in application environment variables. Document that configuration without exporting secret values.

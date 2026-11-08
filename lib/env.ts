@@ -58,6 +58,10 @@ export const serverEnvSchema = z.object({
   ELEVENLABS_PHONE_NUMBER_ID: optionalNonempty,
   ELEVENLABS_WEBHOOK_SECRET: optionalNonempty,
   EXA_API_KEY: optionalNonempty,
+  // Off unless "true". Direct HTTP page fetch for supplier research evidence; Exa stays the default discovery.
+  DIRECT_PAGE_FETCH_ENABLED: z.enum(["true", "false"]).optional().or(z.literal("")),
+  // Optional comma-separated host allowlist (subdomains included). Blank allows any public host.
+  DIRECT_PAGE_FETCH_ALLOWLIST: optionalNonempty,
   SIGNALWIRE_SPACE_URL: optionalNonempty,
   SIGNALWIRE_PROJECT_ID: optionalNonempty,
   SIGNALWIRE_API_TOKEN: optionalNonempty,

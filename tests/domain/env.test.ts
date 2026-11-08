@@ -95,6 +95,19 @@ describe("server environment", () => {
     ).toThrow();
   });
 
+  it("keeps the direct page fetcher off unless set, rejecting typos", () => {
+    expect(parseServerEnv(requiredEnvironment).DIRECT_PAGE_FETCH_ENABLED).toBeUndefined();
+    expect(parseServerEnv({ ...requiredEnvironment, DIRECT_PAGE_FETCH_ENABLED: "" }).DIRECT_PAGE_FETCH_ENABLED).toBe("");
+    expect(parseServerEnv({ ...requiredEnvironment, DIRECT_PAGE_FETCH_ENABLED: "true" }).DIRECT_PAGE_FETCH_ENABLED).toBe("true");
+    expect(
+      parseServerEnv({ ...requiredEnvironment, DIRECT_PAGE_FETCH_ALLOWLIST: "supplier.example.com" })
+        .DIRECT_PAGE_FETCH_ALLOWLIST,
+    ).toBe("supplier.example.com");
+    for (const bad of ["1", "yes", "TRUE", "on"]) {
+      expect(() => parseServerEnv({ ...requiredEnvironment, DIRECT_PAGE_FETCH_ENABLED: bad })).toThrow();
+    }
+  });
+
   it("rejects invalid environment modes and missing Supabase configuration", () => {
     expect(() => parseServerEnv({ ...requiredEnvironment, APP_ENV: "production" })).toThrow();
     expect(() =>
