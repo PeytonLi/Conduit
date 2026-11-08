@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
+import { isPilotSignupEnabled } from "@/lib/auth/pilot-signup";
 import { LogoMark } from "@/components/ui/Logo";
 import { signIn } from "./actions";
 import styles from "./login.module.css";
@@ -15,6 +17,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const signupOpen = isPilotSignupEnabled();
 
   return (
     <main className={styles.loginPage}>
@@ -87,6 +90,11 @@ export default async function LoginPage({
               <Icon name="arrowRight" size={17} />
             </button>
           </form>
+          {signupOpen ? (
+            <p className={styles.lede}>
+              New to Conduit? <Link href="/signup">Create a pilot account</Link>
+            </p>
+          ) : null}
         </div>
       </section>
     </main>

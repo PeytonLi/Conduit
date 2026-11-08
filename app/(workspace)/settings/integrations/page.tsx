@@ -17,6 +17,8 @@ import { MailboxList } from "./MailboxList";
 import { ConnectBusinessSystem, ConnectedBusinessSystemActions } from "@/components/BusinessSystemControls";
 import { availableBusinessSystems, type BusinessConnectMethod } from "@/lib/integrations/business/live/availability";
 import { erpProviderLabels, isErpProvider } from "@/lib/integrations/business/live/registry";
+import { getPilotReadiness } from "@/lib/ui/pilot-readiness";
+import { ConnectionHealthSummary } from "@/components/ConnectionHealthSummary";
 
 type IntegrationsSearchParams = {
   gmail?: string | string[];
@@ -107,6 +109,7 @@ export default async function IntegrationsSettingsPage({
   const gmailStatus = firstParam(query.gmail);
   const gmailError = firstParam(query.code);
   const outlookStatus = firstParam(query.outlook);
+  const outlookError = firstParam(query.code);
   const membership = await requireMembership();
   const appEnvironment = parseServerEnv(process.env).APP_ENV;
   const [result, organization] = await Promise.all([
@@ -149,9 +152,15 @@ export default async function IntegrationsSettingsPage({
     ready: boolean;
     missing: string[];
   }>;
+  const pilotReadiness = getPilotReadiness(
+    result.connections,
+    result.environment_capabilities,
+    appEnvironment,
+  );
   return (
     <div className={styles.page}>
       <PageHeader description="Check provider readiness and setup needs." title="Integrations" />
+      <ConnectionHealthSummary appEnvironment={appEnvironment} readiness={pilotReadiness} />
       {gmailStatus === "connected" && (
         <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
           Gmail connected. Conduit will start reading supplier emails within a few minutes.
@@ -169,7 +178,7 @@ export default async function IntegrationsSettingsPage({
       )}
       {outlookStatus === "error" && (
         <p className={`${styles.notice} ${styles.noticeError}`} role="alert">
-          Outlook couldn’t be connected. {outlookErrorReasons[gmailError] ?? "Please try again or ask an owner to review the setup."}
+          Outlook couldn’t be connected. {outlookErrorReasons[outlookError] ?? "Please try again or ask an owner to review the setup."}
         </p>
       )}
       {mailboxes.length > 0 && (

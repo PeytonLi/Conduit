@@ -51,6 +51,20 @@ export default async function PoliciesSettingsPage() {
           </dl>
         </section>
       ) : <EmptyState className={styles.empty} icon="shield" message="No current policy is configured." />}
+      <section aria-labelledby="retention-heading" className={styles.current}>
+        <h2 id="retention-heading">Evidence and retention</h2>
+        <p>
+          Source files in case evidence expire on their retention schedule. When a source expires, Conduit keeps
+          the excerpt in the case history and marks it &ldquo;Source expired&rdquo;.
+        </p>
+        <p>
+          Disconnecting a provider removes stored credentials and stops new syncs; historical audit events and
+          retained excerpts remain available according to your organization&apos;s retention timestamps.
+        </p>
+        {membership.role !== "owner" ? (
+          <p className={styles.readOnly}>Only an owner can disconnect providers from the Integrations page.</p>
+        ) : null}
+      </section>
       {membership.role === "owner"
         ? <PolicyEditor currency={organization.currency} initialSettings={settings} version={policy?.version ?? 0} />
         : <p className={styles.readOnly}>Only an owner can edit organization policies. This page is read-only for your role.</p>}

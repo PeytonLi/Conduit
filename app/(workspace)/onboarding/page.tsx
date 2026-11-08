@@ -5,7 +5,10 @@ import { listCases } from "@/lib/db/queries/cases";
 import { caseListQuerySchema } from "@/lib/db/queries/contracts";
 import { getCurrentPolicy } from "@/lib/db/queries/policies";
 import { listSuppliers } from "@/lib/db/queries/suppliers";
+import { parseServerEnv } from "@/lib/env";
 import { getStartedCompletion } from "@/lib/ui/get-started";
+import { getPilotReadiness } from "@/lib/ui/pilot-readiness";
+import { ConnectionHealthSummary } from "@/components/ConnectionHealthSummary";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -21,7 +24,13 @@ export default async function OnboardingPage() {
     getCurrentPolicy(membership),
     listCases(membership, caseListQuerySchema.parse({ limit: 1 }), new Date()),
   ]);
+  const { APP_ENV } = parseServerEnv(process.env);
   const completion = getStartedCompletion(connections.connections, business, suppliers);
+  const readiness = getPilotReadiness(
+    connections.connections,
+    connections.environment_capabilities,
+    APP_ENV,
+  );
   const steps = [
     {
       label: "Connect Gmail or Outlook",
@@ -80,6 +89,7 @@ export default async function OnboardingPage() {
           </div>
         </div>
       </section>
+      <ConnectionHealthSummary appEnvironment={APP_ENV} readiness={readiness} />
       <ol className={styles.steps}>
         {steps.map((step, index) => (
           <li key={step.label}>
