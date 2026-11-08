@@ -99,6 +99,8 @@ The product checks that location's demand, reservations, transfer travel time, a
 
 The owner approves the source, quantity, expected arrival, and cost. Unknown transfer timing makes the option incomplete.
 
+Implemented (P1): when the connected business system supports reservation, dispatch, and receiving readback, an approved transfer plan executes through the action ledger (`live_business_transfer`). Shopify is the only connector that executes today and only with the `write_inventory_transfers` permission; Odoo, Zoho Inventory, and QuickBooks Online stay recommend-only and export a manual packet. The source check runs when the plan is created and again, on freshly synced stock, right before the write. See BUILD_STATUS for the evidence level.
+
 ### J07 — Find alternative suppliers and obtain quotes
 
 Trigger: the original supplier cannot meet the deadline or its offer is less suitable.

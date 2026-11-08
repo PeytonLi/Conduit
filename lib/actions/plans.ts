@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { amendDeliveryScheduleSchema } from "@/lib/integrations/business/amendment";
 import { buildManualExecutionPacket, type ManualExecutionPacket } from "@/lib/integrations/business/manual-packet";
+import { transferStockPayloadSchema } from "@/lib/integrations/business/transfer";
 import { dispatchAction, type DispatcherDeps, type DispatchReport } from "./dispatcher";
 import { getAction, prepareAction, type LedgerAction } from "./ledger";
 import { callLedger, type LedgerFailure } from "./rpc";
 import { getLiveStepPreparer } from "./live-step";
+import { preflightTransferSteps } from "./transfer-preflight";
+import type { ActionKind } from "./types";
 
 const uuid = z.string().uuid();
 const minor = z.string().regex(/^\d+$/, "Money is integer minor units");
@@ -34,7 +37,18 @@ export const createPlanRequestSchema = z
       if (step.depends_on_step_ids.some((d) => !ids.has(d) || d === step.step_id)) {
         ctx.addIssue({ code: "custom", message: "Unknown step dependency", path: ["steps", index, "depends_on_step_ids"] });
       }
-      if (step.execution_mode === "demo_ledger" || step.execution_mode === "live_connector") {
+      if (step.kind === "transfer_stock") {
+        if (step.execution_mode === "demo_ledger") {
+          ctx.addIssue({ code: "custom", message: "A transfer cannot run on the demo ledger", path: ["steps", index, "execution_mode"] });
+        }
+        if (!step.item_id || !step.destination_location_id || !step.quantity || step.quantity <= 0) {
+          ctx.addIssue({ code: "custom", message: "A transfer needs its item, destination and a positive quantity", path: ["steps", index] });
+        }
+        const parsed = transferStockPayloadSchema.safeParse({ change_kind: "transfer_stock", ...step.payload });
+        if (!parsed.success) {
+          ctx.addIssue({ code: "custom", message: "Invalid stock transfer terms", path: ["steps", index, "payload"] });
+        }
+      } else if (step.execution_mode === "demo_ledger" || step.execution_mode === "live_connector") {
         const parsed = amendDeliveryScheduleSchema.safeParse({ change_kind: "amend_delivery_schedule", ...step.payload });
         if (!parsed.success) {
           ctx.addIssue({ code: "custom", message: "Invalid delivery schedule amendment", path: ["steps", index, "payload"] });
@@ -86,10 +100,12 @@ export interface PlanView {
 
 const nowIso = (deps: DispatcherDeps) => deps.clock.now().toISOString();
 
-export function createPlan(
+export async function createPlan(
   deps: DispatcherDeps,
   input: { orgId: string; caseId: string; userId: string; idempotencyKey: string; body: z.infer<typeof createPlanRequestSchema> },
 ) {
+  const refused = await preflightTransferSteps(deps, input.orgId, input.body.steps);
+  if (refused) return refused;
   return callLedger<{ plan_id: string; version: number; status: string; input_fingerprint: string; replayed?: boolean }>(
     deps.rpc,
     "plan_create",
@@ -155,7 +171,11 @@ export async function executeApprovedPlan(
   if (!read.ok) return { status: "prepare_failed", failure: read };
   const step = read.plan.steps.find((s) => s.execution_mode === "demo_ledger" || s.execution_mode === "live_connector");
   if (!step) return { status: "no_automated_step" };
-  let kind: "demo_ledger_amendment" | "live_business_amendment" = "demo_ledger_amendment";
+  // A replayed event must not prepare again: the live system has moved on since the first attempt
+  // (stock, versions), so a fresh payload would differ. Settle the action that already exists instead.
+  const existing = read.plan.actions.find((a) => a.plan_step_id === step.step_id);
+  if (existing) return { status: "dispatch", report: await dispatchAction(deps, input.orgId, existing.id) };
+  let kind: ActionKind = "demo_ledger_amendment";
   let payload: unknown = { change_kind: "amend_delivery_schedule", ...step.payload };
   if (step.execution_mode === "live_connector") {
     const preparer = getLiveStepPreparer();
@@ -165,9 +185,18 @@ export async function executeApprovedPlan(
         failure: { ok: false, code: "failed_precondition", message: "No business system connector is available" },
       };
     }
-    const live = await preparer({ orgId: input.orgId, stepPayload: step.payload as Record<string, unknown> });
+    const live = await preparer({
+      orgId: input.orgId,
+      stepPayload: step.payload as Record<string, unknown>,
+      step: {
+        kind: step.kind,
+        quantity: step.quantity,
+        item_id: step.item_id,
+        destination_location_id: step.destination_location_id,
+      },
+    });
     if (!live.ok) return { status: "prepare_failed", failure: live };
-    kind = "live_business_amendment";
+    kind = live.kind ?? "live_business_amendment";
     payload = live.payload;
   }
   const prepared = await prepareAction(deps, {

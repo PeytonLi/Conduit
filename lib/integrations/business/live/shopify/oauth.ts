@@ -13,6 +13,19 @@ export const SHOPIFY_SCOPES = [
   "read_inventory_shipments_received_items",
 ] as const;
 
+/** Needed only to create internal transfers; requested when SHOPIFY_TRANSFER_EXECUTION=true. */
+export const SHOPIFY_TRANSFER_SCOPE = "write_inventory_transfers";
+
+export function shopifyScopesFor(options: { transfers?: boolean } = {}): string[] {
+  return options.transfers ? [...SHOPIFY_SCOPES, SHOPIFY_TRANSFER_SCOPE] : [...SHOPIFY_SCOPES];
+}
+
+/** Both scopes must be granted for the connector to claim reserve + dispatch. */
+export function grantsTransferExecution(scope: string): boolean {
+  const granted = new Set(scope.split(/[\s,]+/).filter(Boolean));
+  return granted.has(SHOPIFY_TRANSFER_SCOPE) && granted.has("write_inventory_shipments");
+}
+
 export const SHOPIFY_STATE_COOKIE = "shopify_oauth_nonce";
 const STATE_TTL_SECONDS = 600;
 
@@ -77,6 +90,8 @@ export function createShopifyAuthorization(input: {
   signingKey: string;
   now: () => Date;
   nonce?: string;
+  /** Also request write_inventory_transfers (internal transfer execution). */
+  transfers?: boolean;
 }): { url: string; nonce: string } {
   const nonce = input.nonce ?? randomUUID();
   const state = signShopifyState(
@@ -91,7 +106,7 @@ export function createShopifyAuthorization(input: {
   );
   const url = new URL(`https://${input.shop}/admin/oauth/authorize`);
   url.searchParams.set("client_id", input.clientId);
-  url.searchParams.set("scope", SHOPIFY_SCOPES.join(","));
+  url.searchParams.set("scope", shopifyScopesFor({ transfers: input.transfers }).join(","));
   url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("state", state);
   return { url: url.toString(), nonce };

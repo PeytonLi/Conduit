@@ -9,6 +9,7 @@ import { humanLabel } from "@/lib/db/queries/labels";
 import { StatusBadge } from "./StatusBadge";
 import { postJson, WorkspaceApiError, workspaceErrorMessage } from "./client-api";
 import { LiveRegion } from "./LiveRegion";
+import { TransferProgress } from "./TransferProgress";
 import { Disclosure } from "./ui/Disclosure";
 import styles from "./approval-card.module.css";
 
@@ -50,6 +51,7 @@ export function ApprovalCard({
   const timeZone = caseSummary.location.timezone;
   const commitment = formatMoney(plan.approved_ceiling_minor ?? plan.incremental_cost_minor, plan.currency);
   const gross = formatMoney(plan.gross_commitment_minor, plan.currency);
+  const transferOnly = plan.steps.length > 0 && plan.steps.every((step) => step.kind === "transfer_stock");
 
   useEffect(() => {
     if (
@@ -89,38 +91,40 @@ export function ApprovalCard({
     };
   }, [caseSummary.id, caseSummary.row_version, plan.row_version, plan.status, submitting]);
 
-  async function pollAction(actionId: string) {
+  // Execution runs after approval, so the transfer action appears a moment later. Follow it until it
+  // settles, refreshing the card so the in-flight and confirmed states show with their evidence.
+  async function followLiveTransfer() {
     setPolling(true);
     const startedAt = Date.now();
-    while (Date.now() - startedAt < 60_000) {
+    let lastState: string | null = null;
+    while (Date.now() - startedAt < 90_000) {
       await wait(2000);
       try {
-        const response = await fetch(`/api/v1/actions/${actionId}`, { cache: "no-store" });
+        const response = await fetch(`/api/v1/cases/${caseSummary.id}`, { cache: "no-store" });
         if (!response.ok) continue;
-        const envelope = await response.json() as { data?: { action?: { state?: string } } };
-        const state = envelope.data?.action?.state;
-        if (state === "confirmed") {
-          setMessage("Recovery action confirmed.");
-          setPolling(false);
-          return;
+        const envelope = await response.json() as {
+          data?: { plan?: { plan_actions?: { kind?: string; state: string }[] } | null };
+        };
+        const transfer = envelope.data?.plan?.plan_actions?.find((action) => action.kind === "live_business_transfer");
+        if (!transfer) continue;
+        if (transfer.state !== lastState) {
+          lastState = transfer.state;
+          router.refresh();
         }
-        if (state === "failed") {
-          setMessage("The recovery action failed. Review the case before trying again.");
-          setPolling(false);
-          return;
-        }
-        if (state === "unknown") {
-          setMessage("The recovery outcome is unknown. Check whether the update was applied.");
-          setPolling(false);
-          return;
-        }
+        if (["prepared", "dispatching", "submitted"].includes(transfer.state)) continue;
+        setMessage(
+          transfer.state === "confirmed"
+            ? "Transfer confirmed in your business system."
+            : transfer.state === "unknown"
+              ? "The transfer outcome is unknown. Conduit will not send it again; check your business system."
+              : "The transfer was not executed. Nothing was moved; review the case.",
+        );
+        break;
       } catch {
-        setMessage("The approval was recorded, but the recovery status couldn’t be refreshed.");
-        setPolling(false);
-        return;
+        setMessage("The approval was recorded, but the transfer status couldn’t be refreshed.");
+        break;
       }
     }
-    setMessage("Recovery outcome is unknown after 60 seconds. Check whether the update was applied.");
     setPolling(false);
   }
 
@@ -154,15 +158,8 @@ export function ApprovalCard({
       confirmDialog.current?.close();
       setMessage(`Plan approved. Approval valid until ${formatDateTime(result.expires_at, timeZone) ?? "Not available"}.`);
       router.refresh();
-      const response = await fetch(`/api/v1/cases/${caseSummary.id}`, { cache: "no-store" });
-      if (response.ok) {
-        const refreshed = await response.json() as {
-          data?: { plan?: { plan_actions?: { id: string; state: string }[] } | null };
-        };
-        const actionable = refreshed.data?.plan?.plan_actions?.filter((action) =>
-          ["prepared", "dispatching", "submitted"].includes(action.state),
-        ) ?? [];
-        for (const action of actionable) await pollAction(action.id);
+      if (plan.steps.some((step) => step.kind === "transfer_stock" && step.execution_mode === "live_connector")) {
+        await followLiveTransfer();
       }
     } catch (error) {
       if (!approvalSucceeded) selfMutating.current = false;
@@ -230,7 +227,9 @@ export function ApprovalCard({
       </div>
       <Disclosure summary="Plan details">
         <dl className={styles.terms}>
-        <div><dt>Supplier</dt><dd>{plan.supplier?.name ?? "Supplier details unavailable"}</dd></div>
+        {transferOnly
+          ? <div><dt>Stock source</dt><dd>{plan.steps.map((step) => step.transfer?.source_location_name ?? "Source location").join(", ")}</dd></div>
+          : <div><dt>Supplier</dt><dd>{plan.supplier?.name ?? "Supplier details unavailable"}</dd></div>}
         <div><dt>Additional commitment</dt><dd>{commitment ?? "Not available"}</dd></div>
         <div><dt>Gross commitment</dt><dd>{gross ?? "Not available"}</dd></div>
         <div><dt>Original order treatment</dt><dd>{originalOrderTreatment || "Not specified"}</dd></div>
@@ -243,11 +242,25 @@ export function ApprovalCard({
             <li key={step.step_id}>
               <strong>{step.summary}</strong>
               {step.quantity !== null && <span>{formatQuantity(step.quantity, step.unit) ?? "Not available"}</span>}
-              <span>{humanLabel("executionMode", step.execution_mode)}</span>
+              {step.transfer && (
+                <span>
+                  From {step.transfer.source_location_name ?? "an unknown location"} · arrives by{" "}
+                  {formatDateTime(step.transfer.arrival_end, timeZone) ?? "an unknown time"} · handling cost{" "}
+                  {formatMoney(step.transfer.cost_minor, plan.currency) ?? "unknown"}
+                </span>
+              )}
+              <span>
+                {step.kind === "transfer_stock"
+                  ? step.execution_mode === "live_connector"
+                    ? "Conduit moves the stock in your business system after approval"
+                    : "Recommendation only: you move the stock; Conduit does not"
+                  : humanLabel("executionMode", step.execution_mode)}
+              </span>
             </li>
           ))}
         </ol>
       </Disclosure>
+      <TransferProgress actions={plan.plan_actions} />
       <p className={styles.replayNotice}>
         {caseSummary.data_label === "Replay" ||
         (caseSummary.data_label === null && environmentMode === "replay")

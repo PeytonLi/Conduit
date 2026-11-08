@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       redirectUri: new URL("/api/auth/shopify/callback", origin).toString(),
       signingKey: env.CREDENTIAL_ENCRYPTION_KEY,
       now: () => new Date(),
+      transfers: env.SHOPIFY_TRANSFER_EXECUTION === "true",
     });
     const response = ok({ authorization_url: url });
     response.headers.append(

@@ -55,6 +55,8 @@ export const serverEnvSchema = z.object({
   GOOGLE_REDIRECT_URI: optionalNonempty,
   SHOPIFY_CLIENT_ID: optionalNonempty,
   SHOPIFY_CLIENT_SECRET: optionalNonempty,
+  // Off unless "true". Requests write_inventory_transfers so approved internal transfers can execute.
+  SHOPIFY_TRANSFER_EXECUTION: z.enum(["true", "false"]).optional().or(z.literal("")),
   GMAIL_PROVIDER: z.enum(["google", "composio"]).default("google"),
   GMAIL_PUBSUB_TOPIC: optionalPubSubTopic,
   GMAIL_PUBSUB_AUDIENCE: optionalNonempty,

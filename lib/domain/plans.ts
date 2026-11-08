@@ -7,6 +7,7 @@ import { parseInstant } from "./time";
 import type { ProjectionDiagnostics } from "./projection-types";
 import type { ProjectionInput, ProjectionResult } from "./types";
 import type { PlanStep } from "./plan-steps";
+import { transferCapabilityBlockers, transferLeavesSourceCovered, type TransferCapabilities } from "./transfers";
 
 export type PlanValidation = {
   feasible: boolean;
@@ -32,7 +33,11 @@ type PlanArgs = {
   lines: Record<string, PlanLine>;
   sourceLocations?: Record<string, ProjectionInput>;
   quotes?: Record<string, { evaluation: QuoteEvaluation; unitPriceMinor: bigint }>;
-  capabilities: { liveConnectorCanWrite: boolean };
+  capabilities: {
+    liveConnectorCanWrite: boolean;
+    /** What the connected business system can do for a transfer; absent means none of it. */
+    transfer?: TransferCapabilities;
+  };
   steps: PlanStep[];
 };
 
@@ -300,24 +305,19 @@ export function validatePlan(args: PlanArgs): PlanValidation {
       if (!source) {
         violations.push({ stepId: step.step_id, code: "missing_source_location", message: "Transfer source projection is missing." });
       } else if (step.quantity !== null) {
-        const sourceProjection = projectInventory({
-          ...source,
-          demand: [
-            ...source.demand,
-            {
-              id: `${step.step_id}:transfer-demand`,
-              quantity: step.quantity,
-              requiredAt: source.t0,
-              certainty: "confirmed",
-              includedReservedQty: 0,
-            },
-          ],
-        });
-        if (sourceProjection.quality !== "sufficient" || (sourceProjection.bridgeQuantity ?? 0) > 0) {
+        if (!transferLeavesSourceCovered(source, step.quantity, step.step_id)) {
           violations.push({ stepId: step.step_id, code: "source_coverage_insufficient", message: "Transfer would leave the source location uncovered." });
         }
       }
-      if (!args.capabilities.liveConnectorCanWrite) executionBlockers.push("transfer_requires_live_connector");
+      if (step.source_location_id !== null && step.source_location_id === step.destination_location_id) {
+        violations.push({ stepId: step.step_id, code: "source_equals_destination", message: "Transfer source must differ from the destination." });
+      }
+      if (!args.capabilities.liveConnectorCanWrite) {
+        executionBlockers.push("transfer_requires_live_connector");
+      } else {
+        if (step.execution_mode !== "live_connector") executionBlockers.push("transfer_step_not_live_connector");
+        executionBlockers.push(...transferCapabilityBlockers(args.capabilities.transfer));
+      }
       transferCost += nonnegativeMoney(step.transfer_cost_minor);
     }
   }

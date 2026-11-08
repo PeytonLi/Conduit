@@ -150,6 +150,86 @@ export function createShopifyEmulator({ now = () => new Date() }: ShopifyEmulato
     return { data };
   }
 
+  // Internal-transfer stock levels, keyed "item|location". Separate from the snapshot fixtures above.
+  const levels = new Map<string, { on_hand: number; available: number; damaged: number; quality_control: number }>();
+  const levelKey = (itemId: string, locationId: string) => `${itemId}|${locationId}`;
+  const oneShot = new Map<string, "drop_response" | { code: string; message: string }>();
+
+  function transferCreate(variables: Record<string, unknown>) {
+    const key = String(variables.idempotencyKey ?? "");
+    if (!key) return { errors: [{ message: "idempotency key required", extensions: { code: "BAD_REQUEST" } }] };
+    if (idempotency.has(key)) return { data: idempotency.get(key) };
+    const input = variables.input as {
+      originLocationId: string;
+      destinationLocationId: string;
+      lineItems: Array<{ inventoryItemId: string; quantity: number }>;
+      referenceName?: string;
+      tags?: string[];
+    };
+    const userError = (message: string) => ({ inventoryTransferCreateAsReadyToShip: { inventoryTransfer: null, userErrors: [{ field: ["input"], message }] } });
+    const [li] = input.lineItems;
+    const level = levels.get(levelKey(li.inventoryItemId, input.originLocationId));
+    let data;
+    if (!level || level.available < li.quantity) data = userError("Not enough available inventory at the origin");
+    else {
+      level.available -= li.quantity; // READY_TO_SHIP reserves at the origin
+      const transfer: ShopifyTransfer = {
+        id: gid("InventoryTransfer"),
+        name: `#T${seq}`,
+        status: "READY_TO_SHIP",
+        referenceName: input.referenceName ?? null,
+        origin: { name: "Origin", location: { id: input.originLocationId } },
+        destination: { name: "Destination", location: { id: input.destinationLocationId } },
+        lineItems: {
+          nodes: [
+            {
+              id: gid("InventoryTransferLineItem"),
+              totalQuantity: li.quantity,
+              shippedQuantity: 0,
+              processableQuantity: li.quantity,
+              pickedForShipmentQuantity: 0,
+              inventoryItem: { id: li.inventoryItemId, unitCost: null },
+            },
+          ],
+        },
+        shipments: { nodes: [] },
+      };
+      transfers.push(transfer);
+      data = { inventoryTransferCreateAsReadyToShip: { inventoryTransfer: { id: transfer.id, status: transfer.status }, userErrors: [] } };
+    }
+    idempotency.set(key, data);
+    return { data };
+  }
+
+  function shipmentCreateInTransit(variables: Record<string, unknown>) {
+    const key = String(variables.idempotencyKey ?? "");
+    if (!key) return { errors: [{ message: "idempotency key required", extensions: { code: "BAD_REQUEST" } }] };
+    if (idempotency.has(key)) return { data: idempotency.get(key) };
+    const input = variables.input as {
+      movementId: string;
+      barcode?: string;
+      lineItems: Array<{ inventoryItemId: string; quantity: number }>;
+      trackingInput?: { arrivesAt?: string };
+    };
+    const userError = (code: string, message: string) => ({ inventoryShipmentCreateInTransit: { inventoryShipment: null, userErrors: [{ field: ["input"], message, code }] } });
+    const transfer = transfers.find((t) => t.id === input.movementId);
+    let data;
+    if (!transfer) data = userError("TRANSFER_NOT_FOUND", "Transfer not found");
+    else if (!["READY_TO_SHIP", "IN_PROGRESS"].includes(transfer.status)) data = userError("INVALID_TRANSFER_STATUS", "Transfer must be ready to ship");
+    else if (input.barcode && transfers.some((t) => t.shipments.nodes.some((s) => s.barcode === input.barcode))) data = userError("BARCODE_DUPLICATE", "Barcode already used");
+    else {
+      const [li] = input.lineItems;
+      const shipment = addShipment(transfer, li.inventoryItemId, li.quantity, input.barcode ?? null, input.trackingInput?.arrivesAt ?? null);
+      shipment.status = "IN_TRANSIT";
+      transfer.status = "IN_PROGRESS";
+      const origin = levels.get(levelKey(li.inventoryItemId, transfer.origin!.location!.id));
+      if (origin) origin.on_hand -= li.quantity; // dispatch takes the stock out of the origin
+      data = { inventoryShipmentCreateInTransit: { inventoryShipment: { id: shipment.id, status: shipment.status }, userErrors: [] } };
+    }
+    idempotency.set(key, data);
+    return { data };
+  }
+
   function page<T>(nodes: T[]) {
     return { nodes: structuredClone(nodes), pageInfo: { hasNextPage: false, endCursor: null } };
   }
@@ -190,6 +270,46 @@ export function createShopifyEmulator({ now = () => new Date() }: ShopifyEmulato
         payload = shipmentCreate(body.variables);
         break;
       }
+      case "ConduitInventoryLevel": {
+        const level = levels.get(levelKey(String(body.variables.itemId), String(body.variables.locationId)));
+        payload = {
+          data: {
+            inventoryItem: {
+              id: body.variables.itemId,
+              tracked: true,
+              inventoryLevel: level
+                ? {
+                    quantities: [
+                      { name: "available", quantity: level.available },
+                      { name: "on_hand", quantity: level.on_hand },
+                      { name: "damaged", quantity: level.damaged },
+                      { name: "quality_control", quantity: level.quality_control },
+                    ],
+                  }
+                : null,
+            },
+          },
+        };
+        break;
+      }
+      case "ConduitTransferCreate":
+      case "ConduitShipmentCreateInTransit": {
+        const injected = oneShot.get(body.operationName);
+        oneShot.delete(body.operationName);
+        const run = body.operationName === "ConduitTransferCreate" ? transferCreate : shipmentCreateInTransit;
+        const root = body.operationName === "ConduitTransferCreate" ? "inventoryTransferCreateAsReadyToShip" : "inventoryShipmentCreateInTransit";
+        const shipmentField = body.operationName === "ConduitTransferCreate" ? "inventoryTransfer" : "inventoryShipment";
+        if (injected === "drop_response") {
+          run(body.variables);
+          throw new TypeError("fetch failed");
+        }
+        if (injected) {
+          payload = { data: { [root]: { [shipmentField]: null, userErrors: [{ field: null, ...injected }] } } };
+          break;
+        }
+        payload = run(body.variables);
+        break;
+      }
       default:
         payload = { errors: [{ message: `Unknown operation ${body.operationName}` }] };
     }
@@ -203,6 +323,33 @@ export function createShopifyEmulator({ now = () => new Date() }: ShopifyEmulato
     addTransfer,
     failNextCreate(mode: "network" | { code: string; message: string }) {
       failNextCreate = mode;
+    },
+    /** Sets an internal-transfer stock level; `available` defaults to on_hand. */
+    setLevel(itemId: string, locationId: string, level: { on_hand: number; available?: number; damaged?: number; quality_control?: number }) {
+      levels.set(levelKey(itemId, locationId), {
+        on_hand: level.on_hand,
+        available: level.available ?? level.on_hand,
+        damaged: level.damaged ?? 0,
+        quality_control: level.quality_control ?? 0,
+      });
+    },
+    level(itemId: string, locationId: string) {
+      return levels.get(levelKey(itemId, locationId));
+    },
+    /** Staff at the destination receive the in-transit shipment (Conduit never does this). */
+    receiveInTransit(transferId: string, quantity?: number) {
+      const transfer = transfers.find((t) => t.id === transferId)!;
+      const shipment = transfer.shipments.nodes.find((s) => s.status === "IN_TRANSIT" || s.status === "PARTIALLY_RECEIVED")!;
+      const line = shipment.lineItems.nodes[0];
+      const accepted = quantity ?? line.quantity;
+      line.acceptedQuantity = accepted;
+      line.unreceivedQuantity = line.quantity - accepted;
+      shipment.status = accepted === line.quantity ? "RECEIVED" : "PARTIALLY_RECEIVED";
+      shipment.dateReceived = now().toISOString();
+    },
+    /** The next call of an internal-transfer write executes on Shopify but its response is lost, or Shopify rejects it. */
+    failNext(operationName: "ConduitTransferCreate" | "ConduitShipmentCreateInTransit", mode: "drop_response" | { code: string; message: string }) {
+      oneShot.set(operationName, mode);
     },
     receive(transferId: string, quantity: number) {
       const transfer = transfers.find((t) => t.id === transferId)!;

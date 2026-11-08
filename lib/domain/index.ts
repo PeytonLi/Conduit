@@ -8,6 +8,7 @@ export * from "./assessment";
 export * from "./quotes";
 export * from "./plans";
 export * from "./plan-steps";
+export * from "./transfers";
 export * from "./assessment-input";
 export * from "./import-csv";
 export * from "./import-validate";

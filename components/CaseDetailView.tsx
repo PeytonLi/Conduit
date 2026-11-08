@@ -17,6 +17,8 @@ import { EvidenceDrawer } from "./EvidenceDrawer";
 import { QuoteCorrectionForm } from "./QuoteCorrectionForm";
 import { StatusBadge } from "./StatusBadge";
 import { ApprovalCard } from "./ApprovalCard";
+import { TransferOptions } from "./TransferOptions";
+import type { TransferOptions as TransferOptionsData } from "@/lib/db/queries/transfers";
 import { OutreachForm } from "./OutreachForm";
 import { Icon } from "./ui/Icon";
 import styles from "./case-detail.module.css";
@@ -574,6 +576,7 @@ function CaseSections({
 export function CaseDetailView({
   detail,
   options,
+  transferOptions = null,
   evidence,
   timeline,
   role,
@@ -582,6 +585,7 @@ export function CaseDetailView({
   initialTab,
 }: {
   detail: CaseDetail;
+  transferOptions?: TransferOptionsData | null;
   options: OptionRow[];
   evidence: CaseEvidence[];
   timeline: TimelineEntry[];
@@ -655,7 +659,18 @@ export function CaseDetailView({
         optionsCount={options.length}
         panels={{
           overview: <ImpactSummary detail={detail} evidence={evidence} />,
-          options: <SupplierOptionTable detail={detail} evidence={evidence} options={options} />,
+          options: (
+            <>
+              {transferOptions && transferOptions.sources.length > 0 && (
+                <TransferOptions
+                  canCreate={detail.permissions.can_control}
+                  data={transferOptions}
+                  hasCurrentPlan={detail.plan !== null}
+                />
+              )}
+              <SupplierOptionTable detail={detail} evidence={evidence} options={options} />
+            </>
+          ),
           contact: (
             <SupplierContact
               canOutreach={detail.permissions.can_control}
