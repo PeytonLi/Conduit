@@ -6,6 +6,7 @@ Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submi
 
 ## Observed workspace state
 
+- Live policy configuration is owner-gated; delegated purchasing is not yet available, and every commitment still requires fresh owner approval.
 - Research notes exist at research/neathack-research.md.
 - PRD, handoff, and detailed reference chapters have been authored.
 - The application lives in the public [PeytonLi/Conduit repository](https://github.com/PeytonLi/Conduit) with 23 Supabase migrations applied to the hosted project (including the live business-connector tables).
