@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseMajorDecimal } from "@/lib/domain/money";
+import { changeStamp, idempotencyKey } from "./stamp";
+import { createShopifyTransferApi } from "./transfers";
 import type {
   AppliedDelivery,
   ChangeLookup,
@@ -39,14 +41,7 @@ const OPEN_TRANSFER = new Set(["DRAFT", "READY_TO_SHIP", "IN_PROGRESS"]);
 const WRITABLE_TRANSFER = new Set(["READY_TO_SHIP", "IN_PROGRESS"]);
 const OPEN_FULFILLMENT = new Set(["OPEN", "IN_PROGRESS", "SCHEDULED", "ON_HOLD"]);
 
-export function changeStamp(changeRef: string): string {
-  return `CDT-${createHash("sha256").update(changeRef).digest("hex").slice(0, 16)}`;
-}
-
-function idempotencyKey(changeRef: string, index: number): string {
-  const h = createHash("sha256").update(`${changeRef}:${index}`).digest("hex");
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
-}
+export { changeStamp };
 
 /** Hash of every transfer field a split depends on; Shopify transfers expose no updatedAt. */
 export function transferVersion(t: ShopifyTransfer): string {
@@ -152,9 +147,14 @@ function lookup(t: ShopifyTransfer, changeRef: string): ChangeLookup {
 export interface ShopifyClientDeps {
   graphql: ShopifyGraphql;
   now?: () => Date;
+  /**
+   * The token was granted write_inventory_transfers and write_inventory_shipments. Without it the
+   * client stays recommend-only for internal transfers and exposes no `transfers` API.
+   */
+  transferScopeGranted?: boolean;
 }
 
-export function createShopifyErpClient({ graphql, now = () => new Date() }: ShopifyClientDeps): ErpClient {
+export function createShopifyErpClient({ graphql, now = () => new Date(), transferScopeGranted = false }: ShopifyClientDeps): ErpClient {
   async function readTransfer(id: string) {
     const data = await graphql("ConduitTransfer", TRANSFER_QUERY, { id }, transferByIdSchema);
     return { transfer: data.inventoryTransfer, currency: data.shop.currencyCode };
@@ -218,6 +218,7 @@ export function createShopifyErpClient({ graphql, now = () => new Date() }: Shop
 
   return {
     provider: "shopify",
+    ...(transferScopeGranted ? { transfers: createShopifyTransferApi({ graphql }) } : {}),
 
     async readSnapshot(): Promise<ErpSnapshot> {
       const asOf = now().toISOString();

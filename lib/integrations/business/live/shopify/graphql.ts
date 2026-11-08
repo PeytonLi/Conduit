@@ -101,7 +101,7 @@ export const inventoryItemsSchema = z.object({
 });
 
 const TRANSFER_FIELDS = `fragment ConduitTransfer on InventoryTransfer {
-  id name status
+  id name status referenceName
   origin { name location { id } }
   destination { name location { id } }
   lineItems(first: 100) {
@@ -147,6 +147,8 @@ export const transferSchema = z.object({
   id,
   name: z.string(),
   status: z.string(),
+  /** Conduit stamps its change reference here when it creates an internal transfer. */
+  referenceName: z.string().nullable().optional(),
   origin: snapshotSchema,
   destination: snapshotSchema,
   lineItems: z.object({
@@ -224,6 +226,55 @@ export const shipmentCreateSchema = z.object({
   inventoryShipmentCreate: z.object({
     inventoryShipment: z.object({ id }).nullable(),
     userErrors: z.array(z.object({ message: z.string(), code: z.string().nullable().optional() })),
+  }),
+});
+
+export const INVENTORY_LEVEL_QUERY = `query ConduitInventoryLevel($itemId: ID!, $locationId: ID!) {
+  inventoryItem(id: $itemId) {
+    id
+    tracked
+    inventoryLevel(locationId: $locationId) {
+      quantities(names: ["available", "on_hand", "damaged", "quality_control"]) { name quantity }
+    }
+  }
+}`;
+export const inventoryLevelSchema = z.object({
+  inventoryItem: z
+    .object({
+      id,
+      tracked: z.boolean(),
+      inventoryLevel: z.object({ quantities: z.array(z.object({ name: z.string(), quantity: int })) }).nullable(),
+    })
+    .nullable(),
+});
+
+const transferUserErrors = z.array(
+  z.object({ message: z.string(), code: z.string().nullable().optional(), field: z.array(z.string()).nullable().optional() }),
+);
+
+export const TRANSFER_CREATE_MUTATION = `mutation ConduitTransferCreate($input: InventoryTransferCreateAsReadyToShipInput!, $idempotencyKey: String!) {
+  inventoryTransferCreateAsReadyToShip(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryTransfer { id status }
+    userErrors { field message }
+  }
+}`;
+export const transferCreateSchema = z.object({
+  inventoryTransferCreateAsReadyToShip: z.object({
+    inventoryTransfer: z.object({ id, status: z.string() }).nullable(),
+    userErrors: transferUserErrors,
+  }),
+});
+
+export const SHIPMENT_CREATE_IN_TRANSIT_MUTATION = `mutation ConduitShipmentCreateInTransit($input: InventoryShipmentCreateInput!, $idempotencyKey: String!) {
+  inventoryShipmentCreateInTransit(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryShipment { id status }
+    userErrors { field message code }
+  }
+}`;
+export const shipmentCreateInTransitSchema = z.object({
+  inventoryShipmentCreateInTransit: z.object({
+    inventoryShipment: z.object({ id, status: z.string() }).nullable(),
+    userErrors: transferUserErrors,
   }),
 });
 

@@ -1,12 +1,15 @@
 import { registerAdapter } from "@/lib/actions/adapters";
-import { registerLiveStepPreparer } from "@/lib/actions/live-step";
+import { registerLiveStepPreparer, registerTransferGate } from "@/lib/actions/live-step";
 import { systemClock } from "@/lib/actions/rpc";
 import { createServiceRpc } from "@/lib/actions/rpc.supabase";
 import { parseServerEnv } from "@/lib/env";
 import { createLiveBusinessAdapter } from "./adapter";
 import { prepareLiveStepPayload } from "./prepare";
+import { prepareLiveTransferPayload } from "./prepare-transfer";
 import { ensureErpProviders } from "./providers";
 import { resolveErpClient } from "./resolve";
+import { evaluateTransferGate } from "./transfer-gate";
+import { createLiveTransferAdapter } from "./transfer-adapter";
 
 // Live business-system writes are sandbox/live only: the adapter goes in the normal
 // registry, never the replay registry. No env, DB or network access at import time.
@@ -23,9 +26,16 @@ export function ensureLiveBusinessConnector(): void {
       connectionId,
     );
   registerAdapter(createLiveBusinessAdapter({ resolve: (action, connectionId) => resolve(action.orgId, connectionId) }));
-  registerLiveStepPreparer((input) =>
-    prepareLiveStepPayload({ rpc: createServiceRpc(), clock: systemClock, resolve: (orgId) => resolve(orgId) }, input),
-  );
+  registerAdapter(createLiveTransferAdapter({ resolve: (action, connectionId) => resolve(action.orgId, connectionId) }));
+  registerLiveStepPreparer(async (input) => {
+    const deps = { rpc: createServiceRpc(), clock: systemClock, resolve: (orgId: string) => resolve(orgId) };
+    if (input.step?.kind === "transfer_stock") {
+      const prepared = await prepareLiveTransferPayload(deps, { ...input, step: input.step });
+      return prepared.ok ? { ok: true, payload: prepared.payload, kind: "live_business_transfer" } : prepared;
+    }
+    return prepareLiveStepPayload(deps, input);
+  });
+  registerTransferGate((orgId) => evaluateTransferGate((id) => resolve(id), orgId));
 }
 
 ensureLiveBusinessConnector();

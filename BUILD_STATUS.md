@@ -36,6 +36,34 @@ Execute the Render live E2E using [docs/evidence/render-e2e-runbook.md](docs/evi
 1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage) — tracked in [docs/evidence/submission-checklist.md](docs/evidence/submission-checklist.md).
 2. M6 evidence bundle, demo video and submission artifacts — slots under `docs/evidence/artifacts/`; see [docs/evidence/README.md](docs/evidence/README.md).
 
+## Internal stock transfer execution (J06, FR-011) — November 8, 2026
+
+Internal transfers can now be executed, not only recommended, when the connected business system supports it. The owner still approves every transfer. **No transfer has been run against a real Shopify store or any other live business system.** All evidence below is mocked or runs against a local database.
+
+| Provider | Transfers | How |
+| --- | --- | --- |
+| Shopify | **Executes** when the token holds `write_inventory_transfers` and `write_inventory_shipments`; otherwise recommend-only | Create a READY_TO_SHIP transfer (reserves the origin), then an in-transit shipment (dispatches), then read both back. Both writes carry deterministic idempotency keys; the transfer's `referenceName` and the shipment barcode carry the stamp derived from the action id. |
+| Odoo, Zoho Inventory, QuickBooks Online | Recommend-only | No transfer writes exist in these connectors. A transfer is still shown, still checked against the source, and exports as a manual packet. The reason is shown to the owner. |
+
+What changed:
+
+- Domain (`lib/domain/transfers.ts`, `plans.ts`): the existing source-coverage rule is shared and extended with `maxSafeTransferQuantity` (exact binary search over the same projection), capability blockers (reserve, dispatch, receive), and a source-must-differ check. Quantities come from code, never from a model.
+- Ledger: new action kind `live_business_transfer` (migrations `20261108150000`, `20261108150100`). The action row exists before dispatch; the approved step must match the action payload (source, quantity, arrival, cost, item, destination); the approval is consumed in the same transaction; the quantity is held as an allocation claim at the source and the destination; an unknown outcome blocks the case and keeps claims `uncertain` until reconciled. Locks cover both locations. One automated write per plan still applies.
+- Idempotent change refs and reconciliation: the action id is the change reference. `executeApprovedPlan` now settles an existing action for a step instead of preparing again, so a replayed event cannot re-send (this also covers amendments). Reconcile reads Shopify by stamp or provider reference and never writes: in transit/received is confirmed, reserved but not dispatched stays unknown, cancelled fails.
+- Freshness: plan creation refuses a quantity the source cannot spare (also as a recommendation). Before the write the connection is re-resolved, the snapshot is refreshed (any change supersedes the dataset, so the approval is rejected as stale), the coverage rule runs again on the fresh facts, and the connector re-reads live source stock and refuses to write if on-hand minus the quantity is below the floor pinned at prepare time.
+- UI: case Options tab lists sources with what each can spare and whether Conduit will execute or only recommend (with the reason); the operator supplies quantity, arrival time in the location's time zone, and handling cost to create the plan. The approval card shows source, arrival, cost, mode, and in-flight / confirmed / unknown / failed states with the connector's readback as evidence.
+- Shopify permission: `write_inventory_transfers` is requested only when `SHOPIFY_TRANSFER_EXECUTION=true`; the default OAuth scopes are unchanged. Stores connected earlier must reconnect.
+
+Checks run (Node 24.14; the project pins 22): `pnpm typecheck`, `pnpm lint`, `pnpm test` (645 passed, 24 skipped), `pnpm build` compiles (static generation needs Supabase env, not provided). New tests: `tests/domain/transfers.test.ts`, `shopify-transfer.test.ts`, `live-transfer.test.ts`, `transfer-ui.test.ts`, and `tests/integration/live-transfer.test.ts` (12 tests: ledger, approval, claims, stale data, unknown and reconcile, replay, manual export). The integration tests ran against a schema-only copy of the local Supabase database with the new migrations applied, together with the existing action, approval, ledger, planner-ledger and erp-live integration suites; `supabase db reset` was not run on this migration set, and the remaining integration suites (RLS and grants) were not meaningful on that copy.
+
+Limits and unresolved facts:
+
+- Shopify mutation shapes (`inventoryTransferCreateAsReadyToShip`, `inventoryShipmentCreateInTransit`, `InventoryLevel` quantities) follow Shopify's published 2026 docs and an emulator; they have not run against a store. Whether READY_TO_SHIP reserves exactly the `available` quantity, and the shipment barcode and `referenceName` fields, are unverified live. AT-37 is not claimed for transfers. The existing opt-in `tests/domain/shopify-live.test.ts` is the place to add the live proof.
+- Stock in transit is not a scheduled receipt in Conduit. After dispatch the source stock drops at the next sync, but the destination only sees the units once Shopify shows them received, so a reassessment during transit can look short. Receiving is read back from the shipment; Conduit never receives goods.
+- Reconciling by stamp scans Shopify transfers (up to 1,000) when no provider reference is stored.
+- Plans with a live transfer and a live amendment are rejected (one automated write per plan). The DeepSeek planner can still propose `transfer_stock`, but those plans stay drafts because the model cannot supply source, arrival, or cost; transfers are created from the Options tab.
+- Transfer cost and arrival time are entered by the operator; no shipping lane or handling-cost data exists.
+
 ## DeepSeek thinking mode (opt-in) — November 8, 2026
 
 - `DEEPSEEK_THINKING_ENABLED=true` turns on thinking for the planner and message extraction. Default stays off; voice prompts untouched.

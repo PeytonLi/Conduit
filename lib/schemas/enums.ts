@@ -37,6 +37,8 @@ export const actionKindSchema = z.enum([
   "supplier_call",
   "demo_ledger_amendment",
   "manual_export",
+  "live_business_amendment",
+  "live_business_transfer",
 ]);
 export const assessmentQualitySchema = z.enum(["sufficient", "insufficient"]);
 export const planStepKindSchema = z.enum([

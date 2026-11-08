@@ -2,7 +2,12 @@ import { serverEnvSchema } from "@/lib/env";
 import type { ErpProviderDefinition } from "../types";
 import { createShopifyErpClient } from "./client";
 import { ShopifyApiError, createShopifyGraphql, type ShopifyGraphql } from "./graphql";
-import { refreshShopifyCredentials, shopifyCredentialsSchema, type ShopifyCredentials } from "./oauth";
+import {
+  grantsTransferExecution,
+  refreshShopifyCredentials,
+  shopifyCredentialsSchema,
+  type ShopifyCredentials,
+} from "./oauth";
 const REFRESH_MARGIN_MS = 60_000;
 
 export interface RefreshingGraphqlInput {
@@ -108,7 +113,7 @@ export const shopifyProvider: ErpProviderDefinition = {
       now,
       saveCredentials: deps.saveCredentials,
     });
-    return createShopifyErpClient({ graphql, now });
+    return createShopifyErpClient({ graphql, now, transferScopeGranted: grantsTransferExecution(parsed.scope) });
   },
 };
 

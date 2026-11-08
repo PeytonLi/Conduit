@@ -3,7 +3,8 @@ export type ActionKind =
   | "supplier_call"
   | "demo_ledger_amendment"
   | "manual_export"
-  | "live_business_amendment";
+  | "live_business_amendment"
+  | "live_business_transfer";
 
 export interface ActionRecord {
   id: string;

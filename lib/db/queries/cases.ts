@@ -68,6 +68,29 @@ export interface ProjectionPoint {
   label: string;
 }
 
+export interface TransferStepView {
+  source_location_id: string | null;
+  source_location_name: string | null;
+  arrival_start: string | null;
+  arrival_end: string | null;
+  cost_minor: string | null;
+  source_coverage_evidence_id: string | null;
+  missing_fields: string[];
+}
+
+export interface PlanActionView {
+  id: string;
+  kind: string;
+  state: string;
+  plan_step_id: string | null;
+  provider: string | null;
+  provider_ref: string | null;
+  error_code: string | null;
+  /** Safe summary the ledger recorded for the last outcome. */
+  summary: string | null;
+  updated_at: string | null;
+}
+
 export interface ApprovalView {
   plan_id: string;
   plan_version: number;
@@ -87,8 +110,10 @@ export interface ApprovalView {
     unit: string;
     summary: string;
     execution_mode: string;
+    /** Terms the owner approves for a stock transfer; null for other step kinds. */
+    transfer: TransferStepView | null;
   }[];
-  plan_actions: { id: string; kind: string; state: string }[];
+  plan_actions: PlanActionView[];
   supplier: { id: string; name: string } | null;
   evidence_ids: string[];
   approver_required: "owner";
@@ -327,7 +352,7 @@ async function loadCaseData(context: QueryContext, caseId?: string): Promise<Cas
         : Promise.resolve([]),
       caseRows.length
         ? selectRows(
-            client.from("actions").select("id,case_id,state,created_at,payload")
+            client.from("actions").select("id,case_id,plan_id,plan_step_id,kind,state,provider,provider_ref,error_code,outcome,created_at,updated_at,payload")
               .eq("org_id", context.orgId)
               .in("case_id", caseRows.map((row) => row.id)),
           )
@@ -811,11 +836,17 @@ export async function getCaseDetail(
         .eq("org_id", context.orgId)
         .eq("plan_id", plan.id),
     );
+    const transferSourceIds = planSteps
+      .filter((step) => step.kind === "transfer_stock" && typeof step.payload?.source_location_id === "string")
+      .map((step) => step.payload.source_location_id as string);
+    const transferSources = new Map(
+      (await getRowsByIds(base.client, "locations", context.orgId, transferSourceIds)).map((row) => [row.id, row]),
+    );
     const quote = quoteRows.find((candidate) =>
       (plan.dependencies ?? []).some((dependency: Row) =>
         dependency.quote_id === candidate.id || dependency.quoteId === candidate.id,
       ),
-    ) ?? quoteRows[0];
+    ) ?? (planSteps.length > 0 && planSteps.every((step) => step.kind === "transfer_stock") ? undefined : quoteRows[0]);
     const supplier = quote ? base.data.suppliers.get(quote.supplier_id) : null;
     planView = {
       plan_id: plan.id,
@@ -848,10 +879,31 @@ export async function getCaseDetail(
         unit: step.unit,
         summary: String(step.payload?.summary ?? step.kind),
         execution_mode: step.execution_mode,
+        transfer: step.kind === "transfer_stock"
+          ? {
+              source_location_id: step.payload?.source_location_id ?? null,
+              source_location_name: transferSources.get(step.payload?.source_location_id)?.name ?? null,
+              arrival_start: step.payload?.arrival_start ?? null,
+              arrival_end: step.payload?.arrival_end ?? null,
+              cost_minor: step.payload?.transfer_cost_minor === undefined ? null : String(step.payload.transfer_cost_minor),
+              source_coverage_evidence_id: step.payload?.source_coverage_evidence_id ?? null,
+              missing_fields: Array.isArray(step.missing_fields) ? step.missing_fields : [],
+            }
+          : null,
       })),
       plan_actions: base.data.actions
         .filter((action) => action.plan_id === plan.id)
-        .map((action) => ({ id: action.id, kind: action.kind, state: action.state })),
+        .map((action): PlanActionView => ({
+          id: action.id,
+          kind: action.kind,
+          state: action.state,
+          plan_step_id: action.plan_step_id ?? null,
+          provider: action.provider ?? null,
+          provider_ref: action.provider_ref ?? null,
+          error_code: action.error_code ?? null,
+          summary: typeof action.outcome?.safe_summary === "string" ? action.outcome.safe_summary : null,
+          updated_at: action.updated_at ?? null,
+        })),
       supplier: supplier ? { id: supplier.id, name: supplier.name } : null,
       evidence_ids: [...new Set([
         ...(plan.evidence_ids ?? []),

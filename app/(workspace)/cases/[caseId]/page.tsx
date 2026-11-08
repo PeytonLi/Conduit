@@ -10,6 +10,7 @@ import {
 import { QueryError } from "@/lib/db/queries/client";
 import { systemClock } from "@/lib/db/queries/clock";
 import { getOrganization } from "@/lib/db/queries/organization";
+import { getTransferOptions } from "@/lib/db/queries/transfers";
 
 export default async function CasePage({
   params,
@@ -34,8 +35,11 @@ export default async function CasePage({
     throw error;
   }
   const [detail, options, evidence, timeline, organization] = result;
+  // Transfer options are additive: if they cannot be computed, the rest of the case still renders.
+  const transferOptions = await getTransferOptions(membership, caseId).catch(() => null);
   return (
     <CaseDetailView
+      transferOptions={transferOptions}
       detail={detail}
       environmentMode={organization.environment_mode}
       evidence={evidence}
