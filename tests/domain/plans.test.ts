@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planStepSchema, type PlanStep } from "@/lib/domain/plan-steps";
 import { validatePlan } from "@/lib/domain/plans";
+import { convertCost } from "@/lib/domain/fx";
 import type { QuoteEvaluation } from "@/lib/domain/quotes";
 import { importedHarborProjection } from "./domain-test-helpers";
 
@@ -89,6 +90,18 @@ function feasibleQuote(): QuoteEvaluation {
 }
 
 describe("recovery plan validation", () => {
+  it("values foreign purchase surplus in home currency without rounding the unit price first", () => {
+    const conversion = convertCost(15_600n, "EUR", { home_currency: "USD", fx_rate: {
+      id: "rate", from_currency: "EUR", to_currency: "USD", numerator: "2", denominator: "1",
+      source: "Owner rate", as_of: baseline.t0,
+    } }, new Date(baseline.t0));
+    const result = validatePlan(planArgs([purchaseStep()], {
+      quotes: { "north-quote": { evaluation: { ...feasibleQuote(), conversion }, unitPriceMinor: 21n } },
+    }));
+    expect(result.ready).toBe(true);
+    expect(result.grossCommitmentMinor).toBe(31_200n);
+    expect(result.surplus).toEqual({ quantity: 600, costMinor: 25_200n });
+  });
   it("AT-10 validates a split amendment and its incremental freight", () => {
     const result = validatePlan(planArgs([common()]));
     expect(result.feasible).toBe(true);

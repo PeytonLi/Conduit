@@ -17,7 +17,7 @@ import {
   rejectPlan,
   rejectPlanRequestSchema,
 } from "../plans";
-import type { LedgerFailure } from "../rpc";
+import { callLedger, type LedgerFailure } from "../rpc";
 
 export interface HandlerDeps {
   ledger: DispatcherDeps;
@@ -79,6 +79,28 @@ async function guarded(
 
 const requireKey = (request: Request) =>
   idempotencyKey(request) ?? null;
+
+const fxRateSchema = z.object({
+  from_currency: z.string().regex(/^[A-Z]{3}$/),
+  numerator: z.string().regex(/^[1-9]\d{0,17}$/),
+  denominator: z.string().regex(/^[1-9]\d{0,17}$/),
+  as_of: z.iso.datetime({ offset: true }),
+  source: z.string().trim().min(1).max(500),
+}).strict();
+
+export function recordFxRateHandler(deps: HandlerDeps, request: Request) {
+  return guarded(deps, ["owner"], async (member) => {
+    const body = await parseBody(request, fxRateSchema);
+    if (!body.success) return body.response;
+    const result = await callLedger<{ rate_id: string }>(deps.ledger.rpc, "fx_rate_record", {
+      p_org_id: member.orgId, p_actor_user_id: member.userId,
+      p_from_currency: body.data.from_currency, p_numerator: body.data.numerator,
+      p_denominator: body.data.denominator, p_as_of: body.data.as_of,
+      p_source: body.data.source, p_now: deps.ledger.clock.now().toISOString(),
+    });
+    return result.ok ? ok(result, 201) : failure(result);
+  });
+}
 const missingKey = () => fail("idempotency_key_required", "Idempotency-Key header is required", 428, false);
 
 export function createPlanHandler(deps: HandlerDeps, request: Request, caseId: string) {

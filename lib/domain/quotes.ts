@@ -1,3 +1,4 @@
+import { convertCost, type Conversion, type FxRate } from "./fx";
 import { DomainValidationError } from "./errors";
 import { projectInventory } from "./inventory";
 import { mulQtyPrice, sumMinor } from "./money";
@@ -45,6 +46,8 @@ export type QuoteContext = {
   itemSpec: { lengthMm: number; widthMm: number; heightMm: number; materialGrade: string };
   itemBaseUnit: string;
   orgCurrency: string;
+  fxRate?: FxRate | null;
+  fxMaxAgeSeconds?: number;
   destinationLocationId: string;
   requiredQty: number;
   projection?: ProjectionInput;
@@ -57,6 +60,7 @@ export type QuoteContext = {
 
 export type QuoteEvaluation = {
   quoteId: string;
+  conversion?: Conversion | null;
   outcome: "feasible" | "needs_revalidation" | "incomplete" | "rejected";
   reasons: string[];
   missingTerms: string[];
@@ -103,7 +107,6 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
       return reject("specification_mismatch");
     }
   }
-  if (q.currency !== null && q.currency !== context.orgCurrency) return reject("currency_mismatch");
   if (q.destinationLocationId !== null && q.destinationLocationId !== context.destinationLocationId) {
     return reject("destination_mismatch");
   }
@@ -151,6 +154,7 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
   let landedCostMinor: bigint | null = null;
   let surplusCostMinor: bigint | null = null;
   let invalidCost = false;
+  let conversion: Conversion | null = null;
   const packSize = q.packSize;
   const minimumQty = q.minimumQty;
   if (
@@ -198,6 +202,17 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
   if (packSize !== null && (!isQuantity(packSize) || packSize === 0)) missingTerms.push("packSize");
   if (minimumQty !== null && !isQuantity(minimumQty)) missingTerms.push("minimumQty");
 
+  if (q.currency === null) {
+    landedCostMinor = null;
+    surplusCostMinor = null;
+  } else if (landedCostMinor !== null) {
+    const fx = { home_currency: context.orgCurrency, fx_rate: context.fxRate, fx_max_age_seconds: context.fxMaxAgeSeconds };
+    conversion = convertCost(landedCostMinor, q.currency, fx, new Date(context.now));
+    const surplus = convertCost(surplusCostMinor!, q.currency, fx, new Date(context.now));
+    landedCostMinor = conversion.converted_minor === null ? null : BigInt(conversion.converted_minor);
+    surplusCostMinor = surplus.converted_minor === null ? null : BigInt(surplus.converted_minor);
+    if (conversion.reason) missingTerms.push(conversion.reason);
+  }
   let coversAllDeadlines: boolean | null = null;
   const effectiveLatestOrder = q.latestOrderAt ?? (q.arrivalGuaranteedUntilExpiry ? q.validUntil : null);
   if (q.arrivalEnd !== null && parseInstant(q.arrivalEnd) === null) missingTerms.push("arrivalEnd");
@@ -253,6 +268,7 @@ export function evaluateQuote(q: QuoteTerms, context: QuoteContext): QuoteEvalua
     orderQty,
     surplusQty,
     landedCostMinor,
+    conversion,
     surplusCostMinor,
     coversAllDeadlines,
     effectiveArrivalAt: q.arrivalEnd === null || parseInstant(q.arrivalEnd) === null

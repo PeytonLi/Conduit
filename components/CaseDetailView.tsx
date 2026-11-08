@@ -257,6 +257,11 @@ function SupplierOptionTable({
                   <div><dt>Quantity and arrival</dt><dd>{option.quantity === null ? "Not provided" : formatQuantity(option.quantity, detail.case.item.unit)}
                     {option.schedule.map((entry, index) => <span key={`${option.id}-summary-${index}`}> · by {formatDateTimeRange(entry.arrival_start, entry.arrival_end, detail.case.location.timezone) ?? "arrival not confirmed"}</span>)}
                   </dd></div>
+                  {option.conversion && option.conversion.original_currency !== option.currency && (
+                    <div><dt>Original quote total</dt><dd>{moneyLabel(option.conversion.original_minor, option.conversion.original_currency)}
+                      {option.conversion.rate && <span> · {option.conversion.rate.source}, as of {formatDateTime(option.conversion.rate.as_of, detail.case.location.timezone)}</span>}
+                    </dd></div>
+                  )}
                   <div><dt>Total cash outlay</dt><dd>{moneyLabel(option.costs.total_cash_outlay_minor, option.currency)}</dd></div>
                   <div><dt>Net incremental</dt><dd>{moneyLabel(option.costs.net_incremental_minor, option.currency)}</dd></div>
                 </dl>
@@ -278,7 +283,7 @@ function SupplierOptionTable({
                 {option.missing_fields.length > 0 && <p className={styles.missingOption}>Missing: {option.missing_fields.map((field) => humanLabel("missingQuoteTerm", field)).join(", ")}</p>}
                 <dl className={styles.costs}>
                   {costRows.map(([label, key]) => (
-                    <div key={key}><dt>{label}</dt><dd>{moneyLabel(option.costs[key], option.currency)}</dd></div>
+                    <div key={key}><dt>{label}</dt><dd>{moneyLabel(option.costs[key], ["item_cost_minor", "freight_minor", "fees_minor", "nonrecoverable_tax_minor"].includes(key) ? option.original_currency ?? option.currency : option.currency)}</dd></div>
                   ))}
                 </dl>
                 {option.last_verified_at && <p className={styles.verified}>Last verified: {formatDateTime(option.last_verified_at, detail.case.location.timezone)}</p>}
