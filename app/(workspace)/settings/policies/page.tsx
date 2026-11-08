@@ -70,7 +70,7 @@ export default async function PoliciesSettingsPage() {
         ) : null}
       </section>
       {membership.role === "owner"
-        ? <PolicyEditor key={policy?.version ?? 0} currency={organization.currency} timeZone={organization.timezone} suppliers={suppliers} initialSettings={settings} version={policy?.version ?? 0} />
+        ? <PolicyEditor currency={organization.currency} timeZone={organization.timezone} suppliers={suppliers} initialSettings={settings} version={policy?.version ?? 0} />
         : <p className={styles.readOnly}>Only an owner can edit organization policies. This page is read-only for your role.</p>}
       <p><Link href="/suppliers">Manage supplier onboarding and separate contact and purchasing approvals</Link></p>
     </div>

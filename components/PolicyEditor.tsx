@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "./ui/Button";
 import { policySettingsSchema, type PolicySettings } from "@/lib/policies/schema";
@@ -51,6 +51,7 @@ export function PolicyEditor({
   const [currentVersion, setCurrentVersion] = useState(version);
   const [settings, setSettings] = useState(initialSettings);
   const [reason, setReason] = useState("");
+  const [killReason, setKillReason] = useState("");
   const [ceiling, setCeiling] = useState(() => {
     const minor = initialSettings.negotiation.ceiling_minor;
     if (!minor) return "";
@@ -62,6 +63,12 @@ export function PolicyEditor({
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const delegation = settings.delegated_purchasing;
+  useEffect(() => {
+    setCurrentVersion(version);
+    setSettings(initialSettings);
+    // Sync from the server when a new policy version lands; ignore identity churn on settings.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- version is the refresh signal
+  }, [version]);
   function updateDelegation(next: Partial<PolicySettings["delegated_purchasing"]>) {
     setSettings({ ...settings, delegated_purchasing: { ...delegation, ...next } });
   }
@@ -71,7 +78,7 @@ export function PolicyEditor({
     setError("");
     setMessage("");
     try {
-      const result = await postJson<{ version: number; delegated_commitments_revoked: number }>("/api/v1/policies/delegation/disable", { reason: reason.trim() });
+      const result = await postJson<{ version: number; delegated_commitments_revoked: number }>("/api/v1/policies/delegation/disable", { reason: killReason.trim() });
       setCurrentVersion(result.version);
       updateDelegation({ enabled: false });
       setMessage(`Delegation disabled. ${result.delegated_commitments_revoked} outstanding commitments revoked.`);
@@ -116,10 +123,14 @@ export function PolicyEditor({
         settings: validation.data,
       });
       setCurrentVersion(result.version);
+      // Close the form so the visible status (not the clipped LiveRegion) announces success
+      // before refresh; avoid remounting via a version key so this message survives.
+      setEditing(false);
       setMessage(`Policy version ${result.version} saved`);
       router.refresh();
     } catch (saveError) {
       if (saveError instanceof WorkspaceApiError && saveError.code === "stale_version") {
+        setEditing(false);
         setMessage("Policy changed since you opened it; reload.");
       } else {
         setError(workspaceErrorMessage(saveError));
@@ -138,8 +149,8 @@ export function PolicyEditor({
       >
         {editing ? "Cancel editing" : "Edit policy"}
       </Button>
-      <label className={styles.field}>Reason for emergency disable<input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-      <Button disabled={saving || !reason.trim()} onClick={() => void killDelegation()} variant="secondary">Disable delegated purchasing now</Button>
+      <label className={styles.field}>Reason for emergency disable<input maxLength={500} value={killReason} onChange={(event) => setKillReason(event.target.value)} /></label>
+      <Button disabled={saving || !killReason.trim()} onClick={() => void killDelegation()} variant="secondary">Disable delegated purchasing now</Button>
       <p className={styles.note}>Disables delegation and cancels work awaiting dispatch. Already dispatched work cannot be retracted.</p>
       {!editing && error && <p role="alert">{error}</p>}
       {!editing && message && <p role="status">{message}</p>}
