@@ -36,6 +36,12 @@ Execute the Render live E2E using [docs/evidence/render-e2e-runbook.md](docs/evi
 1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage) — tracked in [docs/evidence/submission-checklist.md](docs/evidence/submission-checklist.md).
 2. M6 evidence bundle, demo video and submission artifacts — slots under `docs/evidence/artifacts/`; see [docs/evidence/README.md](docs/evidence/README.md).
 
+## DeepSeek thinking mode (opt-in) — November 8, 2026
+
+- `DEEPSEEK_THINKING_ENABLED=true` turns on thinking for the planner and message extraction. Default stays off; voice prompts untouched.
+- Hidden reasoning is replayed to DeepSeek from a process-local `ReasoningVault` only; durable step output, DB rows, telemetry and browser payloads carry an opaque handle. Design and caveats: docs/prd/05-agent-and-integrations.md section 3.
+- Checks: `pnpm test` (532 passed, incl. `tests/domain/deepseek-thinking.test.ts`), `pnpm typecheck`, `pnpm lint`. Not verified against the live DeepSeek API (no run recorded with thinking on); keep it off in production until one planner cycle has been observed.
+
 ## AT-37 real connector evidence — November 7, 2026
 
 Passed for QuickBooks Online against a real Intuit sandbox company ("Sandbox Company US 9497", `sandbox-quickbooks.api.intuit.com`). An independent audit session approved the planned writes before they ran, and every write targeted only that sandbox. The run used the shared `describeErpClientContract` suite through `tests/domain/quickbooks-live.test.ts` (skipped unless its env flag is set), with the code from [#39](https://github.com/PeytonLi/Conduit/pull/39), [#41](https://github.com/PeytonLi/Conduit/pull/41), [#42](https://github.com/PeytonLi/Conduit/pull/42) and [#43](https://github.com/PeytonLi/Conduit/pull/43).

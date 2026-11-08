@@ -73,7 +73,8 @@ export async function runPlannerCycle(
   const tools = toMap(deps.tools);
   const { orgId, caseId, episode } = ctx;
   const ck = `c${ctx.cycleIndex ?? 0}`;
-  const summaries: string[] = [];
+  // Tool-result summaries; ref is an opaque handle to the requesting turn (never reasoning).
+  const summaries: { text: string; ref?: string }[] = [];
   let modelRequests = 0;
   const seenCalls = new Set<string>();
   let disallowedCount = 0;
@@ -189,13 +190,11 @@ export async function runPlannerCycle(
         const messages = [
           { role: "system" as const, content: PLANNER_SYSTEM_PROMPT },
           { role: "user" as const, content: JSON.stringify(context) },
-          ...summaries.map(
-            (s) =>
-              ({
-                role: "user" as const,
-                content: s.slice(0, SUMMARY_CAP),
-              }),
-          ),
+          ...summaries.map((s) => ({
+            role: "user" as const,
+            content: s.text.slice(0, SUMMARY_CAP),
+            ...(s.ref ? { continuationRef: s.ref } : {}),
+          })),
         ];
         // Persisted episode request count determines the replay cursor so a
         // rebuilt replay model resumes at the right transcript entry.
@@ -271,6 +270,7 @@ export async function runPlannerCycle(
     }
 
     // 3. parse
+    let decidingTurn = turn;
     let parsed = parseModelTurn(turn);
     if (!parsed.ok) {
       const issues = parsed.issues;
@@ -348,6 +348,7 @@ export async function runPlannerCycle(
         return finish({ status: "needs_review", modelRequests });
       }
       parsed = reparsed;
+      decidingTurn = repairResult.turn;
     }
 
     const decision = parsed.decision;
@@ -409,7 +410,10 @@ export async function runPlannerCycle(
 
     if (!toolResult.ok && toolResult.code === "tool_not_allowed") {
       disallowedCount += 1;
-      summaries.push(`tool ${toolName}: tool_not_allowed`);
+      summaries.push({
+        text: `tool ${toolName}: tool_not_allowed`,
+        ref: decidingTurn.continuationRef,
+      });
       if (disallowedCount >= 2) {
         await step.run(`${ck}-disallowed-review-${n}`, () =>
           raiseReview(deps, orgId, caseId, "repeated disallowed tool requests"),
@@ -420,9 +424,10 @@ export async function runPlannerCycle(
     }
 
     if (!toolResult.ok) {
-      summaries.push(
-        `tool ${toolName} failed: ${toolResult.code} — ${toolResult.safeMessage}`,
-      );
+      summaries.push({
+        text: `tool ${toolName} failed: ${toolResult.code} — ${toolResult.safeMessage}`,
+        ref: decidingTurn.continuationRef,
+      });
       continue;
     }
 
@@ -437,9 +442,10 @@ export async function runPlannerCycle(
       return finish({ status: "plan_proposed", modelRequests });
     }
 
-    summaries.push(
-      `tool ${toolName} ok: ${JSON.stringify(toolResult.data).slice(0, SUMMARY_CAP)}`,
-    );
+    summaries.push({
+      text: `tool ${toolName} ok: ${JSON.stringify(toolResult.data).slice(0, SUMMARY_CAP)}`,
+      ref: decidingTurn.continuationRef,
+    });
   }
 
   await step.run(`${ck}-exhausted-review`, () =>

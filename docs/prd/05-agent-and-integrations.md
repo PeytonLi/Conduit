@@ -71,7 +71,7 @@ These are proposed configurable defaults, owned/versioned by the organization.
 | Procurement/negotiation ceiling | No implicit budget; owner must configure it. Canonical demo adds at most USD 100 in negotiated freight/fees |
 | Model requests | 8 per active decision cycle and 24 per case episode; retries count |
 | Model request timeout | 60 seconds; retry only known-safe inference requests |
-| Planner thinking | Disabled for B0 compatibility; optional later after the protocol/telemetry behavior is tested |
+| Planner thinking | Disabled by default (B0). Opt-in with `DEEPSEEK_THINKING_ENABLED=true` for the planner and message extraction; see section 3 |
 | Voice thinking | Disabled initially; streaming enabled |
 | Distinct suppliers contacted | At most 3 per case episode, including original supplier |
 | Calls | At most 1 automatic call per supplier and 3 total per case episode |
@@ -100,7 +100,15 @@ Use the official OpenAI-compatible Chat Completions interface through the TypeSc
 
 Use function/tool definitions with JSON schemas matching shared validation schemas. The app checks tool names, arguments, authority and results before continuing. Execute side-effect requests serially through the dispatcher. Independent safe reads may be parallelized within budget.
 
-B0 uses thinking disabled to simplify streamed tool compatibility and latency. If thinking mode is later enabled, preserve any provider-required reasoning fields in the private tool protocol, exclude them from user-visible output and telemetry, and test multi-step continuation. Do not mistake hidden reasoning for an audit explanation.
+B0 uses thinking disabled to simplify streamed tool compatibility and latency. Thinking mode is an explicit opt-in: set `DEEPSEEK_THINKING_ENABLED=true` (blank or `false` keeps it off; any other value fails env validation). It applies to the planner and message extraction only; voice prompts and the voice LLM path are unchanged. Do not mistake hidden reasoning for an audit explanation.
+
+Thinking-mode rules (implemented in `lib/integrations/deepseek/`):
+
+- DeepSeek requires `reasoning_content` of earlier assistant turns to be echoed back on any request that carries `tools`, and rejects the request with 400 otherwise. The planner rebuilds context each step, so it replays only the tool-calling turn(s) of the current cycle. That turn is held in a process-local, bounded, TTL-limited `ReasoningVault` and is sent only back to DeepSeek. The returned model turn, Inngest step output, planner request rows, usage events, reviews, logs and browser payloads carry just an opaque `continuationRef` handle.
+- A vault miss (restart, other instance, TTL) falls back to the plain-text tool summary, which sends no assistant turn and needs no reasoning. If DeepSeek still rejects a replayed turn with 400, the adapter retries once without replay.
+- Inline `<think>` blocks are stripped from content before parsing. Only reasoning token counts are recorded in usage telemetry.
+- Case explanations stay the model's concise factual decision fields; chain of thought is never an explanation or evidence.
+- With tools absent (extraction), reasoning is neither required nor retained. `max_tokens` is raised to 16,000 because the chain of thought counts against it; `temperature` has no effect in thinking mode.
 
 The planner's public-web research uses the explicit supplier-search tool. Do not assume a web-search feature documented for another DeepSeek integration automatically exists in this application's API path.
 
