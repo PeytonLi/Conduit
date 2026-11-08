@@ -9,10 +9,12 @@ export async function POST(
 ): Promise<Response> {
   const guard = mutationGuard(request);
   if (guard) return guard;
-  const parsed = await parseBody(request, supplierApprovalRequestSchema);
-  if (!parsed.success) return parsed.response;
+  // Authorize before body validation so non-owners get 403 instead of 422 on
+  // purchasing evidence rules that only owners can satisfy.
   return withMembership(
     async (context) => {
+      const parsed = await parseBody(request, supplierApprovalRequestSchema);
+      if (!parsed.success) return parsed.response;
       const { supplierId } = await routeContext.params;
       return executeMutation(request, context, parsed.data, async (requestId) => ({
         data: await supplierApproval({
