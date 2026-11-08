@@ -78,10 +78,34 @@ const DEFAULT_PHASE_TOOLS: readonly ToolName[] = [
   "request_owner_review",
 ];
 
-export function allowedTools(phase: CasePhase): readonly ToolName[] {
-  return PHASE_TOOLS[phase] ?? DEFAULT_PHASE_TOOLS;
+/**
+ * Tools outside the fixed 13 that exist only when explicitly enabled (and then
+ * registered). Never listed by default, so a disabled feature is invisible to
+ * the model.
+ */
+export const OPTIONAL_TOOLS = ["fetch_public_page"] as const;
+
+const OPTIONAL_PHASE_TOOLS: Partial<Record<CasePhase, readonly string[]>> = {
+  recovering: OPTIONAL_TOOLS,
+  awaiting_supplier: OPTIONAL_TOOLS,
+};
+
+/** `enabledOptional` lists the optional tools actually registered. */
+export function allowedTools(
+  phase: CasePhase,
+  enabledOptional: readonly string[] = [],
+): readonly string[] {
+  const base = PHASE_TOOLS[phase] ?? DEFAULT_PHASE_TOOLS;
+  const extra = (OPTIONAL_PHASE_TOOLS[phase] ?? []).filter((name) =>
+    enabledOptional.includes(name),
+  );
+  return extra.length > 0 ? [...base, ...extra] : base;
 }
 
-export function toolAllowed(phase: CasePhase, tool: string): boolean {
-  return (allowedTools(phase) as readonly string[]).includes(tool);
+export function toolAllowed(
+  phase: CasePhase,
+  tool: string,
+  enabledOptional: readonly string[] = [],
+): boolean {
+  return allowedTools(phase, enabledOptional).includes(tool);
 }
