@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "./ui/Button";
 import { policySettingsSchema, type PolicySettings } from "@/lib/policies/schema";
