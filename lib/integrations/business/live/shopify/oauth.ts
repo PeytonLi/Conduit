@@ -1,6 +1,6 @@
 import { createHmac, hkdfSync, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { isShopDomain } from "./graphql";
+import { ShopifyApiError, isShopDomain } from "./graphql";
 
 /** write_* implies read_* for the same resource. */
 export const SHOPIFY_SCOPES = [
@@ -154,12 +154,33 @@ async function requestToken(
   doFetch: typeof fetch,
   now: () => Date,
 ): Promise<ShopifyCredentials> {
-  const response = await doFetch(`https://${shop}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
-    body: new URLSearchParams(body).toString(),
-  });
-  if (!response.ok) throw new Error(`Shopify token request failed (${response.status})`);
+  let response: Response;
+  try {
+    response = await doFetch(`https://${shop}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body: new URLSearchParams(body).toString(),
+    });
+  } catch (err) {
+    // The request may or may not have reached Shopify; the refresh token we hold is still safe to retry.
+    throw new ShopifyApiError(
+      `Shopify token request failed: ${err instanceof Error ? err.message : "network error"}`,
+      "token_transport",
+      true,
+    );
+  }
+  if (response.status === 429 || response.status >= 500) {
+    throw new ShopifyApiError(`Shopify token request failed (${response.status})`, `token_http_${response.status}`, true);
+  }
+  if (!response.ok) {
+    // Shopify answers 401 invalid_request for every terminal refresh-token case (unknown, replaced,
+    // expired, revoked), so the merchant has to reconnect rather than the job retrying.
+    throw new ShopifyApiError(
+      `Shopify rejected the token request (${response.status}); the shop must be reconnected`,
+      "reauthorization_required",
+      false,
+    );
+  }
   const token = tokenResponseSchema.parse(await response.json());
   const at = (seconds?: number) => (seconds ? new Date(now().getTime() + seconds * 1000).toISOString() : null);
   return {
