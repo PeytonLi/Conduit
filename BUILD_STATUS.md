@@ -1,6 +1,6 @@
 # Conduit — Build status
 
-Last updated: November 7, 2026
+Last updated: November 8, 2026
 Specification baseline: PRD v1.0
 Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submission evidence remain open
 
@@ -25,16 +25,16 @@ Current phase: Phases 1 and 2 built and deployed on Render; acceptance and submi
 | M3 — Research, email and voice | Done | Planner, call contracts, provider wiring, and media bridge delivered in [#5](https://github.com/PeytonLi/Conduit/pull/5), [#9](https://github.com/PeytonLi/Conduit/pull/9), [#10](https://github.com/PeytonLi/Conduit/pull/10), [#11](https://github.com/PeytonLi/Conduit/pull/11), and [#12](https://github.com/PeytonLi/Conduit/pull/12). Live voice-provider success remains unverified; see the M0 gate and voice investigation below. |
 | M4 — Approval and recovery recording | Done | Versioned recovery, owner/operator approval flows, ledger recording, and voice/action integration landed in [#3](https://github.com/PeytonLi/Conduit/pull/3), [#8](https://github.com/PeytonLi/Conduit/pull/8), [#12](https://github.com/PeytonLi/Conduit/pull/12), and [#14](https://github.com/PeytonLi/Conduit/pull/14). |
 | M5 — Reliability, UX and acceptance | In progress | Reliability and UX work landed in [#7](https://github.com/PeytonLi/Conduit/pull/7), [#13](https://github.com/PeytonLi/Conduit/pull/13), and [#14](https://github.com/PeytonLi/Conduit/pull/14). AT-38 retention/disconnect controls and AT-33 replay isolation (`tests/domain/at33-replay-isolation.test.ts`) are covered. AT-37 Real connector passed against a QuickBooks Online sandbox; see the evidence below. |
-| M6 — Evidence and submission preparation | In progress | A measured inventory before/after performance run and repository setup/docs exist; the complete evidence bundle and demo video/submission artifacts remain outstanding. See [#14](https://github.com/PeytonLi/Conduit/pull/14) for the inventory performance work. |
+| M6 — Evidence and submission preparation | In progress | A measured inventory before/after performance run and repository setup/docs exist; the complete evidence bundle and demo video/submission artifacts remain **outstanding** (scaffold only in `docs/evidence/`). See [#14](https://github.com/PeytonLi/Conduit/pull/14) for inventory performance work; follow `docs/evidence/render-e2e-runbook.md` and `docs/evidence/submission-checklist.md` for the live Render pack. |
 
 ## Next action
 
-Record one end-to-end live run on the Render deployment: sign up, connect Gmail, receive a supplier delay email, place one call to an approved test number, approve a plan. Optionally repeat AT-37 on Zoho Inventory or a hosted Odoo once a test account is connected.
+Execute the Render live E2E using [docs/evidence/render-e2e-runbook.md](docs/evidence/render-e2e-runbook.md): sign up, connect Gmail, receive a supplier delay email, place one call to an approved test number, approve a plan. Fill [docs/evidence/templates/live-run-record.md](docs/evidence/templates/live-run-record.md) and drop artifacts under `docs/evidence/artifacts/` per [docs/evidence/artifact-conventions.md](docs/evidence/artifact-conventions.md). Baseline health: `node scripts/evidence/capture-health-snapshot.mjs` with `APP_BASE_URL` set. Optionally repeat AT-37 on Zoho Inventory or a hosted Odoo once a test account is connected. **No live Render E2E has been recorded in this evidence pack yet.**
 
 ## Open gates
 
-1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage).
-2. M6 evidence bundle, demo video and submission artifacts.
+1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage) — tracked in [docs/evidence/submission-checklist.md](docs/evidence/submission-checklist.md).
+2. M6 evidence bundle, demo video and submission artifacts — slots under `docs/evidence/artifacts/`; see [docs/evidence/README.md](docs/evidence/README.md).
 
 ## AT-37 real connector evidence — November 7, 2026
 
