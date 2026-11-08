@@ -11,7 +11,7 @@ export type PilotReadiness = {
 
 export function getPilotReadiness(
   connections: readonly { provider: string; status: string }[],
-  envCapabilities: CapabilityStatus,
+  envCapabilities: Partial<CapabilityStatus>,
   appEnvironment: "replay" | "sandbox" | "live",
 ): PilotReadiness {
   if (appEnvironment === "replay") {
@@ -31,12 +31,15 @@ export function getPilotReadiness(
     (connection) =>
       isErpProvider(connection.provider) && isActiveMailboxStatus(connection.status),
   );
-  const mailboxEnvReady = envCapabilities.gmail.ready || envCapabilities.outlook.ready;
+  // Capability maps from callers/tests may omit providers; treat missing as not ready.
+  const mailboxEnvReady = Boolean(
+    envCapabilities.gmail?.ready || envCapabilities.outlook?.ready,
+  );
 
   return {
-    analysis: envCapabilities.deepseek.ready,
+    analysis: Boolean(envCapabilities.deepseek?.ready),
     email: mailboxEnvReady && mailboxConnected,
-    voice: envCapabilities.voice.ready,
+    voice: Boolean(envCapabilities.voice?.ready),
     businessWriteBack: erpConnected,
   };
 }
