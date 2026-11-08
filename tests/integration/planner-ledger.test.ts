@@ -4,6 +4,7 @@ import { createRequestSupplierEmailTool } from "@/lib/agent/tools/request-suppli
 import type { PlannerStore } from "@/lib/agent/store";
 import type { ToolDeps } from "@/lib/agent/tools/deps";
 import { dispatchAction } from "@/lib/actions/dispatcher";
+import { pickMailboxConnection } from "@/lib/integrations/mailbox/types";
 import {
   connect,
   countingAdapter,
@@ -59,15 +60,15 @@ function pgReadStore(h: HarborIds): PlannerStore {
     getSupplier: (orgId: string, supplierId: string) => row(orgId, "suppliers", supplierId),
     getItem: (orgId: string, itemId: string) => row(orgId, "items", itemId),
     getLocation: (orgId: string, locationId: string) => row(orgId, "locations", locationId),
-    getActiveGmailConnectionId: async (orgId: string) => {
+    resolveMailboxConnection: async (orgId: string, requestedId?: string | null) => {
       const { rows } = await client.query(
-        `select id from connections
-         where org_id = $1 and provider = 'gmail'
-           and status in ('healthy', 'degraded')
-         limit 1`,
+        `select id, org_id, provider, status, is_primary, created_at::text as created_at
+         from connections
+         where org_id = $1 and provider in ('gmail', 'outlook')
+           and status in ('healthy', 'degraded')`,
         [orgId],
       );
-      return rows[0]?.id ?? null;
+      return pickMailboxConnection(rows, orgId, requestedId);
     },
     getOrgTimezone: async (orgId: string) => {
       const { rows } = await client.query(

@@ -44,7 +44,8 @@ export function ConnectGmailError({ message }: { message: string }) {
   return message ? <p className={styles.error} role="alert">{message}</p> : null;
 }
 
-export function ConnectGmailButton() {
+/** `another` is set when a Gmail mailbox is already connected. */
+export function ConnectGmailButton({ another = false }: { another?: boolean } = {}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,7 +68,7 @@ export function ConnectGmailButton() {
         onClick={() => void connect()}
         variant="primary"
       >
-        {pending ? "Connecting…" : "Connect Gmail"}
+        {pending ? "Connecting…" : another ? "Connect another Gmail account" : "Connect Gmail"}
       </Button>
       <ConnectGmailError message={error} />
     </div>

@@ -6,6 +6,7 @@ import type {
   PlanStepKind,
   RunControl,
 } from "@/lib/schemas/enums";
+import type { ResolvedMailbox } from "@/lib/integrations/mailbox/types";
 
 /** Rows mirror public.* columns; money minor units are decimal strings. */
 export interface CaseRecord {
@@ -38,11 +39,13 @@ export interface LocationRecord {
   timezone: string;
 }
 
-export interface GmailConnectionRecord {
+export interface MailboxConnectionRecord {
   id: string;
   org_id: string;
   provider: string;
   status: string;
+  is_primary?: boolean;
+  created_at?: string;
 }
 
 export interface SupplierRecord {
@@ -336,7 +339,15 @@ export interface PlannerStore {
   ): Promise<void>;
   getItem(orgId: string, itemId: string): Promise<ItemRecord | null>;
   getLocation(orgId: string, locationId: string): Promise<LocationRecord | null>;
-  getActiveGmailConnectionId(orgId: string): Promise<string | null>;
+  /**
+   * The active mailbox connection (Gmail or Outlook) for outbound supplier
+   * email. With `requestedId` only that connection qualifies; without it the
+   * organization's primary mailbox, then its oldest active one.
+   */
+  resolveMailboxConnection(
+    orgId: string,
+    requestedId?: string | null,
+  ): Promise<ResolvedMailbox | null>;
   getOrgTimezone(orgId: string): Promise<string | null>;
   getSupplier(orgId: string, supplierId: string): Promise<SupplierRecord | null>;
   getContact(orgId: string, contactId: string): Promise<ContactRecord | null>;

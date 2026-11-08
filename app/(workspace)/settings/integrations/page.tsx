@@ -10,14 +10,17 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import styles from "./integrations.module.css";
-import { DisconnectGmailButton } from "@/components/DisconnectGmailButton";
 import { ConnectGmailButton } from "@/components/ConnectGmailButton";
+import { ConnectOutlookButton } from "@/components/MailboxControls";
+import { isActiveMailboxStatus, isMailboxProvider } from "@/lib/integrations/mailbox/types";
+import { MailboxList } from "./MailboxList";
 import { ConnectBusinessSystem, ConnectedBusinessSystemActions } from "@/components/BusinessSystemControls";
 import { availableBusinessSystems, type BusinessConnectMethod } from "@/lib/integrations/business/live/availability";
 import { erpProviderLabels, isErpProvider } from "@/lib/integrations/business/live/registry";
 
 type IntegrationsSearchParams = {
   gmail?: string | string[];
+  outlook?: string | string[];
   business?: string | string[];
   provider?: string | string[];
   code?: string | string[];
@@ -36,6 +39,25 @@ const gmailErrorReasons: Record<string, string> = {
   user_mismatch: "Sign in with the account that started the connection.",
   org_mismatch: "The request belongs to a different organization.",
   not_owner: "Only an organization owner can connect Gmail.",
+  redirect_mismatch: "The callback URL did not match the connection request.",
+  malformed: "The authorization request was invalid.",
+};
+
+const outlookErrorReasons: Record<string, string> = {
+  outlook_not_configured: "The Outlook integration is not configured.",
+  outlook_unavailable_in_replay: "Outlook is not used in replay mode.",
+  access_denied: "Microsoft access was not granted.",
+  connection_failed: "The authorization was not completed.",
+  connection_verification_failed: "The connected account could not be verified.",
+  missing_code: "Microsoft did not return an authorization code.",
+  exchange_failed: "Microsoft could not complete the authorization. Make sure mail read and send access were allowed.",
+  unauthorized: "Sign in as an organization owner to connect Outlook.",
+  bad_signature: "The authorization request could not be verified.",
+  expired: "The connection request expired. Start again.",
+  nonce_mismatch: "The connection request could not be verified. Start again.",
+  user_mismatch: "Sign in with the account that started the connection.",
+  org_mismatch: "The request belongs to a different organization.",
+  not_owner: "Only an organization owner can connect Outlook.",
   redirect_mismatch: "The callback URL did not match the connection request.",
   malformed: "The authorization request was invalid.",
 };
@@ -61,6 +83,7 @@ function formatLastSynced(value: string | null, timeZone: string): string {
 const purposeByCapability: Record<string, string> = {
   deepseek: "Reads supplier emails and drafts recovery plans.",
   gmail: "Receives supplier delay emails and sends approved replies.",
+  outlook: "Receives supplier delay emails and sends approved replies from Outlook.",
   voice: "Calls approved supplier contacts for quotes.",
   exa: "Finds alternative suppliers.",
   inngest: "Runs case workflows in the background.",
@@ -69,6 +92,7 @@ const purposeByCapability: Record<string, string> = {
 const iconByCapability = {
   deepseek: "sparkle",
   gmail: "inbox",
+  outlook: "inbox",
   voice: "phone",
   exa: "search",
   inngest: "clock",
@@ -82,13 +106,27 @@ export default async function IntegrationsSettingsPage({
   const query = await searchParams;
   const gmailStatus = firstParam(query.gmail);
   const gmailError = firstParam(query.code);
+  const outlookStatus = firstParam(query.outlook);
   const membership = await requireMembership();
   const appEnvironment = parseServerEnv(process.env).APP_ENV;
   const [result, organization] = await Promise.all([
     listConnections(membership),
     getOrganization(membership),
   ]);
-  const configured = new Map(result.connections.map((connection) => [connection.provider, connection]));
+  // One entry per provider. With several connections of a provider (two
+  // mailboxes), an active one is preferred so the card reflects whether the
+  // provider is usable at all; per-connection detail is in the Mailboxes list.
+  const configured = new Map<string, (typeof result.connections)[number]>();
+  for (const connection of result.connections) {
+    const current = configured.get(connection.provider);
+    if (!current || (!isActiveMailboxStatus(current.status) && isActiveMailboxStatus(connection.status))) {
+      configured.set(connection.provider, connection);
+    }
+  }
+  const mailboxes = result.connections.filter(
+    (connection) => isMailboxProvider(connection.provider) && connection.status !== "disconnected",
+  );
+  const now = new Date();
   const businessStatus = firstParam(query.business);
   const businessProvider = firstParam(query.provider);
   const businessLabel = isErpProvider(businessProvider) ? erpProviderLabels[businessProvider] : "The business system";
@@ -123,6 +161,25 @@ export default async function IntegrationsSettingsPage({
         <p className={`${styles.notice} ${styles.noticeError}`} role="alert">
           Gmail couldn’t be connected. {gmailErrorReasons[gmailError] ?? "Please try again or ask an owner to review the setup."}
         </p>
+      )}
+      {outlookStatus === "connected" && (
+        <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
+          Outlook connected. Conduit will start reading supplier emails within a few minutes.
+        </p>
+      )}
+      {outlookStatus === "error" && (
+        <p className={`${styles.notice} ${styles.noticeError}`} role="alert">
+          Outlook couldn’t be connected. {outlookErrorReasons[gmailError] ?? "Please try again or ask an owner to review the setup."}
+        </p>
+      )}
+      {mailboxes.length > 0 && (
+        <MailboxList
+          canManage={membership.role === "owner"}
+          formatLastSynced={(value) => formatLastSynced(value, organization.timezone)}
+          mailboxes={mailboxes}
+          now={now}
+          providerLabel={(provider) => humanLabel("provider", provider)}
+        />
       )}
       {businessStatus === "connected" && (
         <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
@@ -196,21 +253,22 @@ export default async function IntegrationsSettingsPage({
             const connection = configured.get(provider);
             const readiness = readinessByProvider[provider];
             const connected = Boolean(connection && ["healthy", "degraded"].includes(connection.status));
+            const isMailbox = isMailboxProvider(provider);
             const ready = readiness
-              ? readiness.ready && (provider === "gmail" ? connected : (!connection || connected))
+              ? readiness.ready && (isMailbox ? connected : (!connection || connected))
               : connected;
             const notNeededInReplay = appEnvironment === "replay";
-            const notConnectedGmail = provider === "gmail" && !connected;
+            const notConnectedMailbox = isMailbox && !connected;
             const statusLabel = notNeededInReplay
               ? "Not needed in replay"
-              : notConnectedGmail
+              : notConnectedMailbox
                 ? "Not connected"
                 : ready
                   ? "Ready"
                   : "Needs setup";
             const statusTone = notNeededInReplay
               ? "neutral"
-              : notConnectedGmail
+              : notConnectedMailbox
                 ? "warning"
                 : ready
                   ? "success"
@@ -241,8 +299,8 @@ export default async function IntegrationsSettingsPage({
                       <div className={styles.capabilities}>
                         {Object.entries(connection.capabilities).map(([name, available]) => {
                           const normalizedName = name.toLowerCase();
-                          const isRead = provider === "gmail" && normalizedName.includes("read");
-                          const isSend = provider === "gmail" && normalizedName.includes("send");
+                          const isRead = isMailbox && normalizedName.includes("read");
+                          const isSend = isMailbox && normalizedName.includes("send");
                           const label = isRead
                             ? `Read ${available ? "✓" : "—"}`
                             : isSend
@@ -270,17 +328,19 @@ export default async function IntegrationsSettingsPage({
                       <p>No missing environment configuration was reported.</p>
                     )}
                   </Disclosure>
+                  {/* Disconnect lives per connection in the Mailboxes list. A
+                      mailbox can always be added: that is how a second one joins. */}
                   {provider === "gmail" &&
-                    connected &&
-                    membership.role === "owner" && (
-                    <DisconnectGmailButton />
-                  )}
-                  {provider === "gmail" &&
-                    !connected &&
                     !notNeededInReplay &&
                     readiness?.ready &&
                     membership.role === "owner" && (
-                      <ConnectGmailButton />
+                      <ConnectGmailButton another={connected} />
+                    )}
+                  {provider === "outlook" &&
+                    !notNeededInReplay &&
+                    readiness?.ready &&
+                    membership.role === "owner" && (
+                      <ConnectOutlookButton another={connected} />
                     )}
                 </div>
               </Card>

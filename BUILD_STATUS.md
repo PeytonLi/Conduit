@@ -36,6 +36,17 @@ Execute the Render live E2E using [docs/evidence/render-e2e-runbook.md](docs/evi
 1. Recorded live evidence on the Render deployment (Gmail, voice, DeepSeek usage) — tracked in [docs/evidence/submission-checklist.md](docs/evidence/submission-checklist.md).
 2. M6 evidence bundle, demo video and submission artifacts — slots under `docs/evidence/artifacts/`; see [docs/evidence/README.md](docs/evidence/README.md).
 
+## Outlook and multiple mailboxes — November 8, 2026
+
+Decision D-022 (docs/prd/07). Setup and the live checklist: [docs/outlook-setup.md](docs/outlook-setup.md).
+
+- An organization can hold several mailbox connections (Gmail and Outlook) with one **primary**. Migration `20261108130000_outlook_multi_mailbox.sql` adds `connections.is_primary` (partial unique index, mailbox providers only), provider-neutral `mailbox_*` RPCs, `inbox_list_mailbox_connections`, a generalized `ui_disconnect_connection` (by connection id, any health) and `ledger_claim_dispatch` that validates the mailbox the action names instead of "any Gmail". `inbox_store_message` now stores a second copy of the same inbound Message-ID from another mailbox as `ignored` with no event.
+- Outlook: OAuth code flow with PKCE (`lib/integrations/outlook/oauth.ts`), Graph Inbox delta sync into `ingestMessage` (`sync.ts`, Inngest `inbox-outlook-poll`), draft-then-send with Message-ID reconciliation in Sent Items (`api.ts`). Every Microsoft call goes through a replay guard.
+- Routing: `request_supplier_email` takes an optional `connection_id`; the supplier email adapter resolves the transport from the connection in the payload (`lib/integrations/mailbox/resolve.ts`). UI: Mailboxes list with health, primary, make-primary and per-connection disconnect/remove.
+- Checks: `pnpm typecheck`, `pnpm lint`, `pnpm test` (676 passed), integration suite against local Supabase (all suites passed, including new `mailbox-multi.test.ts`), `pnpm build`, and the Playwright spec `ui-activity-integrations-members` (4 passed).
+- **Not verified live.** No Microsoft credentials were available. Open: the checklist in docs/outlook-setup.md, notably that Exchange preserves the draft's `internetMessageId` (send reconciliation depends on it), immutable-id behavior of the delta endpoint, and tenant consent policy for `Mail.ReadWrite`/`Mail.Send`.
+- Limits: poll only (no Graph push), no `In-Reply-To` threading on Outlook sends, Inbox folder only. The operator outreach endpoint (`POST .../outreach`) still builds a payload without `connection_id`, as before.
+
 ## Internal stock transfer execution (J06, FR-011) — November 8, 2026
 
 Internal transfers can now be executed, not only recommended, when the connected business system supports it. The owner still approves every transfer. **No transfer has been run against a real Shopify store or any other live business system.** All evidence below is mocked or runs against a local database.

@@ -108,7 +108,7 @@ test("connected Gmail asks for inline confirmation before disconnecting", async 
     await confirmation.getByRole("button", { name: "Cancel" }).click();
     await expect(confirmation).toHaveCount(0);
 
-    await page.route("**/api/v1/connections/gmail", async (route) => {
+    await page.route("**/api/v1/connections/mailboxes/*", async (route) => {
       if (route.request().method() === "DELETE") pendingDelete = route;
       else await route.continue();
     });
@@ -123,7 +123,7 @@ test("connected Gmail asks for inline confirmation before disconnecting", async 
       "Gmail couldn’t be disconnected. Please try again.",
     );
   } finally {
-    await page.unroute("**/api/v1/connections/gmail");
+    await page.unroute("**/api/v1/connections/mailboxes/*");
     if (insertedConnectionId) {
       await database.query("delete from public.connections where id = $1", [insertedConnectionId]);
     } else if (originalConnection) {

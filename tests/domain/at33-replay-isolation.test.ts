@@ -115,6 +115,51 @@ describe("AT-33 replay isolation with live keys present", () => {
     expect(transportFor).not.toHaveBeenCalled();
   });
 
+  it("never builds a Microsoft client or calls Microsoft in replay, even with the app registration configured", async () => {
+    const { createOutlookApiForConnection, syncOutlookConnectionById } = await import(
+      "@/lib/integrations/outlook/runtime"
+    );
+    const { outlookPollEnabled } = await import("@/lib/integrations/outlook/config");
+    const { parseServerEnv } = await import("@/lib/env");
+    const fetchImpl = vi.fn().mockRejectedValue(new Error("network used in replay"));
+    const rpc = { rpc: vi.fn().mockRejectedValue(new Error("rpc used in replay")) };
+    const key = `v1:${Buffer.alloc(32, 1).toString("base64")}`;
+    const env = parseServerEnv({
+      SUPABASE_URL: "http://127.0.0.1:54321",
+      SUPABASE_PUBLISHABLE_KEY: "p",
+      SUPABASE_SECRET_KEY: "s",
+      APP_ENV: "replay",
+      CREDENTIAL_ENCRYPTION_KEY: key,
+      MICROSOFT_CLIENT_ID: "live-client",
+      MICROSOFT_CLIENT_SECRET: "live-secret",
+      MICROSOFT_REDIRECT_URI: "https://app.example.test/api/auth/outlook/callback",
+    });
+
+    expect(outlookPollEnabled(env)).toBe(false);
+    expect(
+      createOutlookApiForConnection({
+        rpc,
+        env,
+        orgId: "o",
+        connectionId: "c",
+        credential: { provider: "outlook", refreshToken: "r" },
+        fetchImpl,
+      }),
+    ).toBeNull();
+    await expect(
+      syncOutlookConnectionById({
+        rpc,
+        env,
+        orgId: "o",
+        connectionId: "c",
+        publish: async () => undefined,
+        fetchImpl,
+      }),
+    ).resolves.toEqual({ ok: false, reason: "replay mode" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(rpc.rpc).not.toHaveBeenCalled();
+  });
+
   it("keeps supplier research on fixtures when an Exa key is configured", async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error("network used in replay"));
     const research = selectResearch({ EXA_API_KEY: "live-key" }, "replay", {

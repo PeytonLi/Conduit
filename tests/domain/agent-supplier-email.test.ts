@@ -144,9 +144,9 @@ describe("request_supplier_email adapter contract", () => {
     ]);
   });
 
-  it("does not prepare when no usable Gmail connection exists", async () => {
+  it("does not prepare when no usable mailbox connection exists", async () => {
     const store = harborStore();
-    store.gmailConnections = [
+    store.mailboxConnections = [
       {
         id: GMAIL_CONNECTION_A,
         org_id: ctx.orgId,
@@ -162,9 +162,102 @@ describe("request_supplier_email adapter contract", () => {
     expect(result).toMatchObject({
       ok: false,
       code: "channel_unavailable",
-      safeMessage: "no connected Gmail account",
+      safeMessage: "no connected mailbox account",
     });
     expect(preparer.calls).toHaveLength(0);
+  });
+
+  describe("with several mailboxes", () => {
+    const OUTLOOK_CONNECTION = "00000000-0000-4000-8000-0000000000c1";
+    const OTHER_ORG_CONNECTION = "00000000-0000-4000-8000-0000000000c2";
+
+    function twoMailboxStore() {
+      const store = harborStore();
+      store.mailboxConnections = [
+        {
+          id: GMAIL_CONNECTION_A,
+          org_id: ctx.orgId,
+          provider: "gmail",
+          status: "healthy",
+          is_primary: false,
+          created_at: "2026-10-01T00:00:00.000Z",
+        },
+        {
+          id: OUTLOOK_CONNECTION,
+          org_id: ctx.orgId,
+          provider: "outlook",
+          status: "healthy",
+          is_primary: true,
+          created_at: "2026-11-01T00:00:00.000Z",
+        },
+        {
+          id: OTHER_ORG_CONNECTION,
+          org_id: "00000000-0000-4000-8000-0000000000ff",
+          provider: "outlook",
+          status: "healthy",
+          is_primary: true,
+          created_at: "2026-09-01T00:00:00.000Z",
+        },
+      ];
+      return store;
+    }
+
+    it("defaults to the primary mailbox even when it is not the oldest", async () => {
+      const store = twoMailboxStore();
+      const preparer = createFakePreparer(store);
+      const tool = createRequestSupplierEmailTool({ store, clock, preparer });
+
+      const result = await tool.run(ctx, request());
+
+      expect(result.ok).toBe(true);
+      expect(supplierEmailPayloadSchema.parse(preparer.calls[0].payload).connection_id).toBe(
+        OUTLOOK_CONNECTION,
+      );
+    });
+
+    it("sends from the mailbox the action names", async () => {
+      const store = twoMailboxStore();
+      const preparer = createFakePreparer(store);
+      const tool = createRequestSupplierEmailTool({ store, clock, preparer });
+
+      const result = await tool.run(ctx, request({ connection_id: GMAIL_CONNECTION_A }));
+
+      expect(result.ok).toBe(true);
+      expect(supplierEmailPayloadSchema.parse(preparer.calls[0].payload).connection_id).toBe(
+        GMAIL_CONNECTION_A,
+      );
+    });
+
+    it("refuses a named mailbox that is unhealthy or belongs to another organization, with no fallback", async () => {
+      const store = twoMailboxStore();
+      store.mailboxConnections[0].status = "revoked";
+      const preparer = createFakePreparer(store);
+      const tool = createRequestSupplierEmailTool({ store, clock, preparer });
+
+      for (const connection_id of [GMAIL_CONNECTION_A, OTHER_ORG_CONNECTION]) {
+        const result = await tool.run(ctx, request({ connection_id }));
+        expect(result).toMatchObject({
+          ok: false,
+          code: "channel_unavailable",
+          safeMessage: "requested mailbox is not connected",
+        });
+      }
+      expect(preparer.calls).toHaveLength(0);
+    });
+
+    it("falls back to the oldest active mailbox when the primary is unhealthy", async () => {
+      const store = twoMailboxStore();
+      store.mailboxConnections[1].status = "expired";
+      const preparer = createFakePreparer(store);
+      const tool = createRequestSupplierEmailTool({ store, clock, preparer });
+
+      const result = await tool.run(ctx, request());
+
+      expect(result.ok).toBe(true);
+      expect(supplierEmailPayloadSchema.parse(preparer.calls[0].payload).connection_id).toBe(
+        GMAIL_CONNECTION_A,
+      );
+    });
   });
 
   it("does not prepare without a positive bridge quantity", async () => {

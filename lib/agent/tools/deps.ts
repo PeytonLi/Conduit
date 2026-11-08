@@ -3,6 +3,7 @@ import type { Clock } from "@/lib/agent/clock";
 import type { PlannerStore } from "@/lib/agent/store";
 import type { ActionPreparer } from "@/lib/agent/ports";
 import type { SupplierResearch } from "@/lib/integrations/exa/client";
+import type { PageFetcher } from "@/lib/integrations/page-fetch/fetcher";
 import { DEFAULT_LIMITS, type PlannerLimits } from "@/lib/agent/budgets";
 import type { ToolResult } from "./types";
 
@@ -11,6 +12,8 @@ export interface ToolDeps {
   clock: Clock;
   preparer: ActionPreparer;
   research?: SupplierResearch;
+  /** Present only when DIRECT_PAGE_FETCH_ENABLED=true outside replay mode. */
+  pageFetcher?: PageFetcher;
   limits?: PlannerLimits;
 }
 

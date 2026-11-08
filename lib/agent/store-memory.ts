@@ -8,8 +8,8 @@ import type {
   CallSessionRecord,
   ContactRecord,
   EvidenceRecord,
-  GmailConnectionRecord,
   ItemRecord,
+  MailboxConnectionRecord,
   LocationRecord,
   OfferRecord,
   PlanStepInsert,
@@ -29,6 +29,7 @@ import type {
   UsageEventInput,
 } from "./store";
 import type { CasePhase, ActionState } from "@/lib/schemas/enums";
+import { pickMailboxConnection } from "@/lib/integrations/mailbox/types";
 import type { ProjectionFacts } from "@/lib/domain/assessment-input";
 import { buildProjectionInput } from "@/lib/domain/assessment-input";
 export { canonicalJson } from "./canonical-json";
@@ -75,7 +76,7 @@ export interface MemorySeed {
   pageReads?: { org_id: string; case_id: string; episode: number; evidence_id: string }[];
   callSessions?: CallSessionRecord[];
   plans?: RecoveryPlanRecord[];
-  gmailConnections?: GmailConnectionRecord[];
+  mailboxConnections?: MailboxConnectionRecord[];
   orgs?: {
     id: string;
     environment_mode: "replay" | "sandbox" | "live";
@@ -113,7 +114,7 @@ export class MemoryPlannerStore implements PlannerStore {
   planSteps: (PlanStepInsert & { plan_id: string })[] = [];
   usageEvents: UsageEventInput[] = [];
   audits: { event_name: string; entity_type: string }[] = [];
-  gmailConnections: GmailConnectionRecord[] = [];
+  mailboxConnections: MailboxConnectionRecord[] = [];
   orgs: {
     id: string;
     environment_mode: "replay" | "sandbox" | "live";
@@ -148,7 +149,7 @@ export class MemoryPlannerStore implements PlannerStore {
     this.pageReads = [...(seed.pageReads ?? [])];
     for (const s of seed.callSessions ?? []) this.callSessions.set(s.id, s);
     for (const p of seed.plans ?? []) this.plans.set(p.id, p);
-    this.gmailConnections = [...(seed.gmailConnections ?? [])];
+    this.mailboxConnections = [...(seed.mailboxConnections ?? [])];
   }
 
   private scoped<T extends { id: string; org_id: string }>(
@@ -187,14 +188,15 @@ export class MemoryPlannerStore implements PlannerStore {
   async getLocation(orgId: string, locationId: string) {
     return this.scoped(this.locations, orgId, locationId);
   }
-  async getActiveGmailConnectionId(orgId: string) {
-    return (
-      this.gmailConnections.find(
-        (connection) =>
-          connection.org_id === orgId &&
-          connection.provider === "gmail" &&
-          (connection.status === "healthy" || connection.status === "degraded"),
-      )?.id ?? null
+  async resolveMailboxConnection(orgId: string, requestedId?: string | null) {
+    return pickMailboxConnection(
+      this.mailboxConnections.map((connection) => ({
+        ...connection,
+        is_primary: connection.is_primary ?? false,
+        created_at: connection.created_at ?? "1970-01-01T00:00:00.000Z",
+      })),
+      orgId,
+      requestedId,
     );
   }
   async getOrgTimezone(orgId: string) {

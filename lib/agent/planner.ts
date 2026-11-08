@@ -3,7 +3,7 @@ import type { Clock } from "./clock";
 import type { PlannerModel, ModelCallError } from "./model";
 import type { PlannerStore, UsageEventInput } from "./store";
 import { DEFAULT_LIMITS, type PlannerLimits } from "./budgets";
-import { allowedTools, toolAllowed } from "./phases";
+import { allowedTools, toolAllowed, OPTIONAL_TOOLS } from "./phases";
 import { buildPlannerContext } from "./context";
 import { parseModelTurn } from "./decision";
 import { PLANNER_SYSTEM_PROMPT, PROMPT_VERSION } from "./prompt";
@@ -71,6 +71,7 @@ export async function runPlannerCycle(
   const { store, step, clock } = deps;
   const limits = deps.limits ?? DEFAULT_LIMITS;
   const tools = toMap(deps.tools);
+  const enabledOptional = OPTIONAL_TOOLS.filter((name) => tools.has(name));
   const { orgId, caseId, episode } = ctx;
   const ck = `c${ctx.cycleIndex ?? 0}`;
   // Tool-result summaries; ref is an opaque handle to the requesting turn (never reasoning).
@@ -170,7 +171,7 @@ export async function runPlannerCycle(
     if (!caseRow) {
       return finish({ status: "no_action", modelRequests });
     }
-    const toolDefs = allowedTools(caseRow.phase)
+    const toolDefs = allowedTools(caseRow.phase, enabledOptional)
       .map((name) => tools.get(name))
       .filter((t): t is AgentTool<unknown, unknown> => Boolean(t))
       .map((t) => ({
@@ -186,7 +187,7 @@ export async function runPlannerCycle(
       const kind =
         attempt === 0 ? ("inference" as const) : ("retry" as const);
       const result = await step.run(`${ck}-infer-${n}-${attempt}`, async () => {
-        const context = await buildPlannerContext(store, ctx, clock, limits);
+        const context = await buildPlannerContext(store, ctx, clock, limits, enabledOptional);
         const messages = [
           { role: "system" as const, content: PLANNER_SYSTEM_PROMPT },
           { role: "user" as const, content: JSON.stringify(context) },
@@ -276,7 +277,7 @@ export async function runPlannerCycle(
       const issues = parsed.issues;
       // Exactly one repair inference.
       const repairResult = await step.run(`${ck}-repair-${n}`, async () => {
-        const context = await buildPlannerContext(store, ctx, clock, limits);
+        const context = await buildPlannerContext(store, ctx, clock, limits, enabledOptional);
         const messages = [
           { role: "system" as const, content: PLANNER_SYSTEM_PROMPT },
           { role: "user" as const, content: JSON.stringify(context) },
@@ -391,7 +392,7 @@ export async function runPlannerCycle(
     // 5. tool execution
     const toolResult = await step.run(`${ck}-tool-${n}`, async (): Promise<ToolResult<unknown>> => {
       const tool = tools.get(toolName);
-      if (!tool || !toolAllowed(caseRow.phase, toolName)) {
+      if (!tool || !toolAllowed(caseRow.phase, toolName, enabledOptional)) {
         return { ok: false, code: "tool_not_allowed", safeMessage: "tool not allowed in this phase" };
       }
       const validated = tool.input.safeParse(toolArgs);
