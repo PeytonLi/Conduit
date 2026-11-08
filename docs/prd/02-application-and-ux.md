@@ -9,6 +9,7 @@ The default signed-in destination is the case queue. Use a compact left navigati
 | Route | Purpose | Primary actions |
 | --- | --- | --- |
 | /login | Sign in / password recovery | Sign in, recover access |
+| /signup | Pilot self-service or invite signup (Supabase Auth) | Create account, join invited organization |
 | /onboarding | Configure a business and initial dataset | Set timezone/currency, connect inbox, preview import, review contacts and policy |
 | /cases | Prioritized work queue and summary | Open case, filter, assign, create case from pasted message |
 | /cases/[caseId] | Investigate and resolve one supply problem | Review evidence, compare offers, approve, request revision, pause, close |
@@ -18,6 +19,7 @@ The default signed-in destination is the case queue. Use a compact left navigati
 | /settings/integrations | Provider connection health | Connect/reconnect/disconnect, run a scoped health check |
 | /settings/policies | Hours, limits and automation authority | Save a versioned policy, pause all dispatch |
 | /settings/members | Owner/operator/viewer memberships | Owner changes a role or removes membership |
+| /settings/billing | Pilot plan and seat summary (not billed) | Review plan label, seats, organization identity |
 | /demo | Sandbox-only fixture runner | Reset isolated demo data, run named scenario, open evidence |
 
 Account enrollment for the initial build may be controlled by a seeded/invited user list; public self-service signup and subscription billing are not required. Authentication still uses Supabase Auth. Do not invent a fake login that bypasses authorization.
