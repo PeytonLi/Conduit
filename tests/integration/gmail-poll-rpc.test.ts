@@ -121,4 +121,47 @@ describe("Gmail polling Supabase RPC wrapper", () => {
       key_version: "v1",
     });
   });
+
+  it("records Gmail push watch state and lists it org-scoped by mailbox", async () => {
+    if (!rpc || !fixture || !connectionId) {
+      throw new Error("Gmail RPC fixture was not initialized");
+    }
+    const topic = "projects/conduit-test/topics/gmail-push";
+    const expiresAt = new Date("2026-11-15T00:00:00Z");
+
+    const recorded = await rpc.rpc<{ updated: boolean }>("gmail_record_watch", {
+      org_id: fixture.orgId,
+      connection_id: connectionId,
+      topic,
+      expires_at: expiresAt.toISOString(),
+    });
+    expect(recorded.updated).toBe(true);
+
+    const byEmail = await rpc.rpc<{ connection_id: string; watch_topic: string }[]>(
+      "gmail_list_watch_state",
+      { email: "GMAIL-POLL-RPC-TEST" },
+    );
+    expect(byEmail).toContainEqual(
+      expect.objectContaining({
+        org_id: fixture.orgId,
+        connection_id: connectionId,
+        environment_mode: "replay",
+        watch_topic: topic,
+      }),
+    );
+
+    // A different org id never matches this connection.
+    const wrongOrg = await rpc.rpc<unknown[]>("gmail_list_watch_state", {
+      org_id: randomUUID(),
+      connection_id: connectionId,
+    });
+    expect(wrongOrg).toEqual([]);
+    const notRecorded = await rpc.rpc<{ updated: boolean }>("gmail_record_watch", {
+      org_id: randomUUID(),
+      connection_id: connectionId,
+      topic,
+      expires_at: expiresAt.toISOString(),
+    });
+    expect(notRecorded.updated).toBe(false);
+  });
 });

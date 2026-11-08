@@ -12,6 +12,7 @@ import { encryptCredential } from "@/lib/integrations/gmail/crypto";
 import { credentialKeyVersion } from "@/lib/integrations/gmail/crypto";
 import { serializeGmailCredential } from "@/lib/integrations/gmail/credentials";
 import { verifyCallback, exchangeCode } from "@/lib/integrations/gmail/oauth";
+import { setupWatchOnConnect } from "@/lib/integrations/gmail/runtime";
 
 function redirectTo(base: string, suffix: string): Response {
   return new Response(null, {
@@ -147,7 +148,7 @@ export async function GET(request: Request) {
       env.CREDENTIAL_ENCRYPTION_KEY,
     );
     const rpc = supabaseRpcClient(createServiceClient());
-    await rpc.rpc("gmail_store_connection", {
+    const stored = await rpc.rpc<{ connection_id: string }>("gmail_store_connection", {
       org_id: membership.orgId,
       actor_user_id: membership.userId,
       external_account_id: exchanged.emailAddress,
@@ -156,6 +157,15 @@ export async function GET(request: Request) {
       key_version: credentialKeyVersion(env.CREDENTIAL_ENCRYPTION_KEY),
       expires_at: exchanged.expiresAt,
     });
+    // Push is additive and best-effort; the poll and renewal cron cover any failure.
+    if (stored?.connection_id) {
+      await setupWatchOnConnect({
+        rpc,
+        env,
+        orgId: membership.orgId,
+        connectionId: stored.connection_id,
+      });
+    }
 
     const r = redirectTo(base, "?gmail=connected");
     r.headers.append("set-cookie", clearCookie);

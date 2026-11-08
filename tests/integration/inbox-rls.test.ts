@@ -181,6 +181,8 @@ describe("inbox RLS", () => {
       "gmail_set_status",
       "gmail_advance_cursor",
       "inbox_list_gmail_connections",
+      "gmail_list_watch_state",
+      "gmail_record_watch",
       "inbox_ensure_connection",
       "inbox_case_review_lookup",
       "inbox_request_key_store",
