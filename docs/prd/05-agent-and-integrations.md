@@ -118,7 +118,7 @@ M0 proof: extract a delay from the fixed email; call a deterministic inventory t
 
 ### Connection and permissions
 
-One owner-authorized mailbox per organization for B0. Use Google OAuth with state bound to the initiating owner, organization and redirect. Store refresh tokens encrypted in the private credential table. Use read permission plus send permission when outreach is enabled; request Gmail draft-management scope only if native Gmail draft creation is implemented.
+One owner-authorized mailbox per organization is the B0 minimum. Since decision D-022 an organization can connect several mailboxes, Gmail or Outlook (see [Outlook setup](../outlook-setup.md)); the sections below describe the Gmail provider. Use Google OAuth with state bound to the initiating owner, organization and redirect. Store refresh tokens encrypted in the private credential table. Use read permission plus send permission when outreach is enabled; request Gmail draft-management scope only if native Gmail draft creation is implemented.
 
 The application can store draft messages itself and request gmail.readonly + gmail.send. Broad mailbox modification/deletion is unnecessary for the proposed flow. Read access has Google's restricted-scope requirements; confirm the account's testing/publishing/verification status before a pilot.
 
@@ -137,6 +137,8 @@ Gmail push via Google Cloud Pub/Sub is an optional, additive optimization. It is
 Render a constrained template populated with validated business facts and a model-written question/summary. Include item specification, required quantity, destination, deadline, quote fields, and a request for written confirmation. Do not include internal margins, unrelated customers or confidential budget ceilings.
 
 Use the approved contact and, when replying, the existing Gmail thread plus proper Subject, In-Reply-To and References headers. Generate an action-linked RFC Message-ID and save the exact intended MIME/payload hash before dispatch.
+
+The sending mailbox is the connection named in the action payload (default: the organization's primary). It must be active in the same organization when the action is claimed; there is no fallback to another mailbox. Outlook sends a Graph draft carrying the same Message-ID and reconciles by that Message-ID in Sent Items.
 
 Provider acceptance and Sent-folder evidence complete the send record. An ambiguous timeout requires reconciliation; a repeated workflow step cannot send another copy. Failure to reconnect leaves the message as a local draft.
 

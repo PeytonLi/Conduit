@@ -21,6 +21,14 @@ const optionalPubSubTopic = z
   .or(z.literal(""));
 const optionalServiceAccountEmail = z.string().trim().email().optional().or(z.literal(""));
 const optionalBridgeSecret = z.string().trim().min(32).optional().or(z.literal(""));
+// "common", "organizations", "consumers", a tenant GUID or a verified domain.
+// It becomes a URL path segment, so only characters valid in those are allowed.
+const optionalMicrosoftTenant = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9.-]+$/, "must be common, organizations, consumers, a tenant id or a domain")
+  .optional()
+  .or(z.literal(""));
 
 export const serverEnvSchema = z.object({
   APP_BASE_URL: optionalNonempty,
@@ -53,6 +61,10 @@ export const serverEnvSchema = z.object({
   GMAIL_PUBSUB_SERVICE_ACCOUNT_EMAIL: optionalServiceAccountEmail,
   COMPOSIO_API_KEY: optionalNonempty,
   COMPOSIO_GMAIL_AUTH_CONFIG_ID: optionalNonempty,
+  MICROSOFT_CLIENT_ID: optionalNonempty,
+  MICROSOFT_CLIENT_SECRET: optionalNonempty,
+  MICROSOFT_REDIRECT_URI: optionalNonempty,
+  MICROSOFT_TENANT_ID: optionalMicrosoftTenant,
   ELEVENLABS_API_KEY: optionalNonempty,
   ELEVENLABS_AGENT_ID: optionalNonempty,
   ELEVENLABS_PHONE_NUMBER_ID: optionalNonempty,
@@ -67,6 +79,7 @@ export type ServerEnv = z.infer<typeof serverEnvSchema>;
 export type CapabilityName =
   | "deepseek"
   | "gmail"
+  | "outlook"
   | "voice"
   | "exa"
   | "inngest";
@@ -90,6 +103,12 @@ export function capabilities(
             "CREDENTIAL_ENCRYPTION_KEY",
           ]
         : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
+    outlook: [
+      "MICROSOFT_CLIENT_ID",
+      "MICROSOFT_CLIENT_SECRET",
+      "MICROSOFT_REDIRECT_URI",
+      "CREDENTIAL_ENCRYPTION_KEY",
+    ],
     voice: [
       "ELEVENLABS_API_KEY",
       "ELEVENLABS_AGENT_ID",

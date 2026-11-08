@@ -67,6 +67,42 @@ function stateKey(key: string): Buffer {
   return Buffer.from(hkdfSync("sha256", bytes, "gmail-oauth-state", "state-signing", 32));
 }
 
+/**
+ * Derives a key bound to one purpose (for example "outlook-oauth-state"), so
+ * a value signed for one flow cannot verify in another even though they share
+ * CREDENTIAL_ENCRYPTION_KEY.
+ */
+export function deriveScopedKey(key: string, scope: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", keyBytes(key), scope, "scoped-signing", 32));
+}
+
+export function signScopedState(scope: string, payload: unknown, key: string): string {
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const sig = createHmac("sha256", deriveScopedKey(key, scope)).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+/** Verifies the signature only; the caller validates the payload shape and expiry. */
+export function verifyScopedState(
+  scope: string,
+  state: string,
+  key: string,
+): { ok: true; payload: unknown } | { ok: false; error: "bad_signature" | "malformed" } {
+  const dot = state.lastIndexOf(".");
+  if (dot === -1) return { ok: false, error: "malformed" };
+  const body = state.slice(0, dot);
+  const expected = createHmac("sha256", deriveScopedKey(key, scope)).update(body).digest();
+  const actual = Buffer.from(state.slice(dot + 1), "base64url");
+  if (expected.length !== actual.length || !expected.equals(actual)) {
+    return { ok: false, error: "bad_signature" };
+  }
+  try {
+    return { ok: true, payload: JSON.parse(Buffer.from(body, "base64url").toString("utf8")) };
+  } catch {
+    return { ok: false, error: "malformed" };
+  }
+}
+
 export interface OAuthStatePayload {
   o: string;
   u: string;

@@ -25,6 +25,19 @@ describe("Get started completion", () => {
     ).gmail).toBe(false);
   });
 
+  it("counts a connected Outlook mailbox as a connected mailbox", () => {
+    expect(getStartedCompletion(
+      [{ provider: "outlook", status: "healthy" }],
+      { datasets: [] },
+      [],
+    ).gmail).toBe(true);
+    expect(getStartedCompletion(
+      [{ provider: "outlook", status: "revoked" }],
+      { datasets: [] },
+      [],
+    ).gmail).toBe(false);
+  });
+
   it("keeps the existing data and verified-contact completion criteria", () => {
     expect(getStartedCompletion([], { datasets: [] }, []).businessData).toBe(false);
     expect(getStartedCompletion(

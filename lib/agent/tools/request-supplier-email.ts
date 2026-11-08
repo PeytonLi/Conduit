@@ -38,6 +38,8 @@ const QUESTION_MAP: Partial<Record<RequiredField, string>> = {
 
 interface Input {
   contact_id: string;
+  /** Mailbox to send from. Defaults to the organization's primary mailbox. */
+  connection_id?: string;
   purpose: (typeof PURPOSES)[number];
   required_fields: (typeof REQUIRED_FIELDS)[number][];
 }
@@ -52,6 +54,7 @@ export function createRequestSupplierEmailTool(
     input: z
       .object({
         contact_id: uuid,
+        connection_id: uuid.optional(),
         purpose: z.enum(PURPOSES),
         required_fields: z.array(z.enum(REQUIRED_FIELDS)).min(1).max(7),
       })
@@ -117,10 +120,21 @@ export function createRequestSupplierEmailTool(
       if (!timeZone) {
         return fail("insufficient_facts", "organization business timezone unavailable");
       }
-      const connectionId = await deps.store.getActiveGmailConnectionId(ctx.orgId);
-      if (!connectionId) {
-        return fail("channel_unavailable", "no connected Gmail account");
+      // A named mailbox must be active in this organization; there is no
+      // silent fallback to a different one. Without a name the primary is used.
+      const mailbox = await deps.store.resolveMailboxConnection(
+        ctx.orgId,
+        input.connection_id,
+      );
+      if (!mailbox) {
+        return fail(
+          "channel_unavailable",
+          input.connection_id
+            ? "requested mailbox is not connected"
+            : "no connected mailbox account",
+        );
       }
+      const connectionId = mailbox.id;
 
       const template =
         input.purpose === "written_confirmation"

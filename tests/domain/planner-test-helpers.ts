@@ -102,7 +102,7 @@ export function harborStore(overrides?: {
         timezone: "America/Los_Angeles",
       },
     ],
-    gmailConnections: [
+    mailboxConnections: [
       {
         id: GMAIL_CONNECTION_A,
         org_id: ORG_A,

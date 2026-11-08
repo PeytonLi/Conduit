@@ -99,6 +99,9 @@ export const labels = {
     "membership.role.changed": "Member access changed",
     "connection.gmail.connected": "Gmail connected",
     "connection.gmail.disconnected": "Gmail disconnected",
+    "connection.outlook.connected": "Outlook connected",
+    "connection.outlook.disconnected": "Outlook disconnected",
+    "connection.mailbox.primary_changed": "Primary mailbox changed",
     "policy.version_created": "Policy updated",
     "plan.created": "Recovery plan created",
     "plan.approved": "Recovery plan approved",
@@ -201,6 +204,8 @@ export const labels = {
     invalid: "Needs attention",
   },
   provider: {
+    gmail: "Gmail",
+    outlook: "Outlook",
     quickbooks: "QuickBooks",
     netsuite: "NetSuite",
     csv: "CSV upload",
@@ -210,6 +215,7 @@ export const labels = {
   capability: {
     deepseek: "AI planning",
     gmail: "Gmail",
+    outlook: "Outlook",
     voice: "Supplier calling",
     exa: "Supplier research",
     inngest: "Background processing",
@@ -255,7 +261,7 @@ export const labels = {
     info: "Recorded",
   },
   dispatchReason: {
-    connection_unavailable: "Gmail connection unavailable",
+    connection_unavailable: "Mailbox connection unavailable",
     preparer_revoked: "Action preparer no longer has access",
   },
   projectionKind: {
