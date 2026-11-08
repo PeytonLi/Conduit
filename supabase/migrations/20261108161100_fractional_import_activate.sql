@@ -227,6 +227,7 @@ begin
          set sku = v_item->>'sku',
              description = v_item->>'description',
              base_unit = v_item->>'base_unit',
+             quantity_scale = coalesce((v_item->>'quantity_scale')::smallint, quantity_scale, 0),
              specification = coalesce(v_item->'specification', '{}'::jsonb),
              updated_at = now(),
              row_version = row_version + 1
@@ -240,12 +241,14 @@ begin
         v_external_id,
         v_item->>'description',
         v_item->>'base_unit',
+        coalesce((v_item->>'quantity_scale')::smallint, 0),
         coalesce(v_item->'specification', '{}'::jsonb)
       )
       on conflict (org_id, sku) do update
         set external_id = excluded.external_id,
             description = excluded.description,
             base_unit = excluded.base_unit,
+            quantity_scale = excluded.quantity_scale,
             specification = excluded.specification,
             updated_at = now(),
             row_version = public.items.row_version + 1
