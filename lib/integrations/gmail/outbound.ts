@@ -5,7 +5,8 @@ import type {
   DispatchResult,
   ProviderAdapter,
 } from "@/lib/actions/types";
-import { classifyGmailError, type GmailApi } from "./api";
+import type { SupplierEmailTransport } from "@/lib/integrations/mailbox/transport";
+import { classifyGmailError } from "./api";
 import { normalizeAddress } from "./mime";
 
 export const QUOTE_FIELDS = [
@@ -138,11 +139,17 @@ export interface ContactRecord {
 export interface OutboundDeps {
   /** Evaluated per call so env changes mid-process are honored. */
   appEnv(): "replay" | "sandbox" | "live";
-  transportFor(action: ActionRecord): Promise<GmailApi | null> | GmailApi | null;
+  /**
+   * The mailbox transport for the connection the action names (Gmail or
+   * Outlook). Never called in replay.
+   */
+  transportFor(
+    action: ActionRecord,
+  ): Promise<SupplierEmailTransport | null> | SupplierEmailTransport | null;
   loadContact(orgId: string, contactId: string): Promise<ContactRecord | null>;
   /** Full From address for this action; the Message-ID domain derives from it. */
   fromAddressFor(action: ActionRecord): Promise<string> | string;
-  replayTransport: GmailApi;
+  replayTransport: SupplierEmailTransport;
 }
 
 function domainOf(fromAddress: string): string {
@@ -189,7 +196,7 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
         ? deps.replayTransport
         : await deps.transportFor(action);
       if (!transport) {
-        return failed("no gmail transport for connection");
+        return failed("no mailbox transport for connection");
       }
 
       const fromAddress = await deps.fromAddressFor(action);
@@ -247,7 +254,7 @@ export function createSupplierEmailAdapter(deps: OutboundDeps): ProviderAdapter 
         ? deps.replayTransport
         : await deps.transportFor(action);
       if (!transport) {
-        return { outcome: "unknown", safeSummary: "no gmail transport" };
+        return { outcome: "unknown", safeSummary: "no mailbox transport" };
       }
       try {
         const fromAddress = await deps.fromAddressFor(action);

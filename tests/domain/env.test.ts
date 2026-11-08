@@ -64,6 +64,38 @@ describe("server environment", () => {
     expect(JSON.stringify(ready)).not.toContain("never-return-this");
   });
 
+  it("reports Outlook readiness from the Microsoft app registration and encryption key", () => {
+    expect(capabilities(parseServerEnv(requiredEnvironment)).outlook).toEqual({
+      ready: false,
+      missing: [
+        "MICROSOFT_CLIENT_ID",
+        "MICROSOFT_CLIENT_SECRET",
+        "MICROSOFT_REDIRECT_URI",
+        "CREDENTIAL_ENCRYPTION_KEY",
+      ],
+    });
+    const ready = capabilities(
+      parseServerEnv({
+        ...requiredEnvironment,
+        MICROSOFT_CLIENT_ID: "never-return-this",
+        MICROSOFT_CLIENT_SECRET: "never-return-this-either",
+        MICROSOFT_REDIRECT_URI: "https://app.example.test/api/auth/outlook/callback",
+        CREDENTIAL_ENCRYPTION_KEY: "v1:key",
+      }),
+    );
+    expect(ready.outlook).toEqual({ ready: true, missing: [] });
+    expect(JSON.stringify(ready)).not.toContain("never-return-this");
+  });
+
+  it("accepts a Microsoft tenant keyword, id or domain and rejects anything that is not a path segment", () => {
+    for (const tenant of ["common", "organizations", "consumers", "contoso.onmicrosoft.com", "11111111-2222-3333-4444-555555555555", ""]) {
+      expect(parseServerEnv({ ...requiredEnvironment, MICROSOFT_TENANT_ID: tenant }).MICROSOFT_TENANT_ID).toBe(tenant);
+    }
+    for (const tenant of ["a/b", "../x", "a b", "t?x=1"]) {
+      expect(() => parseServerEnv({ ...requiredEnvironment, MICROSOFT_TENANT_ID: tenant })).toThrow();
+    }
+  });
+
   it("requires a phone number for SIP but bridge URL and secret for media bridge", () => {
     const common = {
       ...requiredEnvironment,

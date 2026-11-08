@@ -13,6 +13,8 @@ import {
   registerWatchForConnection,
   syncGmailConnectionById,
 } from "@/lib/integrations/gmail/runtime";
+import { outlookPollEnabled } from "@/lib/integrations/outlook/config";
+import { syncOutlookConnectionById } from "@/lib/integrations/outlook/runtime";
 import { parseServerEnv } from "@/lib/env";
 import { createDeepSeekClient } from "@/lib/agent/extraction";
 
@@ -53,6 +55,54 @@ export const inboxGmailPoll = inngest.createFunction(
       );
     }
     return { synced: connections.length };
+  },
+);
+
+/**
+ * Polls every active Outlook mailbox through Microsoft Graph delta queries.
+ * One org can have several; each runs as its own durable step so a failing
+ * mailbox never blocks the others. Push (Graph change notifications) can be
+ * added later; polling is the only path today.
+ */
+export const inboxOutlookPoll = inngest.createFunction(
+  {
+    id: "inbox-outlook-poll",
+    triggers: [{ cron: "*/10 * * * *" }],
+    concurrency: [{ limit: 1 }],
+  },
+  async ({ step }) => {
+    const env = parseServerEnv(process.env);
+    if (!outlookPollEnabled(env)) {
+      return { skipped: true, reason: "outlook poll disabled or not configured" };
+    }
+    const rpc = supabaseRpcClient(createServiceClient());
+
+    const connections = await step.run("list-connections", async () =>
+      rpc.rpc<
+        {
+          org_id: string;
+          connection_id: string;
+          provider: string;
+          environment_mode: string;
+        }[]
+      >("inbox_list_mailbox_connections", { provider: "outlook" }),
+    );
+
+    let synced = 0;
+    for (const conn of connections) {
+      if (conn.environment_mode === "replay") continue;
+      await step.run(`sync-${conn.connection_id}`, () =>
+        syncOutlookConnectionById({
+          rpc,
+          env,
+          orgId: conn.org_id,
+          connectionId: conn.connection_id,
+          publish: () => publishPending(serverLedger()),
+        }),
+      );
+      synced += 1;
+    }
+    return { synced };
   },
 );
 

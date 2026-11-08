@@ -24,7 +24,7 @@ export default async function OnboardingPage() {
   const completion = getStartedCompletion(connections.connections, business, suppliers);
   const steps = [
     {
-      label: "Connect Gmail",
+      label: "Connect Gmail or Outlook",
       description: "Conduit reads supplier emails and sends only the replies you approve.",
       href: "/settings/integrations",
       linkLabel: "Open integrations",

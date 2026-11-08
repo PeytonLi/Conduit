@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { EvidenceDrawer } from "@/components/EvidenceDrawer";
-import { DisconnectGmailButton } from "@/components/DisconnectGmailButton";
+import { DisconnectMailboxButton } from "@/components/DisconnectMailboxButton";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -33,8 +33,21 @@ describe("AT-38 evidence and connection controls", () => {
     expect(html).toContain("Supplier email summary");
   });
 
-  it("renders the owner Gmail disconnect control", () => {
-    const html = renderToStaticMarkup(createElement(DisconnectGmailButton));
+  it("renders the owner mailbox disconnect control", () => {
+    const html = renderToStaticMarkup(createElement(DisconnectMailboxButton, {
+      connectionId: "00000000-0000-4000-8000-000000000001",
+      providerLabel: "Gmail",
+    }));
     expect(html).toContain(">Disconnect</button>");
+  });
+
+  it("offers removal, not disconnect, for a mailbox that already stopped working", () => {
+    const html = renderToStaticMarkup(createElement(DisconnectMailboxButton, {
+      connectionId: "00000000-0000-4000-8000-000000000001",
+      providerLabel: "Outlook",
+      active: false,
+    }));
+    expect(html).toContain(">Remove</button>");
+    expect(html).not.toContain(">Disconnect</button>");
   });
 });

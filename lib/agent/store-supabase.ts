@@ -17,6 +17,11 @@ import type {
   UsageEventInput,
 } from "./store";
 import type { CasePhase, ActionState } from "@/lib/schemas/enums";
+import {
+  MAILBOX_PROVIDERS,
+  pickMailboxConnection,
+  type MailboxConnectionRow,
+} from "@/lib/integrations/mailbox/types";
 
 
 type Row = Record<string, unknown>;
@@ -97,17 +102,15 @@ export class SupabasePlannerStore implements PlannerStore {
   getLocation(orgId: string, locationId: string) {
     return this.byId("locations", orgId, locationId);
   }
-  async getActiveGmailConnectionId(orgId: string) {
+  async resolveMailboxConnection(orgId: string, requestedId?: string | null) {
     const { data, error } = await (await this.db())
       .from("connections")
-      .select("id")
+      .select("id,org_id,provider,status,is_primary,created_at")
       .eq("org_id", orgId)
-      .eq("provider", "gmail")
-      .in("status", ["healthy", "degraded"])
-      .limit(1)
-      .maybeSingle();
+      .in("provider", [...MAILBOX_PROVIDERS])
+      .in("status", ["healthy", "degraded"]);
     must(data, error);
-    return (data?.id as string | undefined) ?? null;
+    return pickMailboxConnection((data ?? []) as MailboxConnectionRow[], orgId, requestedId);
   }
   getSupplier(orgId: string, supplierId: string) {
     return this.byId("suppliers", orgId, supplierId);

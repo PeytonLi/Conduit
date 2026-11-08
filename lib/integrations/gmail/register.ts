@@ -1,4 +1,3 @@
-import { google } from "googleapis";
 import { registerAdapter } from "@/lib/actions/adapters";
 import type { ActionRecord } from "@/lib/actions/types";
 import { createServiceClient } from "@/lib/db/service";
@@ -10,23 +9,18 @@ import {
   type ContactRecord,
 } from "@/lib/integrations/gmail/outbound";
 import { createReplayTransport } from "@/lib/integrations/gmail/replay";
-import { createGoogleGmailApi, type GmailApi } from "@/lib/integrations/gmail/api";
-import { decryptCredential } from "@/lib/integrations/gmail/crypto";
-import { createComposioGmailApi } from "@/lib/integrations/gmail/composio-api";
-import { createComposioClient } from "@/lib/integrations/gmail/composio-client";
-import { parseGmailCredential } from "@/lib/integrations/gmail/credentials";
+import {
+  FALLBACK_FROM_ADDRESS,
+  resolveMailboxTransport,
+  type ResolvedMailboxTransport,
+} from "@/lib/integrations/mailbox/resolve";
+import type { SupplierEmailTransport } from "@/lib/integrations/mailbox/transport";
 
-interface LoadedCredential {
-  status: string;
-  external_account_id: string | null;
-  sync_cursor: string | null;
-  encrypted_b64: string | null;
-  key_version: string | null;
-}
-
-// Sandbox/live supplier_email adapter registration. Replay dispatch is owned
-// by F5's replay-outreach adapter (resolveAdapterForMode routes mode==='replay'
-// to getReplayAdapter); the internal replay guard in outbound.ts is
+// Sandbox/live supplier_email adapter registration. It serves every mailbox
+// provider (Gmail and Outlook): the connection named in the action payload
+// decides which transport sends. Replay dispatch is owned by F5's
+// replay-outreach adapter (resolveAdapterForMode routes mode==='replay' to
+// getReplayAdapter); the internal replay guard in outbound.ts is
 // defense-in-depth only. Registration is lazy: no env, DB, or network access
 // happens at import time — only inside dispatch/findResult calls.
 let registered = false;
@@ -35,21 +29,18 @@ export function ensureSupplierEmailAdapter(): void {
   if (registered) return;
   registered = true;
 
-  const loadCredential = async (
+  const resolveForAction = async (
     action: ActionRecord,
-  ): Promise<LoadedCredential | null> => {
+  ): Promise<ResolvedMailboxTransport | null> => {
     const parsed = supplierEmailPayloadSchema.safeParse(action.payload);
     if (!parsed.success) return null;
-    const rpc = supabaseRpcClient(createServiceClient());
-    try {
-      // Org-scoped: a connection_id outside action.orgId is a 404.
-      return await rpc.rpc<LoadedCredential>("gmail_load_credential", {
-        org_id: action.orgId,
-        connection_id: parsed.data.connection_id,
-      });
-    } catch {
-      return null;
-    }
+    return resolveMailboxTransport({
+      rpc: supabaseRpcClient(createServiceClient()),
+      env: parseServerEnv(process.env),
+      // Org-scoped: a connection_id outside action.orgId resolves to nothing.
+      orgId: action.orgId,
+      connectionId: parsed.data.connection_id,
+    });
   };
 
   registerAdapter(
@@ -73,79 +64,16 @@ export function ensureSupplierEmailAdapter(): void {
           supplier_id: data.supplier_id,
         };
       },
-      transportFor: async (action): Promise<GmailApi | null> => {
-        const env = parseServerEnv(process.env);
-        if (
-          !env.CREDENTIAL_ENCRYPTION_KEY
-        ) {
-          return null;
-        }
-        if (
-          env.GMAIL_PROVIDER === "composio" &&
-          (!env.COMPOSIO_API_KEY || !env.COMPOSIO_GMAIL_AUTH_CONFIG_ID)
-        ) {
-          return null;
-        }
-        if (
-          env.GMAIL_PROVIDER === "google" &&
-          (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI)
-        ) {
-          return null;
-        }
-        const cred = await loadCredential(action);
-        if (
-          !cred ||
-          (cred.status !== "healthy" && cred.status !== "degraded") ||
-          !cred.encrypted_b64 ||
-          !cred.key_version
-        ) {
-          return null;
-        }
-        const credential = parseGmailCredential(decryptCredential(
-          cred.encrypted_b64,
-          env.CREDENTIAL_ENCRYPTION_KEY,
-          cred.key_version,
-        ));
-        if (env.GMAIL_PROVIDER === "composio") {
-          if (credential.provider !== "composio" || !env.COMPOSIO_API_KEY) return null;
-          return createComposioGmailApi(
-            createComposioClient(env.COMPOSIO_API_KEY),
-            action.orgId,
-            credential.connectedAccountId,
-          );
-        }
-        if (
-          credential.provider !== "google" ||
-          !env.GOOGLE_CLIENT_ID ||
-          !env.GOOGLE_CLIENT_SECRET ||
-          !env.GOOGLE_REDIRECT_URI
-        ) {
-          return null;
-        }
-        const oauth2 = new google.auth.OAuth2(
-          env.GOOGLE_CLIENT_ID,
-          env.GOOGLE_CLIENT_SECRET,
-          env.GOOGLE_REDIRECT_URI,
-        );
-        oauth2.setCredentials({ refresh_token: credential.refreshToken });
-        return createGoogleGmailApi(oauth2);
-      },
+      transportFor: async (action): Promise<SupplierEmailTransport | null> =>
+        (await resolveForAction(action))?.transport ?? null,
       fromAddressFor: async (action): Promise<string> => {
         if (
           action.mode === "replay" ||
           parseServerEnv(process.env).APP_ENV === "replay"
         ) {
-          return "inbox@conduit.local";
+          return FALLBACK_FROM_ADDRESS;
         }
-        const cred = await loadCredential(action);
-        if (!cred?.encrypted_b64 || !cred.key_version) return "inbox@conduit.local";
-        const env = parseServerEnv(process.env);
-        if (!env.CREDENTIAL_ENCRYPTION_KEY) return "inbox@conduit.local";
-        const credential = parseGmailCredential(
-          decryptCredential(cred.encrypted_b64, env.CREDENTIAL_ENCRYPTION_KEY, cred.key_version),
-        );
-        if (credential.provider === "composio") return "inbox@conduit.local";
-        return cred?.external_account_id ?? "inbox@conduit.local";
+        return (await resolveForAction(action))?.fromAddress ?? FALLBACK_FROM_ADDRESS;
       },
       replayTransport: createReplayTransport(),
     }),
