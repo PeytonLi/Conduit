@@ -247,6 +247,7 @@ describe("CSV import persistence and activation", () => {
         sku: "ROLLBACK-SKU",
         description: "Rollback item",
         base_unit: "carton",
+        quantity_scale: 0,
         specification: {
           length_mm: 1,
           width_mm: 1,
