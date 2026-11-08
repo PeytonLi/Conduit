@@ -79,6 +79,10 @@ export const serverEnvSchema = z.object({
   SIGNALWIRE_SPACE_URL: optionalNonempty,
   SIGNALWIRE_PROJECT_ID: optionalNonempty,
   SIGNALWIRE_API_TOKEN: optionalNonempty,
+  // Off unless "true". When unset, public signup is enabled only in replay (local demo).
+  PILOT_SIGNUP_ENABLED: z.enum(["true", "false"]).optional().or(z.literal("")),
+  // Comma-separated organization ids that accept invite signups via /signup?invite=<id>.
+  PILOT_SIGNUP_INVITE_ORG_IDS: optionalNonempty,
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

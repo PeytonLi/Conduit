@@ -131,6 +131,9 @@ export interface OfferRecord {
 }
 
 export interface QuoteRecord {
+  home_currency?: string;
+  fx_rate?: import("@/lib/domain/fx").FxRate | null;
+  fx_max_age_seconds?: number;
   id: string;
   org_id: string;
   case_id: string;

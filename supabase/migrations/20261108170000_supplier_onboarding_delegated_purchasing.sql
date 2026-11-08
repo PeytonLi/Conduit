@@ -240,10 +240,14 @@ create or replace function private.plan_unpurchasable_suppliers(p_org_id uuid, p
 returns uuid[] language sql stable set search_path = public, pg_temp as $$
   select coalesce(array_agg(distinct coalesce(sp.id, s.id)), '{}')
   from public.plan_steps s
-  left join public.quotes q on q.org_id = s.org_id and q.id = (s.payload->>'quote_id')::uuid
-  left join public.purchase_order_lines l on l.org_id = s.org_id and l.id = (s.payload->>'po_line_id')::uuid
+  left join public.quotes q on q.org_id = s.org_id and q.id = nullif(s.payload->>'quote_id', '')::uuid
+  left join public.purchase_order_lines l on l.org_id = s.org_id and l.id = nullif(s.payload->>'po_line_id', '')::uuid
   left join public.purchase_orders po on po.org_id = l.org_id and po.id = l.purchase_order_id
-  left join public.suppliers sp on sp.org_id = s.org_id and sp.id = coalesce(q.supplier_id, po.supplier_id)
+  left join public.suppliers sp on sp.org_id = s.org_id and sp.id = coalesce(
+    q.supplier_id,
+    po.supplier_id,
+    nullif(s.payload->>'supplier_id', '')::uuid
+  )
   where s.org_id = p_org_id and s.plan_id = p_plan_id
     and s.kind in ('purchase_bridge', 'amend_delivery_schedule', 'cancel_original_quantity')
     and (sp.id is null or sp.purchasing_status <> 'approved');

@@ -11,3 +11,9 @@ test("unauthenticated workspace requests redirect to login", async ({ page }) =>
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
+
+test("signup stays on the public auth surface", async ({ page }) => {
+  await page.goto("/signup");
+  await expect(page).toHaveURL(/\/signup/);
+  await expect(page.getByRole("heading", { name: "Create account" })).toBeVisible();
+});

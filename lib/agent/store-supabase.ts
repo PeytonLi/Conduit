@@ -366,7 +366,20 @@ export class SupabasePlannerStore implements PlannerStore {
       .eq("id", quoteId)
       .maybeSingle();
     must(data, error);
-    return data;
+    if (!data) return data;
+    const db = await this.db();
+    const { data: org, error: orgError } = await db.from("organizations")
+      .select("currency,fx_max_age_seconds").eq("id", orgId).single();
+    must(org, orgError);
+    if (!org) throw new Error("Organization not found");
+    const { data: rates, error: rateError } = await db.from("fx_rates").select("*")
+      .eq("org_id", orgId).eq("from_currency", data.currency ?? "").eq("to_currency", org.currency)
+      .lte("as_of", new Date().toISOString()).order("as_of", { ascending: false })
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1);
+    must(rates, rateError);
+    const rate = rates?.[0];
+    return { ...data, home_currency: org.currency, fx_max_age_seconds: org.fx_max_age_seconds,
+      fx_rate: rate ? { ...rate, numerator: String(rate.numerator), denominator: String(rate.denominator) } : null };
   }
 
   async getAction(orgId: string, caseId: string, actionId: string) {
@@ -735,7 +748,23 @@ export class SupabasePlannerStore implements PlannerStore {
       missing_fields: string[];
     })[];
   }) {
-    const { data: plan, error } = await (await this.db())
+    const db = await this.db();
+    const quoteIds = input.steps.flatMap((step) => step.quote_id ? [step.quote_id] : []);
+    const quotes = await Promise.all(quoteIds.map((id) => this.getQuote(input.orgId, input.caseId, id)));
+    if (quotes.some((quote) => quote && quote.currency !== quote.home_currency)) {
+      const { data: result, error: rpcError } = await db.rpc("plan_create", {
+        p_org_id: input.orgId, p_case_id: input.caseId, p_actor_user_id: null,
+        p_assessment_id: input.assessmentId, p_idempotency_key: `planner:${input.caseId}:${input.version}`,
+        p_steps: input.steps.map((step) => ({ ...step, execution_mode: "manual",
+          evidence_ids: input.evidenceIds, payload: step.quote_id ? { quote_id: step.quote_id } : {} })),
+      });
+      must(result, rpcError);
+      if (!result.ok) throw new Error(`FX plan creation failed: ${result.code}`);
+      const { data: row, error: readError } = await db.from("recovery_plans").select("*")
+        .eq("org_id", input.orgId).eq("id", result.plan_id).single();
+      return must(row, readError) as RecoveryPlanRecord;
+    }
+    const { data: plan, error } = await db
       .from("recovery_plans")
       .insert({
         org_id: input.orgId,

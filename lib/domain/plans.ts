@@ -1,4 +1,5 @@
 import { DomainValidationError } from "./errors";
+import { convertCost, type Conversion } from "./fx";
 import { projectInventory } from "./inventory";
 import { incrementalCost, type QuoteEvaluation } from "./quotes";
 import { MAX_MONEY_MINOR, mulQtyPrice, sumMinor } from "./money";
@@ -170,6 +171,7 @@ export function validatePlan(args: PlanArgs): PlanValidation {
   let confirmedCredits = 0n;
   let unconfirmedCreditsMinor = 0n;
   let surplusUnitPrice = 0n;
+  let surplusConversion: Conversion | null = null;
 
   for (const step of steps) {
     if (step.kind === "amend_delivery_schedule") {
@@ -247,7 +249,10 @@ export function validatePlan(args: PlanArgs): PlanValidation {
       }
     } else if (step.kind === "purchase_bridge") {
       const quote = step.quote_id === null ? undefined : args.quotes?.[step.quote_id];
-      if (quote) surplusUnitPrice = quote.unitPriceMinor;
+      if (quote) {
+        surplusUnitPrice = quote.unitPriceMinor;
+        surplusConversion = quote.evaluation.conversion ?? null;
+      }
       if (args.target === "ready" && (!quote || quote.evaluation.outcome !== "feasible")) {
         violations.push({ stepId: step.step_id, code: "quote_not_feasible", message: "A ready bridge purchase requires a feasible quote." });
       }
@@ -344,6 +349,13 @@ export function validatePlan(args: PlanArgs): PlanValidation {
   let surplusCostMinor: bigint;
   try {
     surplusCostMinor = mulQtyPrice(surplusQuantity, surplusUnitPrice);
+    if (surplusConversion) {
+      const converted = convertCost(surplusCostMinor, surplusConversion.original_currency, {
+        home_currency: surplusConversion.currency, fx_rate: surplusConversion.rate,
+      }, new Date(surplusConversion.rate?.as_of ?? args.baseline.t0));
+      if (converted.converted_minor === null) throw new DomainValidationError(converted.reason ?? "fx_rate_missing");
+      surplusCostMinor = BigInt(converted.converted_minor);
+    }
   } catch (error) {
     if (error instanceof DomainValidationError) {
       violations.push({ stepId: null, code: error.code, message: "Surplus cost exceeds supported limits." });

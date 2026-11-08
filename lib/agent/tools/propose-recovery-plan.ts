@@ -1,3 +1,4 @@
+import { convertCost } from "@/lib/domain/fx";
 import type { z } from "zod";
 import { proposePlanPayloadSchema } from "../decision";
 import type { AgentTool } from "./types";
@@ -104,8 +105,16 @@ export function createProposeRecoveryPlanTool(
               BigInt(String(quote.freight_minor)) +
               BigInt(String(quote.fees_minor)) +
               BigInt(String(quote.nonrecoverable_tax_minor));
-            gross += delta;
-            incremental += delta;
+            const conversion = convertCost(delta, quote.currency ?? "", {
+              home_currency: quote.home_currency ?? "USD", fx_rate: quote.fx_rate, fx_max_age_seconds: quote.fx_max_age_seconds,
+            }, deps.clock.now());
+            if (conversion.converted_minor === null) {
+              anyUnknown = true;
+              missingFields.push(`${step.step_id}:${conversion.reason}`);
+            } else {
+              gross += BigInt(conversion.converted_minor);
+              incremental += BigInt(conversion.converted_minor);
+            }
           } else {
             anyUnknown = true;
             for (const [field, value] of [
@@ -201,10 +210,10 @@ export function createProposeRecoveryPlanTool(
       return ok(
         {
           plan_id: plan.id,
-          version,
+          version: plan.version,
           status: plan.status,
-          gross_commitment_minor: grossStr,
-          incremental_cost_minor: incrementalStr,
+          gross_commitment_minor: plan.gross_commitment_minor,
+          incremental_cost_minor: plan.incremental_cost_minor,
           missing_fields: [...new Set(missingFields)],
           owner_review_raised: reviewRaised,
         },
