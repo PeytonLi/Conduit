@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isPublic = pathname === "/login" || pathname.startsWith("/_next/");
+  const isPublic =
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname.startsWith("/_next/");
   const supabaseUrl = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 
@@ -37,7 +40,7 @@ export async function proxy(request: NextRequest) {
   if (!isPublic && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (pathname === "/login" && user) {
+  if ((pathname === "/login" || pathname === "/signup") && user) {
     return NextResponse.redirect(new URL("/cases", request.url));
   }
   return response;
