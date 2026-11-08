@@ -838,7 +838,9 @@ $$;
 revoke all on function public.plan_finalize(uuid, uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.plan_finalize(uuid, uuid, timestamptz) to service_role;
 
--- Recheck supplier eligibility at dispatch, serialized with the delegation kill switch.
+-- Recheck supplier eligibility at dispatch. Lock the action row first (same order as prior
+-- claim_dispatch revisions); an org-level FOR UPDATE here deadlocks concurrent prepare/claim
+-- workers that already hold case/plan/approval locks while taking FK KEY SHARE on organizations.
 create or replace function public.ledger_claim_dispatch(
   p_org_id uuid, p_action_id uuid, p_lease_seconds integer default 300, p_now timestamptz default now()
 ) returns jsonb language plpgsql set search_path = public, pg_temp as $$
@@ -849,7 +851,6 @@ declare
   v_denials text[];
   v_approval record;
 begin
-  perform 1 from public.organizations where id = p_org_id for update;
   select * into v_action from public.actions where id = p_action_id and org_id = p_org_id for update;
   if not found then return private.result_error('not_found', 'Action not found'); end if;
   if v_action.state <> 'prepared' then
