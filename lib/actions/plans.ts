@@ -171,12 +171,15 @@ export async function executeApprovedPlan(
   if (!read.ok) return { status: "prepare_failed", failure: read };
   const step = read.plan.steps.find((s) => s.execution_mode === "demo_ledger" || s.execution_mode === "live_connector");
   if (!step) return { status: "no_automated_step" };
+  const executionPayload = { ...step.payload };
+  delete executionPayload.cost_conversion;
+  delete executionPayload.currency;
   // A replayed event must not prepare again: the live system has moved on since the first attempt
   // (stock, versions), so a fresh payload would differ. Settle the action that already exists instead.
   const existing = read.plan.actions.find((a) => a.plan_step_id === step.step_id);
   if (existing) return { status: "dispatch", report: await dispatchAction(deps, input.orgId, existing.id) };
   let kind: ActionKind = "demo_ledger_amendment";
-  let payload: unknown = { change_kind: "amend_delivery_schedule", ...step.payload };
+  let payload: unknown = { change_kind: "amend_delivery_schedule", ...executionPayload };
   if (step.execution_mode === "live_connector") {
     const preparer = getLiveStepPreparer();
     if (!preparer) {
@@ -187,7 +190,7 @@ export async function executeApprovedPlan(
     }
     const live = await preparer({
       orgId: input.orgId,
-      stepPayload: step.payload as Record<string, unknown>,
+      stepPayload: executionPayload,
       step: {
         kind: step.kind,
         quantity: step.quantity,

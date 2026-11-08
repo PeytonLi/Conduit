@@ -32,6 +32,7 @@ export function WorkspaceNavigation({
     { href: "/settings/integrations", label: "Integrations", icon: "plug" },
     { href: "/settings/policies", label: "Policies", icon: "shield" },
     { href: "/settings/members", label: "Members", icon: "users" },
+    { href: "/settings/billing", label: "Billing", icon: "file" },
     ...(showDemo ? [{ href: "/demo", label: "Demo", icon: "play" as const }] : []),
   ];
 

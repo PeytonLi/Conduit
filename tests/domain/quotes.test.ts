@@ -50,6 +50,20 @@ function quote(overrides: Partial<QuoteTerms> = {}): QuoteTerms {
 }
 
 describe("quote evaluation and ranking", () => {
+  it("keeps foreign quotes incomplete without evidence and ranks only converted totals", () => {
+    const foreign = quote({ id: "eur", currency: "EUR" });
+    expect(evaluateQuote(foreign, context)).toMatchObject({
+      outcome: "incomplete", landedCostMinor: null, missingTerms: ["fx_rate_missing"],
+    });
+    const fx = { id: "rate", from_currency: "EUR", to_currency: "USD", numerator: "2",
+      denominator: "1", source: "Owner rate", as_of: context.now };
+    const converted = evaluateQuote(foreign, { ...context, fxRate: fx });
+    expect(converted).toMatchObject({ outcome: "feasible", landedCostMinor: 62400n,
+      conversion: { original_minor: "31200", original_currency: "EUR", rate: fx } });
+    expect(rankQuotes([converted, evaluateQuote(quote({ id: "usd" }), context)]).recommended?.quoteId).toBe("usd");
+    expect(evaluateQuote(foreign, { ...context, fxRate: { ...fx, as_of: "2026-10-10T15:00:00Z" } }))
+      .toMatchObject({ outcome: "incomplete", landedCostMinor: null, missingTerms: ["fx_rate_stale"] });
+  });
   it("AT-17 rejects incompatible, expired, unavailable, and incomplete offers before ranking", () => {
     const wrongSize = evaluateQuote(quote({
       id: "budget-box",

@@ -1,3 +1,4 @@
+import { convertCost, type FxRate } from "@/lib/domain/fx";
 import { createServiceClient } from "@/lib/db/service";
 import type { CaseListQuery } from "./contracts";
 import {
@@ -92,6 +93,7 @@ export interface PlanActionView {
 }
 
 export interface ApprovalView {
+  conversions?: import("@/lib/domain/fx").Conversion[];
   plan_id: string;
   plan_version: number;
   status: string;
@@ -202,6 +204,8 @@ export interface OptionRow extends OptionForOrdering {
     total_cash_outlay_minor: string | null;
     net_incremental_minor: string | null;
   };
+  conversion?: import("@/lib/domain/fx").Conversion | null;
+  original_currency?: string | null;
   currency: string | null;
   valid_until: string | null;
   latest_order_at: string | null;
@@ -843,7 +847,7 @@ export async function getCaseDetail(
       (await getRowsByIds(base.client, "locations", context.orgId, transferSourceIds)).map((row) => [row.id, row]),
     );
     const quote = quoteRows.find((candidate) =>
-      (plan.dependencies ?? []).some((dependency: Row) =>
+      (Array.isArray(plan.dependencies) ? plan.dependencies : []).some((dependency: Row) =>
         dependency.quote_id === candidate.id || dependency.quoteId === candidate.id,
       ),
     ) ?? (planSteps.length > 0 && planSteps.every((step) => step.kind === "transfer_stock") ? undefined : quoteRows[0]);
@@ -858,7 +862,8 @@ export async function getCaseDetail(
         plan.gross_commitment_minor === null ? null : String(plan.gross_commitment_minor),
       incremental_cost_minor:
         plan.incremental_cost_minor === null ? null : String(plan.incremental_cost_minor),
-      currency: quote?.currency ?? base.data.organizations.currency,
+      conversions: planSteps.flatMap((step) => step.payload?.cost_conversion?.gross ? [step.payload.cost_conversion.gross] : []),
+      currency: planSteps[0]?.payload?.cost_conversion?.gross?.currency ?? base.data.organizations.currency,
       approved_ceiling_minor:
         plan.gross_commitment_minor === null ? null : String(plan.gross_commitment_minor),
       expires_at: plan.expires_at,
@@ -1001,6 +1006,14 @@ export async function getCaseOptions(
     supplierItems.map((entry) => [`${entry.supplier_id}:${entry.item_id}`, entry]),
   );
 
+  const orgCurrency = base.data.organizations.currency;
+  const { data: orgFx, error: orgFxError } = await base.client.from("organizations")
+    .select("fx_max_age_seconds").eq("id", context.orgId).single();
+  if (orgFxError || !orgFx) throw new QueryError("query_failed", 503, "FX policy is unavailable");
+  const now = new Date();
+  const rateRows = await selectRows(base.client.from("fx_rates").select("*")
+    .eq("org_id", context.orgId).eq("to_currency", orgCurrency).lte("as_of", now.toISOString())
+    .order("as_of", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false }));
   const options = quoteRows.map((quote): OptionRow => {
     const supplier = suppliers.get(quote.supplier_id) ?? {};
     const item = itemMap.get(quote.item_id) ?? {};
@@ -1061,16 +1074,23 @@ export async function getCaseOptions(
       itemCost !== null && freight !== null && fees !== null && tax !== null
         ? itemCost + freight + fees + tax
         : null;
+    const rate = rateRows.find((rate) => rate.from_currency === quote.currency);
+    const conversion = total !== null && quote.currency ? convertCost(total, quote.currency, {
+      home_currency: orgCurrency, fx_max_age_seconds: orgFx.fx_max_age_seconds,
+      fx_rate: rate ? { ...rate, numerator: String(rate.numerator), denominator: String(rate.denominator) } as FxRate : null,
+    }, now) : null;
+    const convertedTotal = conversion?.converted_minor == null ? null : BigInt(conversion.converted_minor);
     const offset = terms.original_order_treatment === "split"
       ? BigInt(terms.original_commitment_minor ?? 0)
       : 0n;
     const net =
-      total !== null && (cancellation !== null || terms.cancellation_minor === 0) &&
+      convertedTotal !== null && (cancellation !== null || terms.cancellation_minor === 0) &&
       (credits !== null || terms.confirmed_credit_minor === 0) &&
       terms.original_order_treatment
-        ? total + (cancellation ?? 0n) - (credits ?? 0n) - offset
+        ? convertedTotal + (cancellation ?? 0n) - (credits ?? 0n) - offset
         : null;
     const missingFields: string[] = Array.isArray(terms.missing_fields) ? terms.missing_fields : [];
+    if (conversion?.reason) missingFields.push(conversion.reason);
     if (quote.quantity === null) missingFields.push("quantity");
     if (quote.unit_price_minor === null) missingFields.push("unit_price");
     if (quote.currency === null) missingFields.push("currency");
@@ -1080,7 +1100,7 @@ export async function getCaseOptions(
     if (schedule.some((entry: Row) => entry.arrival_start === null)) missingFields.push("arrival_window");
     if (!quote.verified_at) missingFields.push("verification");
     const optionPlans = plans.filter((plan) =>
-      (plan.dependencies ?? []).some((dependency: Row) =>
+      (Array.isArray(plan.dependencies) ? plan.dependencies : []).some((dependency: Row) =>
         dependency.quote_id === quote.id || dependency.quoteId === quote.id,
       ),
     );
@@ -1109,10 +1129,12 @@ export async function getCaseOptions(
         nonrecoverable_tax_minor: tax?.toString() ?? null,
         cancellation_minor: cancellation?.toString() ?? null,
         credits_minor: credits?.toString() ?? null,
-        total_cash_outlay_minor: total?.toString() ?? null,
+        total_cash_outlay_minor: convertedTotal?.toString() ?? null,
         net_incremental_minor: net?.toString() ?? null,
       },
-      currency: quote.currency,
+      conversion,
+      original_currency: quote.currency,
+      currency: orgCurrency,
       valid_until: quote.valid_until,
       latest_order_at: quote.latest_order_at,
       written_confirmation: writtenConfirmation,

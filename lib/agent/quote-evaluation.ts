@@ -1,6 +1,8 @@
+import { convertCost, type Conversion } from "@/lib/domain/fx";
 import type { ItemRecord, QuoteRecord } from "./store";
 
 export interface QuoteEvaluation {
+  conversion?: Conversion | null;
   missing_terms: string[];
   expired: boolean;
   landed_cost_minor: string | null;
@@ -67,6 +69,11 @@ export function evaluateQuote(
       BigInt(String(quote.nonrecoverable_tax_minor));
   }
 
+  const conversion = landed !== null && quote.currency ? convertCost(landed, quote.currency, {
+    home_currency: quote.home_currency ?? "USD", fx_rate: quote.fx_rate, fx_max_age_seconds: quote.fx_max_age_seconds,
+  }, now) : null;
+  if (conversion?.reason) missing.push(conversion.reason);
+  landed = conversion?.converted_minor == null ? null : BigInt(conversion.converted_minor);
   const reasons: string[] = [];
   if (missing.length > 0) reasons.push("missing_terms");
   if (expired) reasons.push("expired");
@@ -76,7 +83,8 @@ export function evaluateQuote(
     missing_terms: missing,
     expired,
     landed_cost_minor: landed === null ? null : landed.toString(),
-    currency: quote.currency ?? null,
+    conversion,
+    currency: quote.home_currency ?? "USD",
     feasible: missing.length === 0 && !expired,
     reasons,
   };

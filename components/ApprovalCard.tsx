@@ -231,6 +231,12 @@ export function ApprovalCard({
           ? <div><dt>Stock source</dt><dd>{plan.steps.map((step) => step.transfer?.source_location_name ?? "Source location").join(", ")}</dd></div>
           : <div><dt>Supplier</dt><dd>{plan.supplier?.name ?? "Supplier details unavailable"}</dd></div>}
         <div><dt>Additional commitment</dt><dd>{commitment ?? "Not available"}</dd></div>
+        {plan.conversions?.filter((cost) => cost.original_currency !== cost.currency).map((cost, index) => (
+          <div key={index}><dt>Original recovery cost</dt><dd>
+            {formatMoney(cost.original_minor, cost.original_currency)} → {formatMoney(cost.converted_minor, cost.currency) ?? "FX rate required"}
+            {cost.rate && <span> · {cost.rate.source}, as of {cost.rate.as_of} · rate {cost.rate.numerator}/{cost.rate.denominator} minor units</span>}
+          </dd></div>
+        ))}
         <div><dt>Gross commitment</dt><dd>{gross ?? "Not available"}</dd></div>
         <div><dt>Original order treatment</dt><dd>{originalOrderTreatment || "Not specified"}</dd></div>
         <div><dt>Dependencies</dt><dd>{plan.dependencies.length ? plan.dependencies.join(", ") : "None"}</dd></div>

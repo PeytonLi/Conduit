@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
-import { AuthenticationError, requireMembership } from "@/lib/auth";
+import { AuthenticationError, AuthorizationError, requireMembership } from "@/lib/auth";
 import { getBusinessData } from "@/lib/db/queries/business-data";
 import { listConnections } from "@/lib/db/queries/connections";
 import { listCases } from "@/lib/db/queries/cases";
@@ -10,6 +10,7 @@ import { getCurrentPolicy } from "@/lib/db/queries/policies";
 import { listSuppliers } from "@/lib/db/queries/suppliers";
 import { systemClock } from "@/lib/db/queries/clock";
 import { parseServerEnv } from "@/lib/env";
+import { isOnboardingComplete } from "@/lib/ui/get-started";
 
 export default async function WorkspaceLayout({
   children,
@@ -20,6 +21,9 @@ export default async function WorkspaceLayout({
   } catch (error) {
     if (error instanceof AuthenticationError) {
       redirect("/login");
+    }
+    if (error instanceof AuthorizationError) {
+      redirect("/signup?error=membership");
     }
     throw error;
   }
@@ -33,12 +37,13 @@ export default async function WorkspaceLayout({
     getCurrentPolicy(membership),
     listCases(membership, caseListQuerySchema.parse({ limit: 1 }), systemClock.now()),
   ]);
-  const onboardingComplete = (
-    connections.connections.some((entry) => entry.status === "connected") ||
-    Object.values(connections.environment_capabilities).some((entry) => entry.ready)
-  ) && business.datasets.length > 0 &&
-    suppliers.some((supplier) => supplier.contacts.some((contact) => contact.identity_verified)) &&
-    policy !== null && cases.items.length > 0;
+  const onboardingComplete = isOnboardingComplete(
+    connections.connections,
+    business,
+    suppliers,
+    policy !== null,
+    cases.items.length,
+  );
 
   return (
     <WorkspaceShell
