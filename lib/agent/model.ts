@@ -13,6 +13,13 @@ export interface UsageRecord {
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  /**
+   * Opaque handle (never reasoning text) on a tool-result summary, naming the
+   * model turn that requested the tool. A provider adapter that holds private
+   * continuation state for the handle may expand it to the provider's required
+   * assistant/tool message pair; without it the plain content is sent.
+   */
+  continuationRef?: string;
 }
 
 export interface ToolDef {
@@ -36,6 +43,11 @@ export interface ModelTurn {
     tool_calls?: ModelToolCall[];
   };
   usage: UsageRecord;
+  /**
+   * Opaque handle to server-private continuation state (see ChatMessage).
+   * Safe to persist: it carries no reasoning and cannot be reversed.
+   */
+  continuationRef?: string;
 }
 
 export interface PlannerModel {

@@ -30,6 +30,8 @@ export const serverEnvSchema = z.object({
   DEEPSEEK_API_KEY: optionalNonempty,
   DEEPSEEK_BASE_URL: optionalNonempty,
   DEEPSEEK_MODEL: optionalNonempty,
+  // Off unless "true". A typo fails loudly instead of silently staying off.
+  DEEPSEEK_THINKING_ENABLED: z.enum(["true", "false"]).optional().or(z.literal("")),
   GOOGLE_CLIENT_ID: optionalNonempty,
   ZOHO_CLIENT_ID: optionalNonempty,
   ZOHO_CLIENT_SECRET: optionalNonempty,

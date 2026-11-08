@@ -4,26 +4,45 @@ import { join } from "node:path";
 import OpenAI from "openai";
 import { z } from "zod";
 import { safeErrorLogFields } from "@/lib/safe-error";
+import {
+  isThinkingEnabled,
+  stripInlineReasoning,
+  THINKING_MAX_TOKENS,
+  thinkingParam,
+} from "@/lib/integrations/deepseek/thinking";
 import { extractionV1Schema, PROMPT_VERSION, type ExtractionV1 } from "./extraction-schema";
 
 export interface DeepSeekEnv {
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_BASE_URL?: string;
   DEEPSEEK_MODEL?: string;
+  /** Thinking mode is on only when exactly "true". Default off. */
+  DEEPSEEK_THINKING_ENABLED?: string;
 }
 
 /**
  * Builds the real DeepSeek ChatClient. Returns null when the capability is
  * not configured so callers get a deterministic 'unavailable' extraction.
+ *
+ * When DEEPSEEK_THINKING_ENABLED=true this client (not the caller) turns
+ * thinking on and widens max_tokens, since the chain of thought shares that
+ * budget. Extraction sends no tools, so DeepSeek does not need reasoning_content
+ * echoed back; it is never read, returned, or retained here.
  */
-export function createDeepSeekClient(env: DeepSeekEnv): ChatClient | null {
+export function createDeepSeekClient(
+  env: DeepSeekEnv,
+  deps: { openaiClient?: OpenAI } = {},
+): ChatClient | null {
   if (!env.DEEPSEEK_API_KEY || !env.DEEPSEEK_MODEL) return null;
-  const client = new OpenAI({
-    apiKey: env.DEEPSEEK_API_KEY,
-    baseURL: env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
-    timeout: 60_000,
-    maxRetries: 0,
-  });
+  const thinkingOn = isThinkingEnabled(env);
+  const client =
+    deps.openaiClient ??
+    new OpenAI({
+      apiKey: env.DEEPSEEK_API_KEY,
+      baseURL: env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
+      timeout: 60_000,
+      maxRetries: 0,
+    });
   return {
     async complete(params) {
       const res = await client.chat.completions.create({
@@ -31,12 +50,15 @@ export function createDeepSeekClient(env: DeepSeekEnv): ChatClient | null {
         messages: params.messages,
         response_format: params.response_format,
         temperature: params.temperature,
-        max_tokens: params.max_tokens,
-        thinking: params.thinking,
+        max_tokens: thinkingOn
+          ? Math.max(params.max_tokens, THINKING_MAX_TOKENS)
+          : params.max_tokens,
+        thinking: thinkingOn ? thinkingParam(true) : params.thinking,
       } as OpenAI.ChatCompletionCreateParamsNonStreaming);
+      const content = res.choices[0]?.message?.content ?? "";
       return {
         id: res.id,
-        content: res.choices[0]?.message?.content ?? "",
+        content: thinkingOn ? stripInlineReasoning(content) : content,
         usage: res.usage,
       };
     },
