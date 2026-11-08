@@ -8,6 +8,25 @@ export const policySettingsSchema = z
   .object({
     dispatch_paused: z.boolean().default(false),
     commitment_authority: z.literal("owner").default("owner"),
+    delegated_purchasing: z.object({
+      enabled: z.boolean().default(false),
+      ceiling_minor: z.string().regex(/^[1-9][0-9]{0,14}$/).nullable().default(null),
+      currency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
+      supplier_allowlist: z.array(z.string().uuid()).max(100).default([]),
+      hours: z.object({
+        weekdays: z.array(z.number().int().min(1).max(7)).min(1).default([1, 2, 3, 4, 5]),
+        start: hhmm.default("09:00"),
+        end: hhmm.default("17:00"),
+      }).strict().prefault({}),
+      max_auto_approvals_per_day: z.number().int().min(1).max(20).default(3),
+    }).strict().prefault({}).superRefine((value, ctx) => {
+      if (value.enabled && (!value.ceiling_minor || !value.currency)) {
+        ctx.addIssue({ code: "custom", message: "Delegation requires a ceiling and currency" });
+      }
+      if (value.hours.start >= value.hours.end) {
+        ctx.addIssue({ code: "custom", path: ["hours"], message: "Start must be before end" });
+      }
+    }),
     outreach: z
       .object({
         email_enabled: z.boolean().default(false),

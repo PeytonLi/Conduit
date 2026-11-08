@@ -43,7 +43,7 @@ The Phase 1 domain inventory implementation is intentionally a throwing stub. Im
 
 - Keep inventory, money, compatibility, and authority decisions deterministic; model uncertain facts explicitly.
 - Preserve source references, promises, versions, and unknowns through imports, assessments, plans, and actions.
-- Every financial commitment requires owner approval.
+- Every financial commitment requires an approval row: fresh owner approval by default, or a labeled approval under an explicitly enabled, bounded owner delegation for eligible bridge purchases. See [supplier onboarding and delegation](supplier-onboarding-delegation.md).
 - Create an action record before dispatching any external effect; never blindly retry an action with an uncertain outcome.
 - Scope rows, files, and tools to the organization and case authorized for the request.
 - Replay and demo modes must not cause real supplier or business-system effects.

@@ -733,6 +733,7 @@ export class SupabasePlannerStore implements PlannerStore {
   }
 
   async insertRecoveryPlan(input: {
+    now: string;
     orgId: string;
     caseId: string;
     version: number;
@@ -797,6 +798,14 @@ export class SupabasePlannerStore implements PlannerStore {
           payload: step.quote_id ? { quote_id: step.quote_id } : {},
         });
       must(null, se);
+    }
+    if (input.status === "ready") {
+      const { data, error: finalizeError } = await (await this.db()).rpc("plan_finalize", {
+        p_org_id: input.orgId, p_plan_id: row.id, p_now: input.now,
+      });
+      const finalized = must(data, finalizeError);
+      if (!finalized.ok) throw new Error(finalized.message);
+      return finalized.plan as RecoveryPlanRecord;
     }
     return row as unknown as RecoveryPlanRecord;
   }

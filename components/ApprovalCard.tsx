@@ -224,6 +224,7 @@ export function ApprovalCard({
       <div className={styles.header}>
         <div><p className={styles.eyebrow}>Decision</p><h2 id="approval-title">Approve recovery plan v{plan.plan_version}</h2></div>
         <StatusBadge tone={plan.status === "approved" ? "success" : "info"}>{humanLabel("planStatus", plan.status)}</StatusBadge>
+        {plan.approval_mode === "delegated" && <StatusBadge tone="info">Owner-delegated approval</StatusBadge>}
       </div>
       <Disclosure summary="Plan details">
         <dl className={styles.terms}>

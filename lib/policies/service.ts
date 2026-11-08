@@ -15,3 +15,15 @@ export function createPolicyVersion(
     p_now: deps.clock.now().toISOString(),
   });
 }
+
+export function disableDelegatedPurchasing(
+  deps: { rpc: Rpc; clock: Clock },
+  input: { orgId: string; userId: string; reason: string },
+) {
+  return callLedger<{ version: number; delegated_commitments_revoked: number }>(deps.rpc, "delegation_kill_switch", {
+    p_org_id: input.orgId,
+    p_actor_user_id: input.userId,
+    p_reason: input.reason,
+    p_now: deps.clock.now().toISOString(),
+  });
+}

@@ -6,6 +6,8 @@ Conduit is a supplier delay recovery agent. It connects supplier messages with p
 
 **Status:** Inbox ingestion, assessment, research, email and voice outreach, approval, recovery recording, and monitoring are built. The AT-37 real-connector check passed against a QuickBooks Online sandbox. See [BUILD_STATUS.md](BUILD_STATUS.md) for evidence and open gates.
 
+Supplier contact and purchasing approvals are separate owner decisions. Optional [delegated low-value purchasing](docs/supplier-onboarding-delegation.md) defaults off; owners can enable bounded bridge-purchase approvals with an audit trail and emergency disable control. Approved bridge purchases still use manual export/handoff.
+
 Start with the [product requirements](PRD.md). Implementation agents should read the [compact handoff](AGENT_HANDOFF.md) and [current build status](BUILD_STATUS.md), then load the relevant [reference chapters](docs/prd/). The [research notes](research/neathack-research.md) cover hackathon requirements, precedents, and integration research.
 
 ## Hosting

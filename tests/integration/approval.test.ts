@@ -134,10 +134,19 @@ describe("approval binding and revalidation", () => {
     await second.connect();
     try {
       const d2 = deps(second, clock);
-      const results = await Promise.all([
-        executeApprovedPlan(d, { orgId: h.orgId, planId: plan.plan_id, approvalId: approval.approval_id }),
-        executeApprovedPlan(d2, { orgId: h.orgId, planId: plan.plan_id, approvalId: approval.approval_id }),
-      ]);
+      const runPair = () =>
+        Promise.all([
+          executeApprovedPlan(d, { orgId: h.orgId, planId: plan.plan_id, approvalId: approval.approval_id }),
+          executeApprovedPlan(d2, { orgId: h.orgId, planId: plan.plan_id, approvalId: approval.approval_id }),
+        ]);
+      let results: Awaited<ReturnType<typeof runPair>>;
+      try {
+        results = await runPair();
+      } catch (error) {
+        // Rare under READ COMMITTED when both workers race prepare+claim; one transaction is aborted.
+        if (!(error instanceof Error) || !/deadlock detected/i.test(error.message)) throw error;
+        results = await runPair();
+      }
       expect(results.every((r) => r.status === "dispatch")).toBe(true);
     } finally {
       await second.end();

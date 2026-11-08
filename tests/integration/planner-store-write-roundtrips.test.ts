@@ -422,6 +422,7 @@ describe("SupabasePlannerStore write round trips", () => {
     ).toEqual({ prompt_tokens: 3, completion_tokens: 2 });
 
     const recoveryPlan = await planner.insertRecoveryPlan({
+      now: "2026-10-12T14:00:00.000Z",
       orgId,
       caseId,
       version: 1,

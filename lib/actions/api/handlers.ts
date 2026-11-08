@@ -2,7 +2,7 @@ import type { MembershipContext } from "@/lib/auth/membership";
 import { AuthenticationError, AuthorizationError } from "@/lib/auth/membership";
 import { fail, idempotencyKey, ok, parseBody } from "@/lib/api/http";
 import { createPolicyRequestSchema } from "@/lib/policies/schema";
-import { createPolicyVersion } from "@/lib/policies/service";
+import { createPolicyVersion, disableDelegatedPurchasing } from "@/lib/policies/service";
 import type { MembershipRole } from "@/lib/schemas/enums";
 import { z } from "zod";
 import { reconcileAction, type DispatcherDeps } from "../dispatcher";
@@ -48,6 +48,7 @@ const statusByCode: Record<string, [number, boolean]> = {
   multi_write_not_supported: [422, false],
   unsupported_step: [422, false],
   evidence_required: [422, false],
+  supplier_not_purchasable: [422, false],
   receiving_evidence_missing: [409, false],
   policy_denied: [403, false],
   mode_not_allowed: [403, false],
@@ -111,7 +112,21 @@ export function createPlanHandler(deps: HandlerDeps, request: Request, caseId: s
     if (!body.success) return body.response;
     const result = await createPlan(deps.ledger, { orgId: member.orgId, caseId, userId: member.userId, idempotencyKey: key, body: body.data });
     if (!result.ok) return failure(result);
+    await deps.publish();
     return ok(result, result.replayed ? 200 : 201);
+  });
+}
+
+export function delegationKillSwitchHandler(deps: HandlerDeps, request: Request) {
+  return guarded(deps, ["owner"], async (member) => {
+    const body = await parseBody(request, z.object({ reason: z.string().trim().min(1).max(500) }).strict());
+    if (!body.success) return body.response;
+    const result = await disableDelegatedPurchasing(deps.ledger, {
+      orgId: member.orgId, userId: member.userId, reason: body.data.reason,
+    });
+    if (!result.ok) return failure(result);
+    await deps.publish();
+    return ok(result);
   });
 }
 

@@ -1,4 +1,5 @@
 import { QueryError, type QueryContext, queryClient } from "./client";
+import { supplierOnboardingStage, type SupplierOnboardingStage } from "@/lib/domain/supplier-onboarding";
 
 // PostgREST table names are dynamic in this projection layer.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +17,18 @@ export interface SupplierSummary {
   purchasing_status: string;
   row_version: number;
   approval_at: string | null;
+  stage: SupplierOnboardingStage;
+  onboarding_events: {
+    id: string;
+    scope: string;
+    decision: string;
+    actor_user_id: string;
+    to_stage: string;
+    evidence_ids: string[];
+    evidence_note: string | null;
+    reason: string;
+    occurred_at: string;
+  }[];
   contacts: {
     id: string;
     channel: string;
@@ -37,14 +50,18 @@ export async function listSuppliers(context: QueryContext): Promise<SupplierSumm
   const supplierRows: Row[] = suppliersResult.data ?? [];
   if (supplierRows.length === 0) return [];
   const supplierIds = supplierRows.map((row) => row.id);
-  const [contactsResult, supplierItemsResult] = await Promise.all([
+  const [contactsResult, supplierItemsResult, eventsResult] = await Promise.all([
     client.from("supplier_contacts").select("*")
       .eq("org_id", context.orgId).in("supplier_id", supplierIds),
     client.from("supplier_items").select("*")
       .eq("org_id", context.orgId).in("supplier_id", supplierIds),
+    client.from("supplier_onboarding_events").select("*")
+      .eq("org_id", context.orgId).in("supplier_id", supplierIds)
+      .order("occurred_at", { ascending: false }),
   ]);
   fail(contactsResult.error);
   fail(supplierItemsResult.error);
+  fail(eventsResult.error);
   const contactRows: Row[] = contactsResult.data ?? [];
   const supplierItems: Row[] = supplierItemsResult.data ?? [];
   const itemIds = [...new Set(supplierItems.map((row) => row.item_id))];
@@ -69,6 +86,9 @@ export async function listSuppliers(context: QueryContext): Promise<SupplierSumm
     purchasing_status: supplier.purchasing_status,
     row_version: supplier.row_version,
     approval_at: supplier.approval_at,
+    stage: supplierOnboardingStage(supplier.purchasing_status,
+      contactRows.some((contact) => contact.supplier_id === supplier.id && contact.outreach_approved_at)),
+    onboarding_events: (eventsResult.data ?? []).filter((event: Row) => event.supplier_id === supplier.id),
     contacts: contactRows
       .filter((contact) => contact.supplier_id === supplier.id)
       .map((contact) => ({

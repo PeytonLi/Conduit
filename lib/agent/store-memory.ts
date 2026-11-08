@@ -578,6 +578,7 @@ export class MemoryPlannerStore implements PlannerStore {
   }
 
   async insertRecoveryPlan(input: {
+    now: string;
     orgId: string;
     caseId: string;
     version: number;
