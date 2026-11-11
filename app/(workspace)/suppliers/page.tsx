@@ -1,4 +1,5 @@
 import { requireMembership } from "@/lib/auth";
+import { QueryError } from "@/lib/db/queries/client";
 import { humanLabel } from "@/lib/db/queries/labels";
 import { formatDateTime } from "@/lib/db/queries/format";
 import { getOrganization } from "@/lib/db/queries/organization";
@@ -13,14 +14,28 @@ import styles from "./suppliers.module.css";
 
 export default async function SuppliersPage() {
   const membership = await requireMembership();
-  const [suppliers, organization] = await Promise.all([
-    listSuppliers(membership),
-    getOrganization(membership),
-  ]);
+  let suppliers: Awaited<ReturnType<typeof listSuppliers>> = [];
+  let organization: Awaited<ReturnType<typeof getOrganization>> | null = null;
+  let loadError = "";
+  try {
+    ;[suppliers, organization] = await Promise.all([
+      listSuppliers(membership),
+      getOrganization(membership),
+    ]);
+  } catch (error) {
+    if (error instanceof QueryError) {
+      loadError = error.message;
+    } else {
+      throw error;
+    }
+  }
   return (
     <div className={styles.page}>
       <PageHeader description="Review supplier status, approved contacts, and linked items." title="Suppliers" />
-      {suppliers.length ? suppliers.map((supplier) => (
+      {loadError ? (
+        <p role="alert">{loadError} Refresh the page in a moment.</p>
+      ) : organization && suppliers.length ? (
+        suppliers.map((supplier) => (
         <Card className={styles.card} key={supplier.id}>
           <header className={styles.cardHeader}>
             <h2>{supplier.name}</h2>
@@ -66,7 +81,10 @@ export default async function SuppliersPage() {
             ))}</ul> : <p>No onboarding decisions recorded.</p>}
           </Disclosure>
         </Card>
-      )) : <EmptyState icon="truck" message="No suppliers are available." />}
+        ))
+      ) : (
+        <EmptyState icon="truck" message="No suppliers are available." />
+      )}
     </div>
   );
 }

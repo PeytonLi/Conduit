@@ -5,8 +5,13 @@ import { supplierOnboardingStage, type SupplierOnboardingStage } from "@/lib/dom
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
-function fail(error: { message: string } | null): void {
+function fail(error: { message: string; code?: string; details?: string } | null): void {
   if (error) {
+    console.error("listSuppliers query failed", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+    });
     throw new QueryError("query_failed", 503, "Supplier data is temporarily unavailable");
   }
 }
