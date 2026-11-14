@@ -76,6 +76,19 @@ export const demoRunRequestSchema = z.object({
   reset: z.boolean(),
 });
 
+/** Live PSTN demo call from the Demo page (sandbox orgs only). */
+export const demoLiveCallRequestSchema = z.object({
+  purpose: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .default(
+      "Demo call for PO-1042 CARTON-302015: need 600 by Wed; any quote is provisional until written.",
+    ),
+  case_id: z.string().uuid().optional(),
+});
+
 export const activityQuerySchema = z.object({
   case_id: uuid.optional(),
   actor: z.string().trim().min(1).max(200).optional(),
@@ -90,4 +103,5 @@ export type ReassessRequest = z.infer<typeof reassessRequestSchema>;
 export type MembershipRoleRequest = z.infer<typeof membershipRoleRequestSchema>;
 export type SupplierApprovalRequest = z.infer<typeof supplierApprovalRequestSchema>;
 export type DemoRunRequest = z.infer<typeof demoRunRequestSchema>;
+export type DemoLiveCallRequest = z.infer<typeof demoLiveCallRequestSchema>;
 export type ActivityQuery = z.infer<typeof activityQuerySchema>;
