@@ -1,5 +1,6 @@
 import { requireMembership } from "@/lib/auth";
 import { listMemberships } from "@/lib/db/queries/memberships";
+import { AddMemberForm } from "@/components/AddMemberForm";
 import { MembershipControls } from "@/components/MembershipControls";
 import { DataTable } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,6 +13,7 @@ export default async function MembersSettingsPage() {
   return (
     <div className={styles.page}>
       <PageHeader description="Manage organization roles and access." title="Members" />
+      {membership.role === "owner" && <AddMemberForm />}
       {members.length ? <DataTable caption="Organization members" className={styles.table}>
         <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Active</th></tr></thead>
         <tbody>{members.map((member) => <tr key={member.id}>

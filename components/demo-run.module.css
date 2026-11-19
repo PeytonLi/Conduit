@@ -16,3 +16,9 @@
   color: var(--color-brand-800);
   font-size: var(--text-sm);
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

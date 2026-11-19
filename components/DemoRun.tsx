@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { postJson, workspaceErrorMessage } from "./client-api";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
@@ -8,6 +9,7 @@ import { CheckboxField, SelectField } from "./ui/Field";
 import styles from "./demo-run.module.css";
 
 export function DemoRun({ disabled }: { disabled: boolean }) {
+  const router = useRouter();
   const [fixture, setFixture] = useState("harbor-pack-canonical");
   const [reset, setReset] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -34,6 +36,21 @@ export function DemoRun({ disabled }: { disabled: boolean }) {
     }
   }
 
+  async function clear() {
+    if (!window.confirm("Clear demo data? Open demo cases close as cancelled and demo suppliers are blocked. Running a scenario again restores them.")) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await postJson<{ closed_cases: number }>("/api/v1/demo/clear", {}, crypto.randomUUID());
+      setMessage(`Demo data cleared (${result.closed_cases} case${result.closed_cases === 1 ? "" : "s"} closed).`);
+      router.refresh();
+    } catch (error) {
+      setMessage(workspaceErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card className={styles.card}>
       <h2>Replay scenario</h2>
@@ -43,7 +60,10 @@ export function DemoRun({ disabled }: { disabled: boolean }) {
       </SelectField>
       <CheckboxField checked={reset} disabled={disabled || busy} label="Reset existing demo data first" onChange={(event) => setReset(event.target.checked)} />
       <p className={styles.note}>Replay-only: scenarios are simulated and do not contact suppliers or external systems.</p>
-      <Button disabled={disabled || busy} onClick={() => void run()}>{busy ? "Loading scenario…" : "Run demo scenario"}</Button>
+      <div className={styles.actions}>
+        <Button disabled={disabled || busy} onClick={() => void run()}>{busy ? "Working…" : "Run demo scenario"}</Button>
+        <Button disabled={disabled || busy} onClick={() => void clear()} variant="secondary">Clear demo data</Button>
+      </div>
       {message && <p role="status">{message}</p>}
     </Card>
   );

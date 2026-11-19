@@ -54,6 +54,12 @@ export const membershipRoleRequestSchema = z.object({
   reason: z.string().trim().min(1).max(2000),
 });
 
+export const addMemberRequestSchema = z.object({
+  email: z.string().trim().email().max(320),
+  role: z.enum(["owner", "operator", "viewer"]),
+  password: z.string().min(12).max(200).optional(),
+});
+
 export const supplierApprovalRequestSchema = z.object({
   scope: z.enum(["contact", "purchasing"]),
   contact_id: uuid.nullable().optional(),

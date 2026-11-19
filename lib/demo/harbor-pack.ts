@@ -205,16 +205,7 @@ async function ensureDataset(
     );
     if (existing) return existing;
   } else {
-    const { error } = await client.from("datasets")
-      .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
-      .eq("org_id", orgId)
-      .eq("source_type", "fixture")
-      .in("validation_summary->>fixture_id", [
-        "harbor-pack-canonical",
-        "harbor-pack-harmless",
-      ])
-      .neq("status", "superseded");
-    failDatabase(error, "supersede fixture datasets");
+    await supersedeFixtureDatasets(client, orgId);
   }
   return insert(client, "datasets", {
     org_id: orgId,
@@ -587,6 +578,98 @@ async function ensureSupplierItem(
   }
 }
 
+async function closeDemoCases(
+  client: ReturnType<typeof createServiceClient>,
+  orgId: string,
+  cases: Row[],
+  now: Date,
+  reason: string,
+): Promise<void> {
+  for (const caseRow of cases) {
+    const { error } = await client.from("cases").update({
+      phase: "closed",
+      closed_outcome: "cancelled",
+      closed_reason: reason,
+      row_version: caseRow.row_version + 1,
+      updated_at: now.toISOString(),
+    }).eq("org_id", orgId).eq("id", caseRow.id);
+    failDatabase(error, "close prior demo case");
+    await insert(client, "audit_events", {
+      id: stableId(`harbor-pack-reset:${caseRow.id}:${caseRow.row_version + 1}`),
+      org_id: orgId,
+      actor_type: "system",
+      actor_id: "harbor-pack-loader",
+      case_id: caseRow.id,
+      entity_type: "case",
+      entity_id: caseRow.id,
+      event_name: "demo.reset",
+      previous_version: caseRow.row_version,
+      new_version: caseRow.row_version + 1,
+      reason,
+      occurred_at: HARBOR_PACK_FIXTURE_CLOCK,
+    });
+  }
+}
+
+async function supersedeFixtureDatasets(
+  client: ReturnType<typeof createServiceClient>,
+  orgId: string,
+): Promise<void> {
+  const { error } = await client.from("datasets")
+    .update({ status: "superseded", updated_at: HARBOR_PACK_FIXTURE_CLOCK })
+    .eq("org_id", orgId)
+    .eq("source_type", "fixture")
+    .in("validation_summary->>fixture_id", [
+      "harbor-pack-canonical",
+      "harbor-pack-harmless",
+    ])
+    .neq("status", "superseded");
+  failDatabase(error, "supersede fixture datasets");
+}
+
+const DEMO_SKUS = ["CARTON-302015", "BUDGET-BOX-ALT"];
+const DEMO_SUPPLIERS = ["Bay Carton", "North Packaging", "Budget Box", "Quick Pack"];
+
+/**
+ * Takes the workspace out of demo data. Assessments and audit rows are immutable,
+ * so this retires the demo instead of deleting it: open demo cases close as
+ * cancelled, fixture datasets are superseded, demo suppliers are blocked and
+ * PO-1042 is cancelled. Loading a scenario again restores all of it.
+ */
+export async function clearHarborPack(input: {
+  orgId: string;
+  client?: ReturnType<typeof createServiceClient>;
+}): Promise<{ closed_cases: number }> {
+  if (!input.orgId) throw new QueryError("invalid_org", 422, "Organization is required");
+  const client = input.client ?? (await import("@/lib/db/service")).createServiceClient();
+  const items = await result(
+    client.from("items").select("id").eq("org_id", input.orgId).in("sku", DEMO_SKUS),
+    "read demo items",
+  ) as Row[];
+  const openCases = items.length
+    ? await result(
+        client.from("cases").select("*")
+          .eq("org_id", input.orgId)
+          .in("item_id", items.map((item) => item.id))
+          .neq("phase", "closed"),
+        "read demo cases",
+      ) as Row[]
+    : [];
+  await closeDemoCases(client, input.orgId, openCases, new Date(), "Demo data cleared");
+  await supersedeFixtureDatasets(client, input.orgId);
+  const { error: supplierError } = await client.from("suppliers")
+    .update({ purchasing_status: "blocked" })
+    .eq("org_id", input.orgId)
+    .in("name", DEMO_SUPPLIERS);
+  failDatabase(supplierError, "block demo suppliers");
+  const { error: poError } = await client.from("purchase_orders")
+    .update({ status: "cancelled" })
+    .eq("org_id", input.orgId)
+    .eq("external_id", "PO-1042");
+  failDatabase(poError, "cancel demo purchase order");
+  return { closed_cases: openCases.length };
+}
+
 async function ensureCase(
   client: ReturnType<typeof createServiceClient>,
   orgId: string,
@@ -616,32 +699,7 @@ async function ensureCase(
     if (assessment?.source_versions?.fixture_id === fixtureId) return caseRow;
     throw new QueryError("active_case_exists", 409, "Another active case already exists for this item and location");
   }
-  if (reset) {
-    for (const caseRow of activeCases) {
-      const { error } = await client.from("cases").update({
-        phase: "closed",
-        closed_outcome: "cancelled",
-        closed_reason: "Demo reset",
-        row_version: caseRow.row_version + 1,
-        updated_at: now.toISOString(),
-      }).eq("org_id", orgId).eq("id", caseRow.id);
-      failDatabase(error, "close prior demo case");
-      await insert(client, "audit_events", {
-        id: stableId(`harbor-pack-reset:${caseRow.id}:${caseRow.row_version + 1}`),
-        org_id: orgId,
-        actor_type: "system",
-        actor_id: "harbor-pack-loader",
-        case_id: caseRow.id,
-        entity_type: "case",
-        entity_id: caseRow.id,
-        event_name: "demo.reset",
-        previous_version: caseRow.row_version,
-        new_version: caseRow.row_version + 1,
-        reason: "Demo reset",
-        occurred_at: HARBOR_PACK_FIXTURE_CLOCK,
-      });
-    }
-  }
+  if (reset) await closeDemoCases(client, orgId, activeCases, now, "Demo reset");
   const definition = HARBOR_PACK_FIXTURES[fixtureId];
   return insert(client, "cases", {
     org_id: orgId,
