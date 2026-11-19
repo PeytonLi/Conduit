@@ -38,7 +38,15 @@ export async function runConnectionSync(
     });
     await record({ error_code: receipts.failed > 0 ? "receipt_sync_partial" : null, sync_cursor: receipts.cursor });
     return { status: "synced", snapshot, receipts };
-  } catch {
+  } catch (error) {
+    // Credentials never reach error messages; the provider's reason is needed to diagnose a failed sync.
+    console.error("business sync failed", {
+      provider: resolved.connection.provider,
+      connection_id: input.connectionId,
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      code: (error as { code?: unknown })?.code,
+    });
     await record({ error_code: "sync_failed" });
     return { status: "failed", errorCode: "sync_failed" };
   }
