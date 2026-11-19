@@ -15,6 +15,7 @@ import { voiceStaleCallSweep } from "./voice-call";
 import { reassessAfterSupplierCallFunction } from "./supplier-call-reassess";
 import { expireEvidenceSources } from "./evidence-retention.inngest";
 import { businessSyncRequested, businessSyncScheduled } from "./business-sync.inngest";
+import { businessShortageScan } from "./shortage-scan";
 
 import { caseAssessmentFunction } from "./case-assessment";
 import { caseRecoveryFunction } from "./case-recovery";
@@ -37,5 +38,6 @@ export const functions: InngestFunction.Any[] = [
   expireEvidenceSources,
   businessSyncRequested,
   businessSyncScheduled,
+  businessShortageScan,
 ];
 export { inngest };
