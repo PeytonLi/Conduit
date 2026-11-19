@@ -21,6 +21,24 @@ function isDemoablePhone(address: string): boolean {
   return true;
 }
 
+const NO_ORDER_MESSAGE =
+  "No open case has a purchase order to call about. Load a Harbor Pack demo scenario first, then place the call.";
+
+async function casesWithOrderLines(
+  client: Awaited<ReturnType<typeof queryClient>>,
+  orgId: string,
+  caseIds: string[],
+): Promise<Set<string>> {
+  if (caseIds.length === 0) return new Set();
+  const { data, error } = await client
+    .from("case_order_lines")
+    .select("case_id")
+    .eq("org_id", orgId)
+    .in("case_id", caseIds);
+  if (error) throw new QueryError("query_failed", 503, "Cases are temporarily unavailable");
+  return new Set((data ?? []).map((row) => String(row.case_id)));
+}
+
 export async function placeDemoLiveCall(
   deps: DispatcherDeps,
   context: QueryContext,
@@ -68,6 +86,9 @@ export async function placeDemoLiveCall(
     if (caseRow.phase === "closed" || caseRow.run_control !== "active") {
       throw new QueryError("case_not_active", 409, "Choose an active open case for the demo call");
     }
+    if (!(await casesWithOrderLines(client, context.orgId, [caseRow.id])).has(caseRow.id)) {
+      throw new QueryError("case_without_order", 409, NO_ORDER_MESSAGE);
+    }
     caseId = caseRow.id;
   } else {
     const { data: cases, error } = await client
@@ -77,20 +98,19 @@ export async function placeDemoLiveCall(
       .neq("phase", "closed")
       .eq("run_control", "active")
       .order("updated_at", { ascending: false })
-      .limit(5);
+      .limit(20);
     if (error) {
       throw new QueryError("query_failed", 503, "Cases are temporarily unavailable");
     }
+    // The call brief names a purchase order; a case without one fails before dialing.
+    const withOrders = await casesWithOrderLines(client, context.orgId, (cases ?? []).map((row) => row.id));
+    const callable = (cases ?? []).filter((row) => withOrders.has(row.id));
     const preferred =
-      cases?.find((row) =>
+      callable.find((row) =>
         ["recovering", "awaiting_supplier", "assessing", "awaiting_approval"].includes(row.phase),
-      ) ?? cases?.[0];
+      ) ?? callable[0];
     if (!preferred) {
-      throw new QueryError(
-        "case_not_found",
-        404,
-        "Load a Harbor Pack demo scenario first, then place the call",
-      );
+      throw new QueryError("case_not_found", 404, NO_ORDER_MESSAGE);
     }
     caseId = preferred.id;
   }

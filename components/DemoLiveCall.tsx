@@ -42,6 +42,20 @@ export function DemoLiveCall({ disabled }: { disabled: boolean }) {
       }
       key.current = null;
       const result = envelope.data;
+      setMessage(`Starting the call to ${result.masked_phone}…`);
+      // The call is dispatched in the background; report whether it actually dialed.
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const status = await fetch(`/api/v1/actions/${result.action_id}`)
+          .then((r) => r.json())
+          .catch(() => null) as { data?: { action?: { state?: string; outcome?: { safe_summary?: string } } } } | null;
+        const action = status?.data?.action;
+        if (action?.state === "failed" || action?.state === "cancelled") {
+          setMessage(`The call was not placed: ${action.outcome?.safe_summary ?? "it failed before dialing."}`);
+          return;
+        }
+        if (action?.state && !["prepared", "dispatching"].includes(action.state)) break;
+      }
       setMessage(
         `Calling ${result.masked_phone}. Answer that phone and record. Case ${result.case_id.slice(0, 8)}… · action ${result.action_id.slice(0, 8)}…`,
       );
