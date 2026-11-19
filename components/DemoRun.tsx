@@ -2,11 +2,17 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { postJson, workspaceErrorMessage } from "./client-api";
+import { postJson, WorkspaceApiError, workspaceErrorMessage } from "./client-api";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
 import { CheckboxField, SelectField } from "./ui/Field";
 import styles from "./demo-run.module.css";
+
+const demoErrors: Record<string, string> = {
+  business_data_active:
+    "A business system or file import is supplying this organization's data, and demo data would replace it. Disconnect the business system on Business data first, or run demos in a separate organization.",
+  active_case_exists: "Another open case already covers the demo item. Tick “Reset existing demo data first” and try again.",
+};
 
 export function DemoRun({ disabled }: { disabled: boolean }) {
   const router = useRouter();
@@ -30,7 +36,9 @@ export function DemoRun({ disabled }: { disabled: boolean }) {
       key.current = null;
       setMessage(`Demo scenario loaded${result.case_id ? `: case ${result.case_id}` : ""}.`);
     } catch (error) {
-      setMessage(workspaceErrorMessage(error));
+      setMessage(error instanceof WorkspaceApiError && demoErrors[error.code]
+        ? demoErrors[error.code]
+        : workspaceErrorMessage(error));
     } finally {
       setBusy(false);
     }

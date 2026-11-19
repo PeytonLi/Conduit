@@ -37,6 +37,11 @@ export function errorResponse(error: unknown): Response {
       error.status >= 500 || error.code === "idempotency_in_progress",
     );
   }
+  // Unexpected failures would otherwise vanish behind the generic 500; log enough to diagnose them.
+  console.error("request failed", {
+    name: error instanceof Error ? error.name : typeof error,
+    message: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+  });
   return fail("internal_error", "The request could not be completed", 500, true);
 }
 

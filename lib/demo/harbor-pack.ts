@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { createServiceClient } from "@/lib/db/service";
 import { QueryError } from "@/lib/db/queries/client";
+import { datasetSourceName } from "@/lib/db/queries/business-data";
 import {
   buildHarborPackAssessmentProjection,
   HARBOR_PACK_FIXTURE_CLOCK,
@@ -1392,6 +1393,29 @@ export async function loadHarborPack(
   if (!organization) throw new QueryError("organization_not_found", 404, "Organization not found");
   if (organization.environment_mode === "live") {
     throw new QueryError("demo_disabled", 409, "Demo data cannot be loaded in a live organization");
+  }
+  // One active dataset per org: demo data must not silently replace a business system's or an import's data.
+  const active = await maybeOne(
+    client,
+    "datasets",
+    (query) => query.eq("org_id", input.orgId).eq("status", "active").neq("source_type", "fixture"),
+  );
+  const connection = active?.source_connection_id
+    ? await maybeOne(client, "connections", (query) => query.eq("org_id", input.orgId).eq("id", active.source_connection_id))
+    : null;
+  if (active && connection?.status === "disconnected") {
+    // Leftover data from a business system that is no longer connected: the demo may replace it.
+    const { error } = await client.from("datasets")
+      .update({ status: "superseded", updated_at: new Date().toISOString() })
+      .eq("org_id", input.orgId).eq("id", active.id);
+    failDatabase(error, "supersede disconnected business data");
+  } else if (active) {
+    const source = datasetSourceName(active.source_type, active.validation_summary) ?? "business";
+    throw new QueryError(
+      "business_data_active",
+      409,
+      `${source} data is active. Disconnect it on Business data (or use a separate demo organization) to run a demo scenario.`,
+    );
   }
   const fixtureNow = new Date(HARBOR_PACK_FIXTURE_CLOCK);
   const hash = await fixtureHash();
