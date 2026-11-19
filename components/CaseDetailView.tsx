@@ -320,6 +320,52 @@ function SupplierOptionTable({
   );
 }
 
+function formatCallClock(seconds: number | null): string {
+  if (seconds === null) return "";
+  const whole = Math.max(0, Math.round(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+function CallDetails({ call, timeZone }: { call: TimelineEntry; timeZone: string }) {
+  const outcome = call.call_outcome ? humanLabel("callOutcome", call.call_outcome) : timelineStatusLabel(call.status);
+  const who = [call.call?.contact_name, call.call?.supplier_name].filter(Boolean).join(", ");
+  const duration = call.call?.duration_seconds;
+  const supplierLabel = call.call?.contact_name ?? "Supplier";
+  return (
+    <details className={styles.callDetails}>
+      <summary>
+        Phone call{who ? ` with ${who}` : ""} · {formatDateTime(call.at, timeZone) ?? "Time unavailable"} · {outcome}
+        {duration ? ` · ${formatCallClock(duration)}` : ""}
+      </summary>
+      {call.call?.summary && (
+        <div className={styles.callSummary}>
+          <h3>Summary</h3>
+          <p>{call.call.summary}</p>
+          <p className={styles.callNote}>Written by the voice provider. Prices and dates are provisional until confirmed in writing.</p>
+        </div>
+      )}
+      <h3>Transcript</h3>
+      {call.call?.transcript?.length ? (
+        <ol className={styles.transcript}>
+          {call.call.transcript.map((turn, index) => (
+            <li className={turn.role === "supplier" ? styles.turnSupplier : styles.turnAgent} key={index}>
+              <span className={styles.turnMeta}>
+                {turn.role === "supplier" ? supplierLabel : "Conduit agent"}
+                {turn.at_seconds !== null && ` · ${formatCallClock(turn.at_seconds)}`}
+              </span>
+              <p>{turn.message}</p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className={styles.callNote}>
+          {call.call?.transcript ? "Nobody spoke on this call." : "No transcript is available for this call."}
+        </p>
+      )}
+    </details>
+  );
+}
+
 function SupplierContact({
   timeline,
   detail,
@@ -340,11 +386,7 @@ function SupplierContact({
       {callActions.length ? (
         <ul>{callActions.map((call) => (
           <li key={call.id}>
-            Phone call · {formatDateTime(call.at, detail.case.location.timezone) ?? "Time unavailable"} · {
-              call.call_outcome
-                ? humanLabel("callOutcome", call.call_outcome)
-                : timelineStatusLabel(call.status)
-            }
+            <CallDetails call={call} timeZone={detail.case.location.timezone} />
           </li>
         ))}</ul>
       ) : <p>No calls for this case.</p>}

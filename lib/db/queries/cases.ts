@@ -18,6 +18,7 @@ import {
 } from "./derive";
 import { formatDateTime, formatQuantity } from "./format";
 import { datasetSourceName } from "./business-data";
+import { loadCallDetails, type CallDetail } from "@/lib/db/call-transcripts";
 import { QueryError, type QueryContext, queryClient } from "./client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { caseEvaluationTime } from "./clock";
@@ -253,6 +254,8 @@ export interface TimelineEntry {
     | "control";
   title: string;
   call_outcome?: string | null;
+  /** Supplier call details (who, how long, summary, transcript) for call entries. */
+  call?: CallDetail | null;
   actor: { type: string; label: string };
   status: "intended" | "submitted" | "confirmed" | "failed" | "unknown" | "info";
   action_ref: string | null;
@@ -1237,12 +1240,15 @@ export async function getCaseTimeline(
   const callActionIds = actionRows
     .filter((action) => action.kind === "supplier_call")
     .map((action) => action.id);
-  const callOutcomeRows = callActionIds.length
-    ? await selectRows(
-        createServiceClient().from("voice_call_outcomes").select("action_id,outcome")
-          .eq("org_id", context.orgId).in("action_id", callActionIds),
-      )
-    : [];
+  const [callOutcomeRows, callDetails] = await Promise.all([
+    callActionIds.length
+      ? selectRows(
+          createServiceClient().from("voice_call_outcomes").select("action_id,outcome")
+            .eq("org_id", context.orgId).in("action_id", callActionIds),
+        )
+      : Promise.resolve([]),
+    loadCallDetails(context.orgId, callActionIds.map(String)),
+  ]);
   const callOutcomes = new Map(
     callOutcomeRows.map((outcome) => [String(outcome.action_id), String(outcome.outcome)]),
   );
@@ -1322,6 +1328,7 @@ export async function getCaseTimeline(
       group: action.kind === "supplier_call" ? "call_outcome" : "request_sent",
       title: humanLabel("actionKind", action.kind),
       call_outcome: callOutcomes.get(String(action.id)) ?? null,
+      call: callDetails.get(String(action.id)) ?? null,
       actor: { type: "system", label: actorLabel("system", action.mode === "replay") },
       status,
       action_ref: action.id,

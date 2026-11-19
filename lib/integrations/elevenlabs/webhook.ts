@@ -8,6 +8,7 @@ import {
   type NormalizedCallOutcome,
 } from "./outcomes";
 import { verifyElevenLabsSignature } from "./signature";
+import { extractTranscript } from "./transcript";
 
 export interface ElevenLabsWebhookDeps {
   store: VoiceStore;
@@ -119,5 +120,9 @@ export async function handleElevenLabsWebhook(
     return { status: 200, body: { ok: true, status: "duplicate", receipt_id: result.receipt_id } };
   }
   if (result.status === "quarantined") return { status: 200, body: { ok: true, status: "quarantined" } };
+  if (type === "post_call_transcription" && deps.store.saveTranscript) {
+    // Best effort: the outcome is already recorded; a missing transcript is refetched when the case is viewed.
+    await deps.store.saveTranscript(conversationId, extractTranscript(data)).catch(() => undefined);
+  }
   return { status: 200, body: { ok: true, status: "recorded", receipt_id: result.receipt_id, outcome: outcome.outcome } };
 }

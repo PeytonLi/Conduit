@@ -622,6 +622,65 @@
   color: var(--muted, var(--color-muted));
 }
 
+.callDetails {
+  padding: var(--space-2, 8px) 0;
+}
+
+.callDetails > summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.callDetails h3 {
+  margin: var(--space-3, 12px) 0 var(--space-2, 8px);
+  font-size: var(--text-sm, 0.875rem);
+}
+
+.callSummary p {
+  margin: 0 0 var(--space-2, 8px);
+  line-height: 1.55;
+}
+
+.callNote {
+  color: var(--muted, var(--color-muted));
+  font-size: var(--text-sm, 0.875rem);
+}
+
+.transcript {
+  display: grid;
+  gap: var(--space-2, 8px);
+  max-height: 480px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.transcript li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.transcript p {
+  margin: 2px 0 0;
+  line-height: 1.5;
+}
+
+.turnAgent {
+  background: var(--color-neutral-50);
+}
+
+.turnSupplier {
+  background: var(--color-brand-50);
+}
+
+.turnMeta {
+  color: var(--muted, var(--color-muted));
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 600;
+}
+
 .evidenceList {
   min-width: 0;
 }

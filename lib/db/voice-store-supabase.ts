@@ -67,6 +67,12 @@ export function createSupabaseVoiceStore(client: SupabaseClient): VoiceStore {
     callbackLink: (conversationId, actionHint) =>
       rpc(client, "voice_callback_link", { p_conversation_id: conversationId, p_action_hint: actionHint }),
     recordCallback: (input) => rpc(client, "voice_record_callback", { p: input }),
+    saveTranscript: async (conversationId, transcript) => {
+      const { error } = await client.from("call_sessions")
+        .update({ transcript: transcript.turns, transcript_summary: transcript.summary })
+        .eq("provider_conversation_id", conversationId);
+      if (error) throw new Error(`voice store save transcript failed: ${error.code ?? "unknown"}`);
+    },
     callOutcome: (orgId, actionId) => rpc(client, "voice_call_outcome", { p_org_id: orgId, p_action_id: actionId }),
     callSession: (orgId, actionId) => rpc(client, "voice_call_session", { p_org_id: orgId, p_action_id: actionId }),
     flagStaleCalls: (now, graceSeconds) =>

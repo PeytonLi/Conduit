@@ -1,4 +1,5 @@
 import type { CallOutcome, CallToolSummary, NormalizedCallOutcome, ProcurementResult } from "@/lib/integrations/elevenlabs/outcomes";
+import type { CallTranscriptTurn } from "@/lib/integrations/elevenlabs/transcript";
 
 /** Persistence seam for F4 voice. The Supabase implementation calls the voice_* SQL functions. */
 
@@ -183,6 +184,11 @@ export interface VoiceStore {
   recordProvisionalOffer(input: ProvisionalOfferInput): Promise<ProvisionalOfferResult>;
   callbackLink(conversationId: string, actionHint: string | null): Promise<CallbackLink | null>;
   recordCallback(input: CallbackRecordInput): Promise<CallbackRecordResult>;
+  /** Stores the turn-by-turn transcript on the call session for this provider conversation. */
+  saveTranscript?(
+    conversationId: string,
+    transcript: { turns: CallTranscriptTurn[]; summary: string | null },
+  ): Promise<void>;
   callOutcome(orgId: string, actionId: string): Promise<StoredCallOutcome | null>;
   callSession(orgId: string, actionId: string): Promise<StoredCallSession | null>;
   flagStaleCalls(now: Date, graceSeconds: number): Promise<number>;
