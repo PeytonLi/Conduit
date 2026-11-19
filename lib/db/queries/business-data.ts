@@ -1,3 +1,4 @@
+import { erpProviderLabels, isErpProvider } from "@/lib/integrations/business/live/registry";
 import { QueryError, type QueryContext, queryClient } from "./client";
 
 // PostgREST projections combine several dynamic tables.
@@ -11,6 +12,7 @@ export interface DatasetView {
   imported_at: string;
   status: string;
   label: "Replay" | "Imported" | "Live";
+  source_name: string | null;
   row_version: number;
 }
 
@@ -82,6 +84,15 @@ function fail(error: { message: string } | null): void {
   if (error) {
     throw new QueryError("query_failed", 503, "Business data is temporarily unavailable");
   }
+}
+
+/** Human name of where a dataset came from: the connected system, a file import, or demo data. */
+export function datasetSourceName(sourceType: string | null | undefined, validationSummary: unknown): string | null {
+  if (sourceType === "fixture") return "Demo data";
+  if (sourceType === "csv") return "File import";
+  const provider = (validationSummary as { provider?: unknown } | null)?.provider;
+  if (isErpProvider(provider)) return erpProviderLabels[provider];
+  return sourceType ? "Business system" : null;
 }
 
 function sourceLabel(sourceType: string): DatasetView["label"] {
@@ -190,6 +201,7 @@ export async function getBusinessData(context: QueryContext): Promise<BusinessDa
       imported_at: dataset.imported_at,
       status: dataset.status,
       label: sourceLabel(dataset.source_type),
+      source_name: datasetSourceName(dataset.source_type, dataset.validation_summary),
       row_version: dataset.row_version,
     })),
     inventory: inventoryRows.map((row) => {

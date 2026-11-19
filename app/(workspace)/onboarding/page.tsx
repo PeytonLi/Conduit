@@ -40,10 +40,10 @@ export default async function OnboardingPage() {
       complete: completion.gmail,
     },
     {
-      label: "Load business data",
-      description: "Import inventory, demand, purchase orders, and supplier information.",
+      label: "Connect your business system",
+      description: "Connect Shopify, QuickBooks, Zoho Inventory or Odoo so Conduit pulls stock, orders and purchase orders automatically. Or import a CSV file.",
       href: "/business-data",
-      linkLabel: "Open business data",
+      linkLabel: "Connect business data",
       complete: completion.businessData,
     },
     {

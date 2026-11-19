@@ -17,6 +17,7 @@ import {
   type Severity,
 } from "./derive";
 import { formatDateTime, formatQuantity } from "./format";
+import { datasetSourceName } from "./business-data";
 import { QueryError, type QueryContext, queryClient } from "./client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { caseEvaluationTime } from "./clock";
@@ -50,6 +51,8 @@ export interface CaseSummary {
   next_action: { label: string; due_at: string | null; kind: string };
   assignee: { user_id: string; email: string | null } | null;
   source_as_of: string | null;
+  /** Where the assessed stock and orders came from, e.g. "Shopify" or "File import". */
+  data_source: string | null;
   data_stale: boolean;
   last_business_update_at: string;
   data_label: "Replay" | "Imported" | "Live" | null;
@@ -487,6 +490,7 @@ function summarize(row: Row, data: CaseData, role: MembershipRole, now: Date): C
         }
       : null,
     source_as_of: sourceAsOf,
+    data_source: datasetSourceName(dataSourceType, dataset?.validation_summary),
     data_stale: isDataStale(
       sourceAsOf,
       data.organizations.environment_mode,

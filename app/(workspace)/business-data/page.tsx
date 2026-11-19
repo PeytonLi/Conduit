@@ -8,24 +8,74 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { getOrganization } from "@/lib/db/queries/organization";
+import { listConnections } from "@/lib/db/queries/connections";
+import { availableBusinessSystems } from "@/lib/integrations/business/live/availability";
+import { erpProviderLabels, isErpProvider } from "@/lib/integrations/business/live/registry";
+import { ConnectBusinessSystem, ConnectedBusinessSystemActions } from "@/components/BusinessSystemControls";
+import { StatusBadge } from "@/components/StatusBadge";
+import { parseServerEnv } from "@/lib/env";
 import styles from "./business-data.module.css";
 
 export default async function BusinessDataPage() {
   const membership = await requireMembership();
-  const [data, organization] = await Promise.all([
+  const [data, organization, connections] = await Promise.all([
     getBusinessData(membership),
     getOrganization(membership),
+    listConnections(membership),
   ]);
+  const replay = parseServerEnv(process.env).APP_ENV === "replay";
+  const systems = availableBusinessSystems(process.env);
+  const connected = connections.connections.find(
+    (connection) => isErpProvider(connection.provider) && ["healthy", "degraded"].includes(connection.status),
+  );
+  const connectedLabel = connected && isErpProvider(connected.provider) ? erpProviderLabels[connected.provider] : null;
+  const isOwner = membership.role === "owner";
   return (
     <div className={styles.page}>
       <PageHeader description="Manage the source data behind inventory, demand, and recovery decisions." title="Business data" />
+      {!replay && (
+        <section aria-labelledby="source-heading">
+          <h2 id="source-heading">Business system</h2>
+          {connected && connectedLabel ? (
+            <Card className={styles.sourceCard}>
+              <div className={styles.sourceHeading}>
+                <strong>{connectedLabel}</strong>
+                <StatusBadge tone={connected.status === "healthy" ? "success" : "warning"}>
+                  {connected.status === "healthy" ? "Connected" : "Connected, needs attention"}
+                </StatusBadge>
+              </div>
+              <p className={styles.sourceNote}>
+                Conduit reads stock, open orders and purchase orders from {connectedLabel} every 6 hours and before any
+                change it writes back. Last synced {formatDateTime(connected.last_success_at, organization.timezone) ?? "not yet — the first sync is running"}.
+              </p>
+              {connected.last_error_message && <p className={styles.sourceError}>{connected.last_error_message}</p>}
+              {isOwner && <ConnectedBusinessSystemActions label={connectedLabel} provider={connected.provider} />}
+            </Card>
+          ) : systems.length ? (
+            <Card className={styles.sourceCard}>
+              <p className={styles.sourceNote}>
+                Connect the system where you track stock and purchase orders. Conduit pulls inventory, open orders and
+                purchase orders automatically and keeps them in sync, so no file import is needed.
+              </p>
+              {isOwner ? (
+                <div className={styles.sourceOptions}>
+                  {systems.map((system) => (
+                    <ConnectBusinessSystem connectPath={system.connectPath} key={system.provider} label={system.label} method={system.method} />
+                  ))}
+                </div>
+              ) : <p className={styles.sourceNote}>Ask an owner to connect your business system.</p>}
+              <p className={styles.sourceNote}>Not on one of these? Import a CSV file below instead.</p>
+            </Card>
+          ) : null}
+        </section>
+      )}
       {data.datasets.length > 0 && (
         <section aria-labelledby="datasets-heading">
           <h2 id="datasets-heading">Active datasets</h2>
           <ul className={styles.datasetGrid}>{data.datasets.map((dataset) => (
             <li key={dataset.id}>
               <Card className={styles.datasetCard}>
-                <strong>{dataset.label} · {humanLabel("evidenceSourceType", dataset.source_type)}</strong>
+                <strong>{dataset.source_name ?? `${dataset.label} · ${humanLabel("evidenceSourceType", dataset.source_type)}`}</strong>
                 {" — Source data as of "}
                 {formatDateTime(dataset.source_as_of, organization.timezone) ?? "Not provided"}
                 {dataset.status !== "active" && ` · ${humanLabel("datasetStatus", dataset.status)}`}

@@ -155,7 +155,7 @@ function ImpactSummary({
   const source = evidence.find((entry) => /inventory|receipt|stock/i.test(entry.purpose));
   const sourceTimes = [
     detail.case.source_as_of
-      ? `Source data as of ${formatDateTime(detail.case.source_as_of, detail.case.location.timezone)}`
+      ? `Stock and orders${detail.case.data_source ? ` from ${detail.case.data_source}` : ""} as of ${formatDateTime(detail.case.source_as_of, detail.case.location.timezone)}`
       : null,
     detail.assessment?.assessed_at
       ? `Assessed ${formatDateTime(detail.assessment.assessed_at, detail.case.location.timezone)}`

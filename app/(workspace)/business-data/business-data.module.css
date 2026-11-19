@@ -56,3 +56,34 @@
 .table table {
   min-width: 760px;
 }
+
+.sourceCard {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sourceHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sourceNote,
+.sourceError {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.sourceError {
+  color: var(--color-danger, #b42318);
+}
+
+.sourceOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
