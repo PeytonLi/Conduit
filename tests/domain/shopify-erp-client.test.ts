@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { describeErpClientContract } from "@/lib/integrations/business/live/contract";
 import { shopifyProvider } from "@/lib/integrations/business/live/shopify";
 import { changeStamp } from "@/lib/integrations/business/live/shopify/client";
+import { createShopifyGraphql } from "@/lib/integrations/business/live/shopify/graphql";
+import { z } from "zod";
 import { createShopifyEmulator } from "../fixtures/shopify-emulator";
 
 const credentials = {
@@ -199,10 +201,45 @@ describe("Shopify ErpClient (mocked Admin GraphQL)", () => {
   });
 
   it("throws on GraphQL errors such as throttling instead of returning data", async () => {
-    const client = shopifyProvider.createClient(credentials, {
-      fetch: (async () => Response.json({ errors: [{ message: "Throttled", extensions: { code: "THROTTLED" } }] })) as typeof fetch,
-    });
-    await expect(client.readSnapshot()).rejects.toMatchObject({ code: "THROTTLED", retryable: true });
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const client = shopifyProvider.createClient(credentials, {
+        fetch: (async () => {
+          calls += 1;
+          return Response.json({ errors: [{ message: "Throttled", extensions: { code: "THROTTLED" } }] });
+        }) as typeof fetch,
+      });
+      const result = expect(client.readSnapshot()).rejects.toMatchObject({ code: "THROTTLED", retryable: true });
+      await vi.advanceTimersByTimeAsync(20_000);
+      await result;
+      expect(calls).toBe(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a throttled query and succeeds once Shopify has capacity", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const graphql = createShopifyGraphql({
+        shop: "example.myshopify.com",
+        accessToken: "token",
+        fetch: (async () => {
+          calls += 1;
+          return calls === 1
+            ? Response.json({ errors: [{ message: "Throttled", extensions: { code: "THROTTLED" } }] })
+            : Response.json({ data: { ok: true } });
+        }) as typeof fetch,
+      });
+      const result = graphql("Probe", "query Probe { shop { id } }", {}, z.object({ ok: z.boolean() }));
+      await vi.advanceTimersByTimeAsync(2_000);
+      await expect(result).resolves.toEqual({ ok: true });
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lists accepted shipment quantities as receipts since a timestamp", async () => {

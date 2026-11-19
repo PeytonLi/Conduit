@@ -34,7 +34,7 @@ export function createShopifyGraphql(input: { shop: string; accessToken: string;
   if (!isShopDomain(input.shop)) throw new ShopifyApiError("Invalid shop domain", "invalid_shop", false);
   const url = `https://${input.shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
   const doFetch = input.fetch ?? fetch;
-  return async (operationName, query, variables, schema) => {
+  const once = async <T>(operationName: string, query: string, variables: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> => {
     const response = await doFetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", "x-shopify-access-token": input.accessToken },
@@ -54,6 +54,18 @@ export function createShopifyGraphql(input: { shop: string; accessToken: string;
     }
     return schema.parse(body.data);
   };
+  return async (operationName, query, variables, schema) => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await once(operationName, query, variables, schema);
+      } catch (error) {
+        // Throttling refills within seconds; back off and retry instead of failing the whole sync.
+        const throttled = error instanceof ShopifyApiError && (error.code === "THROTTLED" || error.code === "http_429");
+        if (!throttled || attempt >= 5) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  };
 }
 
 const pageInfo = z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() });
@@ -62,6 +74,10 @@ const int = z.number().int();
 const nullableDate = z.string().datetime({ offset: true }).nullable().optional();
 const money = z.object({ amount: z.string(), currencyCode: z.string() }).nullable().optional();
 
+// Shopify rejects any query whose estimated cost exceeds 1000 points; nested connections multiply
+// (outer first x inner first), so outer pages stay small and pagination does the rest.
+// ponytail: nested lists are capped at 50 (inventory levels per item, line items per order or shipment)
+// and 5 shipments per transfer; stores beyond that need nested pagination.
 export const LOCATIONS_QUERY = `query ConduitLocations($after: String) {
   locations(first: 100, after: $after) { nodes { id name isActive } pageInfo { hasNextPage endCursor } }
 }`;
@@ -70,7 +86,7 @@ export const locationsSchema = z.object({
 });
 
 export const INVENTORY_ITEMS_QUERY = `query ConduitInventoryItems($after: String) {
-  inventoryItems(first: 50, after: $after) {
+  inventoryItems(first: 5, after: $after) {
     nodes {
       id sku tracked
       variant { displayName }
@@ -104,14 +120,14 @@ const TRANSFER_FIELDS = `fragment ConduitTransfer on InventoryTransfer {
   id name status referenceName
   origin { name location { id } }
   destination { name location { id } }
-  lineItems(first: 100) {
+  lineItems(first: 50) {
     nodes { id totalQuantity shippedQuantity processableQuantity pickedForShipmentQuantity inventoryItem { id unitCost { amount currencyCode } } }
   }
-  shipments(first: 100) {
+  shipments(first: 5) {
     nodes {
       id name status barcode dateReceived
       tracking { arrivesAt }
-      lineItems(first: 100) {
+      lineItems(first: 50) {
         nodes { id quantity acceptedQuantity rejectedQuantity canceledQuantity unreceivedQuantity inventoryItem { id } }
       }
     }
@@ -170,7 +186,7 @@ export type ShopifyTransfer = z.infer<typeof transferSchema>;
 export const TRANSFERS_QUERY = `${TRANSFER_FIELDS}
 query ConduitTransfers($after: String) {
   shop { currencyCode }
-  inventoryTransfers(first: 25, after: $after) { nodes { ...ConduitTransfer } pageInfo { hasNextPage endCursor } }
+  inventoryTransfers(first: 1, after: $after) { nodes { ...ConduitTransfer } pageInfo { hasNextPage endCursor } }
 }`;
 export const transfersSchema = z.object({
   shop: z.object({ currencyCode: z.string() }),
@@ -188,11 +204,11 @@ export const transferByIdSchema = z.object({
 });
 
 export const FULFILLMENT_ORDERS_QUERY = `query ConduitFulfillmentOrders($after: String) {
-  fulfillmentOrders(first: 50, after: $after) {
+  fulfillmentOrders(first: 5, after: $after) {
     nodes {
       id status fulfillBy fulfillAt orderProcessedAt
       assignedLocation { location { id } }
-      lineItems(first: 100) { nodes { id remainingQuantity inventoryItemId } }
+      lineItems(first: 50) { nodes { id remainingQuantity inventoryItemId } }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -281,7 +297,7 @@ export const shipmentCreateInTransitSchema = z.object({
 export async function paginate<T, N>(
   fetchPage: (after: string | null) => Promise<T>,
   select: (page: T) => { nodes: N[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } },
-  maxPages = 40,
+  maxPages = 2000,
 ): Promise<{ nodes: N[]; first: T }> {
   const nodes: N[] = [];
   let after: string | null = null;
