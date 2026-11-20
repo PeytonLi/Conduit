@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
@@ -13,11 +14,13 @@ export function DemoLiveCall({ disabled }: { disabled: boolean }) {
   const [purpose, setPurpose] = useState(DEFAULT_PURPOSE);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [caseId, setCaseId] = useState<string | null>(null);
   const key = useRef<{ intent: string; value: string } | null>(null);
 
   async function placeCall() {
     setBusy(true);
     setMessage("");
+    setCaseId(null);
     const intent = JSON.stringify({ purpose: purpose.trim() });
     if (key.current?.intent !== intent) key.current = { intent, value: crypto.randomUUID() };
     try {
@@ -57,8 +60,9 @@ export function DemoLiveCall({ disabled }: { disabled: boolean }) {
         if (action?.state && !["prepared", "dispatching"].includes(action.state)) break;
       }
       setMessage(
-        `Calling ${result.masked_phone}. Answer that phone and record. Case ${result.case_id.slice(0, 8)}… · action ${result.action_id.slice(0, 8)}…`,
+        `Calling ${result.masked_phone}. Answer that phone and record. The transcript appears on the case a few seconds after the call ends.`,
       );
+      setCaseId(result.case_id);
     } catch {
       setMessage("Couldn’t connect. The call was not started.");
     } finally {
@@ -87,6 +91,7 @@ export function DemoLiveCall({ disabled }: { disabled: boolean }) {
         {busy ? "Starting call…" : "Place live demo call"}
       </Button>
       {message && <p role="status">{message}</p>}
+      {caseId && <Link href={`/cases/${caseId}`}>Open case to see the call and transcript</Link>}
     </Card>
   );
 }
